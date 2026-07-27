@@ -15,7 +15,10 @@ import {
 } from "./domain/annotation";
 import { createMarkdownExtension } from "./editor/markdown-extension";
 import { PdfAdapter } from "./pdf/pdf-adapter";
-import { processReadingView } from "./reading/reading-renderer";
+import {
+  processReadingView,
+  refreshReadingMargins
+} from "./reading/reading-renderer";
 import {
   DEFAULT_SETTINGS,
   SidenSettings,
@@ -112,8 +115,11 @@ export default class SidenPlugin extends Plugin {
         );
       })
     );
-    this.registerDomEvent(document, "contextmenu", (event) =>
-      this.addPdfContextAction(event)
+    const pdfContextHandler = (event: MouseEvent) =>
+      this.addPdfContextAction(event);
+    document.addEventListener("contextmenu", pdfContextHandler, true);
+    this.register(() =>
+      document.removeEventListener("contextmenu", pdfContextHandler, true)
     );
     this.registerEvent(
       this.app.vault.on("rename", async (file, oldPath) => {
@@ -171,7 +177,15 @@ export default class SidenPlugin extends Plugin {
     }
     if (!leaf) return null;
     await this.app.workspace.revealLeaf(leaf);
+    this.refresh();
     return leaf.view instanceof SidenSidebarView ? leaf.view : null;
+  }
+
+  areMarginsSuppressed(): boolean {
+    return this.app.workspace.getLeavesOfType(SIDEN_VIEW_TYPE).some((leaf) => {
+      const element = leaf.view.containerEl;
+      return element.isConnected && element.getClientRects().length > 0;
+    });
   }
 
   async activateAnnotation(id: string): Promise<void> {
@@ -223,6 +237,7 @@ export default class SidenPlugin extends Plugin {
       cm?.dispatch({});
     });
     this.pdfAdapter?.renderVisibleHighlights();
+    refreshReadingMargins(this);
   }
 
   private beginMarkdownAnnotation(editor: Editor, view: MarkdownView): void {
@@ -287,11 +302,18 @@ export default class SidenPlugin extends Plugin {
   }
 
   private addPdfContextAction(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest(".pdf-viewer, .pdf-container")) return;
+    if (!this.pdfAdapter.isPdfContext(event.target)) return;
     const captured = this.pdfAdapter.captureSelection();
     if (!captured) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
     const menu = new Menu();
+    menu.addItem((item) =>
+      item
+        .setTitle("Copy selected text")
+        .setIcon("copy")
+        .onClick(() => void navigator.clipboard.writeText(captured.anchor.quote.exact))
+    );
     menu.addItem((item) =>
       item
         .setTitle("Add Siden annotation")

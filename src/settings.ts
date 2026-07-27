@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: SidenSettings = {
   showMargins: true,
   showResolved: false,
   marginSide: "auto",
-  marginWidth: 240,
+  marginWidth: 200,
   narrowPaneThreshold: 900,
   highlightColor: "#ffd54f",
   highlightOpacity: 0.35,

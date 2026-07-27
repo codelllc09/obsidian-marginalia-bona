@@ -35,10 +35,19 @@ export class PdfAdapter {
     const exact = selection.toString().trim();
     if (!exact) return null;
     const range = selection.getRangeAt(0);
-    const page = (range.commonAncestorContainer.parentElement ?? range.startContainer.parentElement)
-      ?.closest<HTMLElement>(".page[data-page-number]");
+    const commonElement =
+      range.commonAncestorContainer instanceof HTMLElement
+        ? range.commonAncestorContainer
+        : range.commonAncestorContainer.parentElement;
+    const startElement =
+      range.startContainer instanceof HTMLElement
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    const page = (commonElement ?? startElement)?.closest<HTMLElement>(
+      ".page[data-page-number], .pdf-page[data-page-number], [data-page-number]"
+    );
     if (!page) return null;
-    const pageNumber = Number(page.dataset.pageNumber);
+    const pageNumber = this.readPageNumber(page);
     if (!Number.isFinite(pageNumber)) return null;
     const pageRect = page.getBoundingClientRect();
     const rectangles: PdfRectangle[] = Array.from(range.getClientRects())
@@ -67,6 +76,17 @@ export class PdfAdapter {
         rectangles
       }
     };
+  }
+
+  isPdfContext(target: EventTarget | null): boolean {
+    return (
+      target instanceof HTMLElement &&
+      Boolean(
+        target.closest(
+          '[data-type="pdf"], .pdf-viewer, .pdf-viewer-container, .pdf-container, .pdf-embed, .pdf-page, .page[data-page-number]'
+        )
+      )
+    );
   }
 
   async navigate(annotation: Annotation): Promise<void> {
@@ -108,6 +128,15 @@ export class PdfAdapter {
 
   private observe(): void {
     this.observer?.observe(document.body, { childList: true, subtree: true });
+  }
+
+  private readPageNumber(page: HTMLElement): number {
+    const fromData = Number(page.dataset.pageNumber);
+    if (Number.isFinite(fromData) && fromData > 0) return fromData;
+    const labelled = page.getAttribute("aria-label")?.match(/\d+/)?.[0];
+    if (labelled) return Number(labelled);
+    const fromId = page.id.match(/(\d+)$/)?.[1];
+    return fromId ? Number(fromId) : Number.NaN;
   }
 
   private renderAnnotation(annotation: Annotation, activeId?: string): void {

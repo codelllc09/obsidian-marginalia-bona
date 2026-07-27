@@ -1,5 +1,5 @@
 :root {
-  --siden-margin-width: 240px;
+  --siden-margin-width: 200px;
   --siden-highlight-color: #ffd54f;
   --siden-highlight-opacity: 0.35;
 }
@@ -164,8 +164,37 @@
   font-size: var(--font-ui-small);
   padding: var(--size-4-2);
   text-align: start;
-  width: var(--siden-margin-width);
+  box-sizing: border-box;
+  height: fit-content;
+  max-height: min(24rem, 70vh);
+  max-width: var(--siden-available-width, var(--siden-margin-width));
+  min-width: min(72px, var(--siden-available-width, 72px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  width: min(
+    var(--siden-margin-width),
+    var(--siden-available-width, var(--siden-margin-width))
+  );
   z-index: var(--layer-popover);
+}
+
+.siden-margin-card *,
+.siden-margin-card .markdown-rendered {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.siden-margin-card pre,
+.siden-margin-card code {
+  max-width: 100%;
+  overflow-x: hidden;
+  white-space: pre-wrap;
 }
 
 .siden-margin-card:hover,
@@ -174,40 +203,40 @@
   outline: none;
 }
 
-.siden-margin-card-live {
-  margin-inline-start: var(--size-4-4);
-  position: absolute;
-  transform: translateY(-0.5em);
-}
-
-body[data-siden-margin-side="left"] .siden-margin-card-live {
-  right: calc(100% + var(--size-4-4));
-}
-
-body[data-siden-margin-side="right"] .siden-margin-card-live,
-body[data-siden-margin-side="auto"] .siden-margin-card-live {
-  left: calc(100% + var(--size-4-4));
-}
-
-.siden-reading-section {
+.cm-editor {
   position: relative;
 }
 
-.siden-reading-margin-layer {
+.siden-editor-margin-layer {
   inset: 0;
+  overflow: hidden;
   pointer-events: none;
   position: absolute;
+  z-index: var(--layer-popover);
 }
 
-.siden-margin-card-reading {
-  left: calc(100% + var(--size-4-4));
+.siden-editor-margin-layer .siden-margin-card {
   pointer-events: auto;
   position: absolute;
 }
 
-body[data-siden-margin-side="left"] .siden-margin-card-reading {
-  left: auto;
-  right: calc(100% + var(--size-4-4));
+.siden-reading-preview {
+  position: relative;
+}
+
+.siden-reading-margin-layer {
+  inset: 0 0 auto;
+  min-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+  z-index: var(--layer-popover);
+}
+
+.siden-margin-card-reading {
+  pointer-events: auto;
+  position: absolute;
 }
 
 .pdf-viewer .page,

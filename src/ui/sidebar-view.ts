@@ -44,6 +44,11 @@ export class SidenSidebarView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.render();
+    this.plugin.refresh();
+  }
+
+  async onClose(): Promise<void> {
+    this.plugin.refresh();
   }
 
   refresh(): void {
