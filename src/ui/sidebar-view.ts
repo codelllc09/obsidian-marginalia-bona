@@ -77,6 +77,10 @@ export class SidenSidebarView extends ItemView {
     const root = this.containerEl.children[1] as HTMLElement;
     root.empty();
     root.addClass("siden-sidebar");
+    root.toggleClass(
+      "siden-force-word-breaks",
+      this.plugin.settings.forceLongWordBreaks
+    );
 
     this.renderToolbar(root);
     if (this.draft) this.renderDraft(root);

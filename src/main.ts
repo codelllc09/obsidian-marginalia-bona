@@ -159,6 +159,7 @@ export default class SidenPlugin extends Plugin {
     document.body.style.removeProperty("--siden-margin-width");
     document.body.style.removeProperty("--siden-highlight-color");
     document.body.style.removeProperty("--siden-highlight-opacity");
+    delete document.body.dataset.sidenForceWordBreaks;
   }
 
   async updateSettings(changes: Partial<SidenSettings>): Promise<void> {
@@ -390,6 +391,9 @@ export default class SidenPlugin extends Plugin {
     document.body.dataset.sidenMarginSide = this.settings.marginSide;
     document.body.dataset.sidenNarrowThreshold = String(
       this.settings.narrowPaneThreshold
+    );
+    document.body.dataset.sidenForceWordBreaks = String(
+      this.settings.forceLongWordBreaks
     );
   }
 

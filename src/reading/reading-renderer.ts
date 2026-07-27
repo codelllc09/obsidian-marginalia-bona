@@ -249,12 +249,17 @@ function renderPreviewMargins(state: PreviewState): void {
 
   let nextTop = 6;
   for (const entry of entries) {
-    const card = layer.createEl("button", {
-      cls: "siden-margin-card siden-margin-card-reading",
+    const card = layer.createDiv({
+      cls: `siden-margin-card siden-margin-card-reading${
+        plugin.settings.forceLongWordBreaks
+          ? " siden-force-word-breaks"
+          : ""
+      }`,
       text: entry.annotation.body,
       attr: {
-        type: "button",
         "data-siden-id": entry.annotation.id,
+        tabindex: "0",
+        role: "button",
         "aria-label": `Open annotation: ${entry.annotation.body}`
       }
     });
@@ -265,6 +270,11 @@ function renderPreviewMargins(state: PreviewState): void {
     card.addEventListener("click", () =>
       void plugin.activateAnnotation(entry.annotation.id)
     );
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      void plugin.activateAnnotation(entry.annotation.id);
+    });
     nextTop = top + card.getBoundingClientRect().height + 8;
   }
 }

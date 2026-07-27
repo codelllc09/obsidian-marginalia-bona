@@ -5,22 +5,32 @@
 }
 
 .siden-sidebar {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   height: 100%;
   gap: var(--size-4-2);
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden !important;
   padding: var(--size-4-2);
+  width: 100%;
 }
 
 .siden-toolbar {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--size-4-2);
+  max-width: 100%;
+  min-width: 0;
 }
 
 .siden-toolbar button,
 .siden-toolbar select,
 .siden-search {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
   width: 100%;
 }
 
@@ -29,7 +39,11 @@
   flex: 1;
   flex-direction: column;
   gap: var(--size-4-2);
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden !important;
   overflow-y: auto;
+  width: 100%;
 }
 
 .siden-empty {
@@ -43,8 +57,14 @@
   border: 1px solid var(--background-modifier-border);
   border-inline-start: 3px solid var(--interactive-accent);
   border-radius: var(--radius-m);
+  box-sizing: border-box;
+  contain: inline-size;
   cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   padding: var(--size-4-3);
+  width: 100%;
 }
 
 .siden-card:hover,
@@ -68,6 +88,9 @@
   align-items: center;
   display: flex;
   gap: var(--size-4-2);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .siden-card-source {
@@ -75,6 +98,7 @@
   font-size: var(--font-ui-small);
   font-weight: var(--font-semibold);
   overflow: hidden;
+  min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -86,17 +110,68 @@
 }
 
 .siden-card-quote {
+  box-sizing: border-box;
   color: var(--text-muted);
   display: -webkit-box;
   font-size: var(--font-ui-small);
+  max-width: 100%;
+  min-width: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  overflow-x: hidden;
   overflow: hidden;
+  white-space: normal;
+  width: 100%;
+}
+
+.siden-card-body,
+.siden-card-body.markdown-rendered,
+.siden-card-body.markdown-rendered > * {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .siden-card-body > :first-child,
 .siden-margin-card .markdown-rendered > :first-child {
   margin-top: 0;
+}
+
+.siden-sidebar.siden-force-word-breaks .siden-card,
+.siden-sidebar.siden-force-word-breaks .siden-card *,
+.siden-sidebar.siden-force-word-breaks .siden-card-quote,
+.siden-sidebar.siden-force-word-breaks .siden-card-body {
+  hyphens: auto !important;
+  max-inline-size: 100% !important;
+  min-inline-size: 0 !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+  word-break: break-all !important;
+}
+
+.siden-sidebar .siden-card pre,
+.siden-sidebar .siden-card code {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden !important;
+  white-space: pre-wrap !important;
+}
+
+.siden-sidebar .siden-card table {
+  display: block;
+  max-width: 100%;
+  overflow-x: hidden;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.siden-sidebar .siden-card img,
+.siden-sidebar .siden-card video,
+.siden-sidebar .siden-card iframe,
+.siden-sidebar .siden-card svg {
+  height: auto;
+  max-width: 100%;
 }
 
 .siden-card-body > :last-child,
@@ -160,6 +235,7 @@
   border-radius: var(--radius-s);
   color: var(--text-normal);
   cursor: pointer;
+  display: block !important;
   font: inherit;
   font-size: var(--font-ui-small);
   padding: var(--size-4-2);
@@ -169,9 +245,9 @@
   max-height: min(24rem, 70vh);
   max-width: var(--siden-available-width, var(--siden-margin-width));
   min-width: min(72px, var(--siden-available-width, 72px));
+  min-inline-size: 0 !important;
   overflow-x: hidden;
   overflow-y: auto;
-  overflow-wrap: anywhere;
   white-space: normal;
   width: min(
     var(--siden-margin-width),
@@ -185,9 +261,7 @@
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
-  overflow-wrap: anywhere;
   white-space: normal;
-  word-break: break-word;
 }
 
 .siden-margin-card pre,
@@ -195,6 +269,17 @@
   max-width: 100%;
   overflow-x: hidden;
   white-space: pre-wrap;
+}
+
+.siden-margin-card.siden-force-word-breaks,
+.siden-margin-card.siden-force-word-breaks *,
+.siden-margin-card.siden-force-word-breaks .markdown-rendered {
+  hyphens: auto !important;
+  max-inline-size: 100% !important;
+  min-inline-size: 0 !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+  word-break: break-all !important;
 }
 
 .siden-margin-card:hover,

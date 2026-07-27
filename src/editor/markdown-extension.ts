@@ -123,14 +123,25 @@ function createMarginCard(
   plugin: SidenPlugin,
   width: number
 ): HTMLElement {
-  const card = document.createElement("button");
+  const card = document.createElement("div");
   card.className = "siden-margin-card siden-margin-card-live";
+  card.classList.toggle(
+    "siden-force-word-breaks",
+    plugin.settings.forceLongWordBreaks
+  );
   card.dataset.sidenId = annotation.id;
-  card.type = "button";
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
   card.textContent = annotation.body;
   card.style.width = `${Math.floor(width)}px`;
   card.setAttribute("aria-label", `Open annotation: ${annotation.body}`);
   card.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void plugin.activateAnnotation(annotation.id);
+  });
+  card.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     event.stopPropagation();
     void plugin.activateAnnotation(annotation.id);

@@ -14,6 +14,7 @@ export interface SidenSettings {
   highlightColor: string;
   highlightOpacity: number;
   highlightStyle: HighlightStyle;
+  forceLongWordBreaks: boolean;
 }
 
 export const DEFAULT_SETTINGS: SidenSettings = {
@@ -25,7 +26,8 @@ export const DEFAULT_SETTINGS: SidenSettings = {
   narrowPaneThreshold: 900,
   highlightColor: "#ffd54f",
   highlightOpacity: 0.35,
-  highlightStyle: "both"
+  highlightStyle: "both",
+  forceLongWordBreaks: true
 };
 
 export class SidenSettingTab extends PluginSettingTab {
@@ -130,6 +132,19 @@ export class SidenSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.highlightStyle)
           .onChange((value) =>
             this.plugin.updateSettings({ highlightStyle: value as HighlightStyle })
+          )
+      );
+
+    new Setting(containerEl)
+      .setName("Force breaks in long words")
+      .setDesc(
+        "Break words, links, and code that are wider than a margin card instead of showing horizontal overflow."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.forceLongWordBreaks)
+          .onChange((value) =>
+            this.plugin.updateSettings({ forceLongWordBreaks: value })
           )
       );
   }
