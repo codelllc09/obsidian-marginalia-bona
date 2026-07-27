@@ -6,7 +6,7 @@ export class ConfirmModal extends Modal {
     title: string,
     private readonly message: string,
     private readonly confirmLabel: string,
-    private readonly onConfirm: () => Promise<void>
+    private readonly onConfirm: () => Promise<void> | void
   ) {
     super(app);
     this.setTitle(title);
@@ -21,7 +21,7 @@ export class ConfirmModal extends Modal {
       .addButton((button) =>
         button
           .setButtonText(this.confirmLabel)
-          .setWarning()
+          .then((component) => component.buttonEl.addClass("mod-warning"))
           .onClick(async () => {
             await this.onConfirm();
             this.close();

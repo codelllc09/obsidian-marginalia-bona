@@ -1,5 +1,4 @@
 import {
-  ANNOTATION_SCHEMA_VERSION,
   Annotation,
   AnnotationAnchor,
   AnnotationStatus,
@@ -21,6 +20,17 @@ function parseScalar(value: string): unknown {
   } catch {
     return trimmed;
   }
+}
+
+function requiredString(
+  metadata: Record<string, unknown>,
+  key: string
+): string {
+  const value = metadata[key];
+  if (typeof value !== "string") {
+    throw new Error(`Annotation metadata "${key}" must be a string.`);
+  }
+  return value;
 }
 
 function parseFrontmatter(source: string): {
@@ -111,23 +121,18 @@ export function parseAnnotation(source: string): Annotation {
     throw new Error("Annotation body heading is missing.");
   }
 
-  const annotation: Annotation = {
-    schemaVersion: Number(metadata["siden-schema"]) as 1,
-    id: String(metadata.id ?? ""),
-    sourcePath: String(metadata.source ?? ""),
-    sourceType: String(metadata["source-type"]) as SourceType,
-    status: String(metadata.status) as AnnotationStatus,
-    createdAt: String(metadata.created ?? ""),
-    updatedAt: String(metadata.updated ?? ""),
+  const annotation = {
+    schemaVersion: Number(metadata["siden-schema"]),
+    id: requiredString(metadata, "id"),
+    sourcePath: requiredString(metadata, "source"),
+    sourceType: requiredString(metadata, "source-type") as SourceType,
+    status: requiredString(metadata, "status") as AnnotationStatus,
+    createdAt: requiredString(metadata, "created"),
+    updatedAt: requiredString(metadata, "updated"),
     body: content.slice(heading.length).replace(/^\s*\n/, "").trimEnd(),
     anchor
   };
 
-  if (annotation.schemaVersion !== ANNOTATION_SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported annotation schema: ${annotation.schemaVersion}`
-    );
-  }
   assertAnnotation(annotation);
   return annotation;
 }

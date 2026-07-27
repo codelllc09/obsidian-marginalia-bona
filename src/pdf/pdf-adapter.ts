@@ -38,11 +38,11 @@ export class PdfAdapter {
     if (!exact) return null;
     const range = selection.getRangeAt(0);
     const commonElement =
-      range.commonAncestorContainer instanceof HTMLElement
+      range.commonAncestorContainer.instanceOf(HTMLElement)
         ? range.commonAncestorContainer
         : range.commonAncestorContainer.parentElement;
     const startElement =
-      range.startContainer instanceof HTMLElement
+      range.startContainer.instanceOf(HTMLElement)
         ? range.startContainer
         : range.startContainer.parentElement;
     const page = (commonElement ?? startElement)?.closest<HTMLElement>(

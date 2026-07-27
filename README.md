@@ -21,7 +21,11 @@ available for Markdown notes.
 
 ## Installation
 
-Copy `main.js`, `manifest.json`, and `styles.css` into:
+Once Siden is accepted into the community plugin directory, install it from
+**Settings → Community plugins → Browse**.
+
+For manual installation, download `main.js`, `manifest.json`, and `styles.css`
+from the same GitHub release and copy them into:
 
 ```text
 <vault>/.obsidian/plugins/siden/
@@ -85,18 +89,42 @@ files are never modified.
 Run **Siden: Export all annotations to Markdown** to create a readable export
 under `.siden/exports/`.
 
+## Privacy and permissions
+
+- Siden does not collect telemetry, display ads, require an account, or make
+  network requests.
+- Annotation data stays inside the vault in `.siden/`.
+- Siden reads selected source files and writes only its annotation, trash, and
+  export files. It does not access files outside the vault.
+- Siden does not update itself. Updates are delivered through Obsidian or
+  manually installed GitHub releases.
+
+PDF selection and highlight positioning integrate with Obsidian's internal PDF
+viewer DOM because the public plugin API does not expose those features. An
+Obsidian update can therefore require a compatibility update to Siden.
+
 ## Development
 
-Requires Node.js 20 or newer.
+Requires Node.js 24 or newer.
 
 ```sh
-npm install
+npm ci
+npm run lint
 npm test
-npm run typecheck
 npm run build
 ```
 
 The production build writes `main.js` to the repository root.
 
-PDF highlighting integrates with Obsidian's internal PDF viewer and may require
-compatibility updates when Obsidian changes that viewer.
+## Releasing
+
+1. Run `npm version patch`, `npm version minor`, or `npm version major`.
+2. Push the commit and its numeric tag, for example `0.2.0` (without a `v`
+   prefix).
+3. GitHub Actions validates the tag, lints, tests, and builds the plugin, then
+   creates a draft release containing `main.js`, `manifest.json`, and
+   `styles.css`.
+4. Review and publish the draft release.
+
+The version in `package.json`, `manifest.json`, the Git tag, and the GitHub
+release must match exactly.

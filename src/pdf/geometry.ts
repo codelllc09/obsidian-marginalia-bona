@@ -29,7 +29,7 @@ export function normalizeRectangle(
 export function rectangleCss(
   rectangle: PdfRectangle,
   coordinateSpace: "normalized" | "css-pixels"
-): Pick<CSSStyleDeclaration, "left" | "top" | "width" | "height"> {
+): { left: string; top: string; width: string; height: string } {
   if (coordinateSpace === "normalized") {
     const percent = (value: number): string =>
       `${Number((value * 100).toFixed(6))}%`;
@@ -38,12 +38,12 @@ export function rectangleCss(
       top: percent(rectangle.top),
       width: percent(rectangle.right - rectangle.left),
       height: percent(rectangle.bottom - rectangle.top)
-    } as Pick<CSSStyleDeclaration, "left" | "top" | "width" | "height">;
+    };
   }
   return {
     left: `${rectangle.left}px`,
     top: `${rectangle.top}px`,
     width: `${rectangle.right - rectangle.left}px`,
     height: `${rectangle.bottom - rectangle.top}px`
-  } as Pick<CSSStyleDeclaration, "left" | "top" | "width" | "height">;
+  };
 }

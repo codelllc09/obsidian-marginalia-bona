@@ -106,7 +106,7 @@ function highlightOccurrence(
     const range = document.createRange();
     range.setStart(segment.node, from - segment.start);
     range.setEnd(segment.node, to - segment.start);
-    const mark = document.createElement("mark");
+    const mark = createEl("mark");
     mark.className = `siden-highlight siden-highlight-${plugin.settings.highlightStyle}`;
     mark.dataset.sidenId = annotation.id;
     mark.addEventListener("click", () =>
@@ -166,8 +166,8 @@ function destroyPreviewState(state: PreviewState): void {
 }
 
 function schedulePreview(state: PreviewState): void {
-  cancelAnimationFrame(state.frame);
-  state.frame = requestAnimationFrame(() => renderPreviewMargins(state));
+  window.cancelAnimationFrame(state.frame);
+  state.frame = window.requestAnimationFrame(() => renderPreviewMargins(state));
 }
 
 function measurePlacement(

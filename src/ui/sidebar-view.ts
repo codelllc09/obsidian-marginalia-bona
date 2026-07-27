@@ -3,7 +3,6 @@ import {
   MarkdownRenderer,
   Menu,
   Notice,
-  TFile,
   WorkspaceLeaf,
   setIcon
 } from "obsidian";
@@ -156,8 +155,17 @@ export class SidenSidebarView extends ItemView {
 
   private cancelDraft(): void {
     if (this.draft?.body.trim()) {
-      const discard = window.confirm("Discard the unsaved annotation draft?");
-      if (!discard) return;
+      new ConfirmModal(
+        this.app,
+        "Discard draft?",
+        "Discard the unsaved annotation draft?",
+        "Discard",
+        () => {
+          this.draft = null;
+          this.render();
+        }
+      ).open();
+      return;
     }
     this.draft = null;
     this.render();

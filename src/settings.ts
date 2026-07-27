@@ -50,7 +50,7 @@ export class SidenSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Show Markdown margins")
-      .setDesc("Display annotation cards beside Markdown in Live Preview and Reading View.")
+      .setDesc("Display annotation cards beside Markdown in live preview and reading view.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.showMargins)
@@ -83,7 +83,6 @@ export class SidenSettingTab extends PluginSettingTab {
         slider
           .setLimits(160, 420, 10)
           .setValue(this.plugin.settings.marginWidth)
-          .setDynamicTooltip()
           .onChange((value) => this.plugin.updateSettings({ marginWidth: value }))
       );
 
@@ -94,7 +93,6 @@ export class SidenSettingTab extends PluginSettingTab {
         slider
           .setLimits(600, 1400, 50)
           .setValue(this.plugin.settings.narrowPaneThreshold)
-          .setDynamicTooltip()
           .onChange((value) =>
             this.plugin.updateSettings({ narrowPaneThreshold: value })
           )
@@ -114,7 +112,6 @@ export class SidenSettingTab extends PluginSettingTab {
         slider
           .setLimits(0.1, 1, 0.05)
           .setValue(this.plugin.settings.highlightOpacity)
-          .setDynamicTooltip()
           .onChange((value) =>
             this.plugin.updateSettings({ highlightOpacity: value })
           )

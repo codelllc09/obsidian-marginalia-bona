@@ -9,7 +9,6 @@ import {
   normalizePath
 } from "obsidian";
 import {
-  ANNOTATION_SCHEMA_VERSION,
   Annotation,
   MarkdownAnchor
 } from "./domain/annotation";
@@ -37,7 +36,13 @@ export default class SidenPlugin extends Plugin {
   private pdfAdapter!: PdfAdapter;
 
   async onload(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const savedSettings: unknown = await this.loadData();
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...(savedSettings && typeof savedSettings === "object"
+        ? savedSettings
+        : {})
+    };
     this.applyCssSettings();
     this.store = new AnnotationStore(this.app, undefined, () => this.refresh());
     await this.store.load();
@@ -155,7 +160,7 @@ export default class SidenPlugin extends Plugin {
     }
   }
 
-  async onunload(): Promise<void> {
+  onunload(): void {
     document.body.style.removeProperty("--siden-margin-width");
     document.body.style.removeProperty("--siden-highlight-color");
     document.body.style.removeProperty("--siden-highlight-opacity");

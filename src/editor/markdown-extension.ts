@@ -123,7 +123,7 @@ function createMarginCard(
   plugin: SidenPlugin,
   width: number
 ): HTMLElement {
-  const card = document.createElement("div");
+  const card = createDiv();
   card.className = "siden-margin-card siden-margin-card-live";
   card.classList.toggle(
     "siden-force-word-breaks",
@@ -288,8 +288,8 @@ export function createMarkdownExtension(plugin: SidenPlugin) {
       private readonly handleScroll = (): void => this.scheduleMargins();
 
       private scheduleMargins(): void {
-        cancelAnimationFrame(this.renderFrame);
-        this.renderFrame = requestAnimationFrame(() =>
+        window.cancelAnimationFrame(this.renderFrame);
+        this.renderFrame = window.requestAnimationFrame(() =>
           renderMargins(this.view, plugin, this.marginLayer)
         );
       }
