@@ -1,6 +1,7 @@
 import { Notice, TFile } from "obsidian";
 import type SidenPlugin from "../main";
 import { Annotation, PdfAnchor, PdfRectangle } from "../domain/annotation";
+import { normalizeRectangle, rectangleCss } from "./geometry";
 
 export interface CapturedPdfSelection {
   sourcePath: string;
@@ -10,6 +11,7 @@ export interface CapturedPdfSelection {
 export class PdfAdapter {
   private observer: MutationObserver | null = null;
   private renderScheduled = false;
+  private readonly legacyMigrations = new Set<string>();
 
   constructor(private readonly plugin: SidenPlugin) {}
 
@@ -52,12 +54,17 @@ export class PdfAdapter {
     const pageRect = page.getBoundingClientRect();
     const rectangles: PdfRectangle[] = Array.from(range.getClientRects())
       .filter((rect) => rect.width > 0 && rect.height > 0)
-      .map((rect) => ({
-        left: rect.left - pageRect.left,
-        top: rect.top - pageRect.top,
-        right: rect.right - pageRect.left,
-        bottom: rect.bottom - pageRect.top
-      }));
+      .map((rect) =>
+        normalizeRectangle(rect, {
+          left: pageRect.left,
+          top: pageRect.top,
+          right: pageRect.right,
+          bottom: pageRect.bottom
+        })
+      )
+      .filter(
+        (rectangle): rectangle is PdfRectangle => rectangle !== null
+      );
     const context = range.commonAncestorContainer.textContent ?? exact;
     const occurrence = context.indexOf(exact);
     return {
@@ -65,6 +72,7 @@ export class PdfAdapter {
       anchor: {
         kind: "pdf",
         page: pageNumber,
+        coordinateSpace: "normalized",
         quote: {
           exact,
           prefix: occurrence >= 0 ? context.slice(Math.max(0, occurrence - 48), occurrence) : "",
@@ -145,17 +153,134 @@ export class PdfAdapter {
       `.pdf-viewer .page[data-page-number="${annotation.anchor.page}"], .page[data-page-number="${annotation.anchor.page}"]`
     );
     if (!page || page.querySelector(`[data-siden-pdf-id="${annotation.id}"]`)) return;
+    const recovered =
+      annotation.anchor.coordinateSpace === "normalized"
+        ? null
+        : this.recoverLegacyGeometry(page, annotation);
+    const rectangles = recovered ?? annotation.anchor.rectangles;
+    const coordinateSpace = recovered
+      ? "normalized"
+      : (annotation.anchor.coordinateSpace ?? "css-pixels");
     const layer = page.createDiv({
       cls: `siden-pdf-highlight-layer${activeId === annotation.id ? " is-active" : ""}`,
       attr: { "data-siden-pdf-id": annotation.id }
     });
-    for (const rectangle of annotation.anchor.rectangles) {
+    for (const rectangle of rectangles) {
       const mark = layer.createDiv({ cls: "siden-pdf-highlight" });
-      mark.style.left = `${rectangle.left}px`;
-      mark.style.top = `${rectangle.top}px`;
-      mark.style.width = `${rectangle.right - rectangle.left}px`;
-      mark.style.height = `${rectangle.bottom - rectangle.top}px`;
+      const style = rectangleCss(rectangle, coordinateSpace);
+      mark.style.left = style.left;
+      mark.style.top = style.top;
+      mark.style.width = style.width;
+      mark.style.height = style.height;
     }
     layer.addEventListener("click", () => void this.plugin.activateAnnotation(annotation.id));
+  }
+
+  private recoverLegacyGeometry(
+    page: HTMLElement,
+    annotation: Annotation
+  ): PdfRectangle[] | null {
+    if (
+      annotation.anchor.kind !== "pdf" ||
+      this.legacyMigrations.has(annotation.id)
+    ) {
+      return null;
+    }
+    const textLayer =
+      page.querySelector<HTMLElement>(".textLayer") ?? page;
+    const walker = document.createTreeWalker(
+      textLayer,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          return node.parentElement?.closest(".siden-pdf-highlight-layer")
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+    const nodes: Array<{ node: Text; start: number; end: number }> = [];
+    let text = "";
+    let current: Node | null;
+    while ((current = walker.nextNode())) {
+      const value = current.nodeValue ?? "";
+      nodes.push({
+        node: current as Text,
+        start: text.length,
+        end: text.length + value.length
+      });
+      text += value;
+    }
+    const start = this.locateQuote(text, annotation.anchor.quote);
+    if (start < 0) return null;
+    const end = start + annotation.anchor.quote.exact.length;
+    const startNode = nodes.find(
+      (entry) => entry.start <= start && entry.end > start
+    );
+    const endNode = nodes.find(
+      (entry) => entry.start < end && entry.end >= end
+    );
+    if (!startNode || !endNode) return null;
+    const range = document.createRange();
+    range.setStart(startNode.node, start - startNode.start);
+    range.setEnd(endNode.node, end - endNode.start);
+    const pageRect = page.getBoundingClientRect();
+    const rectangles = Array.from(range.getClientRects())
+      .map((rectangle) =>
+        normalizeRectangle(rectangle, {
+          left: pageRect.left,
+          top: pageRect.top,
+          right: pageRect.right,
+          bottom: pageRect.bottom
+        })
+      )
+      .filter(
+        (rectangle): rectangle is PdfRectangle => rectangle !== null
+      );
+    if (rectangles.length === 0) return null;
+    this.legacyMigrations.add(annotation.id);
+    void this.plugin.store
+      .update(annotation.id, {
+        anchor: {
+          ...annotation.anchor,
+          coordinateSpace: "normalized",
+          rectangles
+        }
+      })
+      .finally(() => this.legacyMigrations.delete(annotation.id));
+    return rectangles;
+  }
+
+  private locateQuote(
+    text: string,
+    quote: { exact: string; prefix?: string; suffix?: string }
+  ): number {
+    const candidates: number[] = [];
+    let cursor = 0;
+    while (cursor <= text.length) {
+      const found = text.indexOf(quote.exact, cursor);
+      if (found < 0) break;
+      candidates.push(found);
+      cursor = found + Math.max(1, quote.exact.length);
+    }
+    const contextual = candidates.filter((candidate) => {
+      const prefix = quote.prefix ?? "";
+      const suffix = quote.suffix ?? "";
+      return (
+        (!prefix ||
+          text
+            .slice(Math.max(0, candidate - prefix.length), candidate)
+            .endsWith(prefix)) &&
+        (!suffix ||
+          text
+            .slice(
+              candidate + quote.exact.length,
+              candidate + quote.exact.length + suffix.length
+            )
+            .startsWith(suffix))
+      );
+    });
+    if (contextual.length === 1) return contextual[0];
+    return candidates.length === 1 ? candidates[0] : -1;
   }
 }

@@ -33,6 +33,7 @@ export interface PdfAnchor {
   page: number;
   quote: TextQuote;
   rectangles: PdfRectangle[];
+  coordinateSpace?: "normalized" | "css-pixels";
   selection?: number[];
   documentFingerprint?: string;
 }
