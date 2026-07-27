@@ -1,0 +1,9 @@
+{
+  "id": "siden",
+  "name": "Siden",
+  "version": "0.1.0",
+  "minAppVersion": "1.6.0",
+  "description": "Annotate Markdown and PDF passages with sidebar comments, highlights, and Markdown margins.",
+  "author": "Giuseppe",
+  "isDesktopOnly": false
+}
