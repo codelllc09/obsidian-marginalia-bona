@@ -9,6 +9,7 @@ import {
   WorkspaceLeaf,
   normalizePath
 } from "obsidian";
+import { attachmentPath, attachmentsFolderFor } from "./attachments";
 import {
   Annotation,
   MarkdownAnchor
@@ -40,6 +41,82 @@ export default class MarginaliaPlugin extends Plugin {
   private pdfAdapter!: PdfAdapter;
   /** Commands registered by this plugin, listed in the settings tab. */
   private readonly pluginCommands: Command[] = [];
+  /** Annotation waiting for the user to pick its new passage (re-anchor). */
+  private pendingReanchor: { id: string } | null = null;
+
+  pendingReanchorId(): string | null {
+    return this.pendingReanchor?.id ?? null;
+  }
+
+  startReanchor(id: string): void {
+    const annotation = this.store.get(id);
+    if (!annotation) return;
+    const file = this.app.vault.getAbstractFileByPath(annotation.sourcePath);
+    if (!(file instanceof TFile)) {
+      new Notice("The source note no longer exists; cannot re-anchor.");
+      return;
+    }
+    this.pendingReanchor = { id };
+    void this.app.workspace.getLeaf(false)?.openFile(file);
+    new Notice(
+      "Select the new passage in the editor, then right-click to re-anchor it here."
+    );
+    this.refresh();
+  }
+
+  cancelReanchor(): void {
+    if (!this.pendingReanchor) return;
+    this.pendingReanchor = null;
+    new Notice("Re-anchoring cancelled.");
+    this.refresh();
+  }
+
+  private confirmReanchor(editor: Editor, file: TFile): void {
+    const pending = this.pendingReanchor;
+    if (!pending) return;
+    const annotation = this.store.get(pending.id);
+    if (!annotation) {
+      this.cancelReanchor();
+      return;
+    }
+    if (annotation.sourcePath !== file.path) {
+      new Notice("Re-anchoring is limited to the annotation's own note (v1).");
+      return;
+    }
+    const exact = editor.getSelection();
+    if (!exact.trim()) {
+      new Notice("Selection is empty.");
+      return;
+    }
+    const from = editor.getCursor("from");
+    const to = editor.getCursor("to");
+    const startOffset = editor.posToOffset(from);
+    const endOffset = editor.posToOffset(to);
+    const documentText = editor.getValue();
+    const anchor: MarkdownAnchor = {
+      kind: "markdown",
+      startOffset,
+      endOffset,
+      startLine: from.line,
+      startCharacter: from.ch,
+      endLine: to.line,
+      endCharacter: to.ch,
+      quote: {
+        exact,
+        prefix: documentText.slice(Math.max(0, startOffset - 64), startOffset),
+        suffix: documentText.slice(endOffset, endOffset + 64)
+      },
+      quoteHash: this.hash(exact),
+      originalQuote: exact
+    };
+    const id = pending.id;
+    void this.store.reanchor(id, anchor).then(() => {
+      this.pendingReanchor = null;
+      new Notice("Annotation re-anchored.");
+      this.refresh();
+      void this.activateAnnotation(id);
+    });
+  }
 
   /** addCommand that remembers the command for the settings hint. */
   private addPluginCommand(command: Command): Command {
@@ -122,6 +199,26 @@ export default class MarginaliaPlugin extends Plugin {
       callback: () => void this.rebuildAnnotationIndex()
     });
     this.addPluginCommand({
+      id: "confirm-reanchor",
+      name: "Re-anchor annotation to selection",
+      checkCallback: (checking) => {
+        if (!this.pendingReanchor) return false;
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view?.file || !view.editor.somethingSelected()) return false;
+        if (!checking) this.confirmReanchor(view.editor, view.file);
+        return true;
+      }
+    });
+    this.addPluginCommand({
+      id: "cancel-reanchor",
+      name: "Cancel re-anchoring",
+      checkCallback: (checking) => {
+        if (!this.pendingReanchor) return false;
+        if (!checking) this.cancelReanchor();
+        return true;
+      }
+    });
+    this.addPluginCommand({
       id: "export-note-annotations",
       name: "Export this note's annotations to Markdown",
       checkCallback: (checking) => {
@@ -139,19 +236,23 @@ export default class MarginaliaPlugin extends Plugin {
 
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor, view) => {
-        if (
-          !editor.somethingSelected() ||
-          !(view instanceof MarkdownView) ||
-          !view.file
-        ) {
-          return;
-        }
+        if (!(view instanceof MarkdownView) || !view.file) return;
+        const file = view.file;
+        if (!editor.somethingSelected()) return;
         menu.addItem((item) =>
           item
             .setTitle("Add annotation")
             .setIcon("message-square-plus")
             .onClick(() => this.beginMarkdownAnnotation(editor, view))
         );
+        if (this.pendingReanchor) {
+          menu.addItem((item) =>
+            item
+              .setTitle("Re-anchor annotation here")
+              .setIcon("anchor")
+              .onClick(() => this.confirmReanchor(editor, file))
+          );
+        }
       })
     );
     const pdfContextHandler = (event: MouseEvent) =>
@@ -434,6 +535,42 @@ export default class MarginaliaPlugin extends Plugin {
   }
 
   /** Open an exported digest in its own tab; reuse a tab already showing it. */
+  /** Obsidian's configured attachment folder convention (undocumented
+   *  vault config; "/" = root, "folder" = fixed folder, "./f" = beside
+   *  the note). Defaults to root when absent or not a string. */
+  private attachmentConvention(): string {
+    const raw = (
+      this.app.vault as unknown as {
+        getConfig?: (key: string) => unknown;
+      }
+    ).getConfig?.("attachmentFolderPath");
+    return typeof raw === "string" ? raw : "/";
+  }
+
+  /** Save a pasted image into the attachments folder; returns the vault
+   *  path for embedding as ![[path]]. The folder follows Obsidian's own
+   *  attachment convention unless overridden in plugin settings. */
+  async saveImageAttachment(image: File, sourcePath: string): Promise<string> {
+    const convention = this.attachmentConvention();
+    const sourceDir = sourcePath.split("/").slice(0, -1).join("/");
+    const folder = attachmentsFolderFor(
+      this.settings.attachmentsFolder,
+      convention,
+      sourceDir
+    );
+    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+      await this.app.vault.createFolder(folder).catch(() => undefined);
+    }
+    const ext = image.name.includes(".")
+      ? image.name.split(".").pop() ?? "png"
+      : "png";
+    const path = attachmentPath(folder, ext, new Date(), (candidate) =>
+      Boolean(this.app.vault.getAbstractFileByPath(candidate))
+    );
+    await this.app.vault.createBinary(path, await image.arrayBuffer());
+    return path;
+  }
+
   private async openExport(path: string): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;

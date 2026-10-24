@@ -31,7 +31,7 @@ export default defineConfig([
       "obsidianmd/ui/sentence-case": [
         "warn",
         {
-          brands: ["Marginalia Bona", "Marginalia", "Siden", "Markdown", "AI", "Pi", "Codex"],
+          brands: ["Marginalia Bona", "Marginalia", "Siden", "Markdown", "AI", "Pi", "Codex", "Obsidian"],
           acronyms: ["PDF"],
         },
       ],

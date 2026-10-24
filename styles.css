@@ -191,13 +191,13 @@
 }
 
 .marginalia-reply-meta .clickable-icon {
-  height: 1.125em;
-  width: 1.125em;
+  height: 1.25em;
+  width: 1.25em;
 }
 
 .marginalia-reply-meta .clickable-icon svg {
-  height: 0.75em;
-  width: 0.75em;
+  height: 0.875em;
+  width: 0.875em;
 }
 
 .marginalia-reply-body {
@@ -206,9 +206,9 @@
   padding-right: 0.5rem;
 }
 
-/* Card actions: jump and the overflow menu stay visible, secondary
-   actions fade in on hover. Opacity (not display) keeps the header
-   layout jitter-free while the mouse crosses the card. */
+/* Card actions are always visible at muted weight (hover-hidden icons
+   were repeatedly reported as invisible); the card hover simply lifts
+   their color for affordance. */
 .marginalia-card-actions {
   align-items: center;
   display: flex;
@@ -216,29 +216,20 @@
 }
 
 .marginalia-card-actions .clickable-icon {
-  height: 1.375em;
-  width: 1.375em;
+  color: var(--text-muted);
+  height: 1.5em;
+  width: 1.5em;
 }
 
-.marginalia-card-resolve,
-.marginalia-card-copy {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.marginalia-card:hover .marginalia-card-resolve,
-.marginalia-card:hover .marginalia-card-copy,
-.marginalia-card-resolve:focus-visible,
-.marginalia-card-copy:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
+.marginalia-card:hover .marginalia-card-actions .clickable-icon,
+.marginalia-card-actions .clickable-icon:focus-visible {
+  color: var(--text-normal);
 }
 
 .marginalia-card-header .marginalia-card-collapse svg,
 .marginalia-card-actions .clickable-icon svg {
-  height: 0.875em;
-  width: 0.875em;
+  height: 1em;
+  width: 1em;
 }
 
 .marginalia-toolbar .marginalia-scroll-button svg,
@@ -276,17 +267,12 @@
 
 .marginalia-reply-remove,
 .marginalia-reply-copy {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
+  color: var(--text-faint);
 }
 
-.marginalia-reply:hover .marginalia-reply-remove,
-.marginalia-reply:hover .marginalia-reply-copy,
-.marginalia-reply-remove:focus-visible,
-.marginalia-reply-copy:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
+.marginalia-reply-copy:hover,
+.marginalia-reply-remove:hover {
+  color: var(--text-normal);
 }
 
 /* Bottom card row: Reply on the left, Edit + Jump on the right. */
@@ -777,17 +763,6 @@
   }
 }
 
-/* Touch devices have no hover: keep reveal-by-hover actions discoverable. */
-@media (hover: none) {
-  .marginalia-card-resolve,
-  .marginalia-card-copy,
-  .marginalia-reply-copy,
-  .marginalia-reply-remove {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
 /* Settings: the command hint list at the bottom of the settings tab. */
 .marginalia-command-hint {
   margin: 0;
@@ -904,4 +879,96 @@
 .marginalia-hover-preview .marginalia-hover-reply-meta {
   display: block;
   margin-bottom: 2px;
+}
+
+/* Pasted images in cards: expanded by default (fit the card width); a
+   ghost text chip collapses them to thumbnails; clicking a thumbnail
+   opens the full-size lightbox. Text beats icons at this size, and a
+   borderless ghost chip never competes with the card content. */
+.marginalia-img-chip {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.72rem;
+  gap: 0.3em;
+  padding: 0.15em 0.3em;
+  vertical-align: middle;
+}
+
+.marginalia-img-chip:hover {
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-s);
+  color: var(--text-accent);
+}
+
+.marginalia-img-chip-icon {
+  display: inline-flex;
+}
+
+.marginalia-img-chip-icon svg {
+  height: 1em;
+  width: 1em;
+}
+
+.marginalia-img-frame {
+  display: block;
+}
+
+.marginalia-imgs-collapsed .marginalia-img-chip {
+  margin-right: var(--size-4-2);
+}
+
+.marginalia-sidebar .marginalia-imgs-collapsed .marginalia-img-frame {
+  display: inline-block;
+  margin: 0 var(--size-4-2) var(--size-4-1) 0;
+}
+
+.marginalia-sidebar .marginalia-imgs-collapsed img {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 0.35em;
+  cursor: zoom-in;
+  height: auto;
+  max-height: 7em;
+  max-width: 45%;
+  width: auto;
+}
+
+.marginalia-lightbox {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: zoom-out;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: var(--layer-modal);
+}
+
+.marginalia-lightbox img {
+  background: var(--background-primary);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-l);
+  height: auto;
+  max-height: 92vh;
+  max-width: 92vw;
+  width: auto;
+}
+
+/* Lucide icons are 2px-stroke vectors on a 24-unit canvas: at button
+   sizes the stroke thins to ~1.3px and the glyph nearly disappears.
+   CSS stroke-width overrides the attribute for the small action icons. */
+.marginalia-card-actions .clickable-icon svg,
+.marginalia-card-header .marginalia-card-collapse svg,
+.marginalia-reply-meta .clickable-icon svg,
+.marginalia-footer-action svg,
+.marginalia-dropdown-icon svg {
+  stroke-width: 2.5;
+}
+
+/* Re-anchor pending state on orphaned cards. */
+.marginalia-footer-action-active {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
 }

@@ -90,6 +90,9 @@ export class MarginaliaSidebarView extends ItemView {
   /** Per-card collapse overrides on top of the global toggle. */
   private readonly collapseOverrides = new Map<string, boolean>();
   private listEl: HTMLElement | null = null;
+  /** Cards whose images are collapsed to thumbnails (session-scoped). */
+  private readonly imageCollapsed = new Map<string, boolean>();
+  private lightboxEl: HTMLElement | null = null;
   /** Currently open Obsidian menu + the control that owns it, so a
    *  second click on the same control toggles it closed. */
   private openMenuInstance: Menu | null = null;
@@ -119,6 +122,7 @@ export class MarginaliaSidebarView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.closeLightbox();
     this.plugin.refresh();
   }
 
@@ -222,6 +226,13 @@ export class MarginaliaSidebarView extends ItemView {
     textarea.addEventListener("input", () => {
       if (this.draft) this.draft.body = textarea.value;
     });
+    const draftSource =
+      this.draft?.mode === "edit"
+        ? this.draft.annotation.sourcePath
+        : this.draft?.input.sourcePath ?? "";
+    textarea.addEventListener("paste", (event) =>
+      this.handleImagePaste(event, textarea, draftSource)
+    );
     textarea.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -304,6 +315,41 @@ export class MarginaliaSidebarView extends ItemView {
         this.focusDraft(0);
       });
     }
+  }
+
+  /** Paste images into a draft/reply textarea: saved to the attachments
+   *  folder and inserted as wikilink embeds at the caret. */
+  private handleImagePaste(
+    event: ClipboardEvent,
+    textarea: HTMLTextAreaElement,
+    sourcePath: string
+  ): void {
+    const images = Array.from(event.clipboardData?.files ?? []).filter((file) =>
+      file.type.startsWith("image/")
+    );
+    if (images.length === 0) return;
+    event.preventDefault();
+    const insertAt = textarea.selectionStart ?? textarea.value.length;
+    void (async () => {
+      let links = "";
+      for (const image of images) {
+        try {
+          links += `![[${await this.plugin.saveImageAttachment(image, sourcePath)}]]\n`;
+        } catch {
+          new Notice("Could not save the pasted image.");
+        }
+      }
+      if (!links) return;
+      const value = textarea.value;
+      textarea.value =
+        value.slice(0, insertAt) + links + value.slice(insertAt);
+      // Programmatic edits don't fire input; our draft/save-state listeners
+      // need the synthetic event to stay in sync.
+      textarea.dispatchEvent(new Event("input"));
+      const caret = insertAt + links.length;
+      textarea.setSelectionRange(caret, caret);
+      textarea.focus();
+    })();
   }
 
   private async saveDraft(): Promise<void> {
@@ -576,8 +622,15 @@ export class MarginaliaSidebarView extends ItemView {
       });
     }
     // Resolved state is conveyed by the resolve/reopen button itself plus
-    // the dimmed card style; orphaned has no button, so label it inline.
-    if (annotation.status === "orphaned") {
+    // the dimmed card style; orphaned and re-anchoring states have no
+    // dedicated control, so they are labelled inline.
+    const reanchoring = this.plugin.pendingReanchorId() === annotation.id;
+    if (reanchoring) {
+      header.createSpan({
+        cls: "marginalia-card-status",
+        text: "re-anchoring..."
+      });
+    } else if (annotation.status === "orphaned") {
       header.createSpan({
         cls: "marginalia-card-status",
         text: "orphaned"
@@ -694,7 +747,7 @@ export class MarginaliaSidebarView extends ItemView {
         body,
         annotation.sourcePath,
         this
-      );
+      ).then(() => this.enhanceImages(body, annotation));
       for (const reply of annotation.replies) {
         this.renderReply(card, annotation, reply);
       }
@@ -728,6 +781,28 @@ export class MarginaliaSidebarView extends ItemView {
       this.renderBody();
     });
     footer.createDiv({ cls: "marginalia-card-footer-spacer" });
+    if (annotation.status === "orphaned") {
+      // Nothing to jump to: the passage is gone. Re-anchor replaces Jump
+      // while orphaned - it is the whole reason the card is stuck.
+      const pending = this.plugin.pendingReanchorId() === annotation.id;
+      const reanchorButton = footer.createEl("button", {
+        cls: "marginalia-footer-action" + (pending ? " marginalia-footer-action-active" : ""),
+        attr: {
+          type: "button",
+          "aria-label": pending ? "Cancel re-anchoring" : "Re-anchor to a new passage"
+        }
+      });
+      setIcon(reanchorButton, "anchor");
+      reanchorButton.createSpan({ text: pending ? "Cancel" : "Re-anchor" });
+      reanchorButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (pending) {
+          this.plugin.cancelReanchor();
+        } else {
+          this.plugin.startReanchor(annotation.id);
+        }
+      });
+    }
     const editButton = footer.createEl("button", {
       cls: "marginalia-footer-action",
       attr: { type: "button", "aria-label": "Edit annotation" }
@@ -738,16 +813,95 @@ export class MarginaliaSidebarView extends ItemView {
       event.stopPropagation();
       this.beginEdit(annotation);
     });
-    const jumpButton = footer.createEl("button", {
-      cls: "marginalia-footer-action",
-      attr: { type: "button", "aria-label": "Jump to annotated text" }
+    if (annotation.status !== "orphaned") {
+      const jumpButton = footer.createEl("button", {
+        cls: "marginalia-footer-action",
+        attr: { type: "button", "aria-label": "Jump to annotated text" }
+      });
+      setIcon(jumpButton, "external-link");
+      jumpButton.createSpan({ text: "Jump" });
+      jumpButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void this.plugin.navigateToAnnotation(annotation);
+      });
+    }
+  }
+
+
+  /** Chip that collapses/expands a card's images: text beats icons at
+   *  this size - every icon variant (chevrons, triangles) was ambiguous. */
+  private renderImageChip(
+    container: HTMLElement,
+    annotation: Annotation,
+    collapsed: boolean
+  ): HTMLElement {
+    const button = container.createEl("button", {
+      cls: "marginalia-img-chip",
+      attr: {
+        "aria-label": collapsed ? "Show images" : "Hide images",
+        title: collapsed ? "Show images" : "Hide images"
+      }
     });
-    setIcon(jumpButton, "external-link");
-    jumpButton.createSpan({ text: "Jump" });
-    jumpButton.addEventListener("click", (event) => {
+    const icon = button.createSpan({ cls: "marginalia-img-chip-icon" });
+    setIcon(icon, collapsed ? "chevron-down" : "chevron-up");
+    button.createSpan({
+      cls: "marginalia-img-chip-label",
+      text: collapsed ? "Show images" : "Hide images"
+    });
+    button.addEventListener("click", (event) => {
       event.stopPropagation();
-      void this.plugin.navigateToAnnotation(annotation);
+      this.imageCollapsed.set(annotation.id, !collapsed);
+      this.renderBody();
     });
+    return button;
+  }
+
+  private enhanceImages(container: HTMLElement, annotation: Annotation): void {
+    const images = Array.from(container.querySelectorAll("img"));
+    if (images.length === 0) return;
+    const collapsed = this.imageCollapsed.get(annotation.id) ?? false;
+    container.toggleClass("marginalia-imgs-collapsed", collapsed);
+    if (!container.isConnected) return;
+
+    const chipRow = this.renderImageChip(container, annotation, collapsed);
+    container.insertBefore(chipRow, container.firstChild);
+
+    for (const img of images) {
+      const frame = createSpan({ cls: "marginalia-img-frame" });
+      img.replaceWith(frame);
+      frame.appendChild(img);
+      frame.addEventListener("click", (event) => {
+        event.stopPropagation();
+        this.openLightbox(img.src);
+      });
+    }
+  }
+
+  /** Full-size temporary view over a dimmed backdrop; click/Esc closes. */
+  private openLightbox(src: string): void {
+    if (this.lightboxEl) {
+      this.closeLightbox();
+      return;
+    }
+    const backdrop = createDiv({ cls: "marginalia-lightbox" });
+    backdrop.createEl("img", { attr: { src } });
+    const close = (): void => {
+      backdrop.remove();
+      document.removeEventListener("keydown", onKey);
+      this.lightboxEl = null;
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    backdrop.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+    this.lightboxEl = backdrop;
+  }
+
+  private closeLightbox(): void {
+    this.lightboxEl?.remove();
+    this.lightboxEl = null;
   }
 
   private beginEdit(annotation: Annotation): void {
@@ -798,7 +952,7 @@ export class MarginaliaSidebarView extends ItemView {
       bodyEl,
       annotation.sourcePath,
       this
-    );
+    ).then(() => this.enhanceImages(bodyEl, annotation));
     container.addEventListener("click", (event) => event.stopPropagation());
   }
 
@@ -844,6 +998,9 @@ export class MarginaliaSidebarView extends ItemView {
     textarea.addEventListener("input", () => {
       send.disabled = !textarea.value.trim();
     });
+    textarea.addEventListener("paste", (event) =>
+      this.handleImagePaste(event, textarea, annotation.sourcePath)
+    );
     send.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.sendReply(annotation.id, textarea.value);
