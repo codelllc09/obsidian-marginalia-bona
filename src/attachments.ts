@@ -1,5 +1,29 @@
 import { normalizePath } from "obsidian";
 
+/**
+ * Resolve the attachments folder. Priority: explicit plugin override, then
+ * Obsidian's own convention (Settings → Files & links):
+ *   "/"            → vault root
+ *   "folder/…"     → that folder in the vault
+ *   "./…"          → a subfolder next to the annotated note (sourceDir)
+ * Empty string means vault root.
+ */
+export function attachmentsFolderFor(
+  override: string,
+  convention: string,
+  sourceDir: string
+): string {
+  const trimmed = override.trim();
+  if (trimmed) return normalizePath(trimmed);
+  const config = convention || "/";
+  if (config === "/") return "";
+  if (config.startsWith("./")) {
+    const sub = config.slice(2);
+    return normalizePath(sourceDir ? `${sourceDir}/${sub}` : sub);
+  }
+  return normalizePath(config);
+}
+
 /** Unique attachment path inside the attachments folder:
  *  pasted-<timestamp>.<ext>, suffixed -2/-3/… on collision. */
 export function attachmentPath(

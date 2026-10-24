@@ -9,7 +9,7 @@ import {
   WorkspaceLeaf,
   normalizePath
 } from "obsidian";
-import { attachmentPath } from "./attachments";
+import { attachmentPath, attachmentsFolderFor } from "./attachments";
 import {
   Annotation,
   MarkdownAnchor
@@ -435,11 +435,30 @@ export default class MarginaliaPlugin extends Plugin {
   }
 
   /** Open an exported digest in its own tab; reuse a tab already showing it. */
+  /** Obsidian's configured attachment folder convention (undocumented
+   *  vault config; "/" = root, "folder" = fixed folder, "./f" = beside
+   *  the note). Defaults to root when absent or not a string. */
+  private attachmentConvention(): string {
+    const raw = (
+      this.app.vault as unknown as {
+        getConfig?: (key: string) => unknown;
+      }
+    ).getConfig?.("attachmentFolderPath");
+    return typeof raw === "string" ? raw : "/";
+  }
+
   /** Save a pasted image into the attachments folder; returns the vault
-   *  path for embedding as ![[path]]. */
-  async saveImageAttachment(image: File): Promise<string> {
-    const folder = normalizePath(this.settings.attachmentsFolder);
-    if (!this.app.vault.getAbstractFileByPath(folder)) {
+   *  path for embedding as ![[path]]. The folder follows Obsidian's own
+   *  attachment convention unless overridden in plugin settings. */
+  async saveImageAttachment(image: File, sourcePath: string): Promise<string> {
+    const convention = this.attachmentConvention();
+    const sourceDir = sourcePath.split("/").slice(0, -1).join("/");
+    const folder = attachmentsFolderFor(
+      this.settings.attachmentsFolder,
+      convention,
+      sourceDir
+    );
+    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
       await this.app.vault.createFolder(folder).catch(() => undefined);
     }
     const ext = image.name.includes(".")

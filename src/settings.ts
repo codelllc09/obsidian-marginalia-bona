@@ -23,8 +23,9 @@ export interface MarginaliaSettings {
   hoverPreview: HoverPreviewMode;
   /** Author name recorded on annotations and replies created in this vault. */
   userName: string;
-  /** Visible folder for images pasted into annotations. Must NOT be a dot
-   *  folder: Obsidian does not index hidden folders, so embeds would break. */
+  /** Overrides Obsidian's attachment folder convention when non-empty.
+   *  Empty (default) follows Settings → Files & links. Must resolve to a
+   *  non-hidden folder: dot folders are not indexed, embeds would break. */
   attachmentsFolder: string;
   forceLongWordBreaks: boolean;
 }
@@ -42,7 +43,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   submitShortcut: "enter",
   hoverPreview: "hover",
   userName: "user",
-  attachmentsFolder: "Marginalia attachments",
+  attachmentsFolder: "",
   forceLongWordBreaks: true
 };
 
@@ -187,17 +188,15 @@ export class MarginaliaSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Attachments folder")
       .setDesc(
-        "Vault folder for images pasted into annotations. Must be a normal (non-hidden) folder, or embeds will not render."
+        "Leave empty to follow the attachment folder configured in Obsidian's file settings. Must resolve to a normal (non-hidden) folder, or embeds will not render."
       )
-      .addText((text) =>
-        text
-          .setValue(this.plugin.settings.attachmentsFolder)
-          .onChange((value) =>
-            this.plugin.updateSettings({
-              attachmentsFolder: value.trim() || "Marginalia attachments"
-            })
-          )
-      );
+      .addText((text) => {
+        text.setPlaceholder("Follow Obsidian convention");
+        text.setValue(this.plugin.settings.attachmentsFolder);
+        text.onChange((value) =>
+          this.plugin.updateSettings({ attachmentsFolder: value.trim() })
+        );
+      });
 
     new Setting(containerEl)
       .setName("Submit shortcut")

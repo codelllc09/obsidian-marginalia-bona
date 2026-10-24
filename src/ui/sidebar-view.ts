@@ -222,8 +222,12 @@ export class MarginaliaSidebarView extends ItemView {
     textarea.addEventListener("input", () => {
       if (this.draft) this.draft.body = textarea.value;
     });
+    const draftSource =
+      this.draft?.mode === "edit"
+        ? this.draft.annotation.sourcePath
+        : this.draft?.input.sourcePath ?? "";
     textarea.addEventListener("paste", (event) =>
-      this.handleImagePaste(event, textarea)
+      this.handleImagePaste(event, textarea, draftSource)
     );
     textarea.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
@@ -313,7 +317,8 @@ export class MarginaliaSidebarView extends ItemView {
    *  folder and inserted as wikilink embeds at the caret. */
   private handleImagePaste(
     event: ClipboardEvent,
-    textarea: HTMLTextAreaElement
+    textarea: HTMLTextAreaElement,
+    sourcePath: string
   ): void {
     const images = Array.from(event.clipboardData?.files ?? []).filter((file) =>
       file.type.startsWith("image/")
@@ -325,7 +330,7 @@ export class MarginaliaSidebarView extends ItemView {
       let links = "";
       for (const image of images) {
         try {
-          links += `![[${await this.plugin.saveImageAttachment(image)}]]\n`;
+          links += `![[${await this.plugin.saveImageAttachment(image, sourcePath)}]]\n`;
         } catch {
           new Notice("Could not save the pasted image.");
         }
@@ -882,7 +887,7 @@ export class MarginaliaSidebarView extends ItemView {
       send.disabled = !textarea.value.trim();
     });
     textarea.addEventListener("paste", (event) =>
-      this.handleImagePaste(event, textarea)
+      this.handleImagePaste(event, textarea, annotation.sourcePath)
     );
     send.addEventListener("click", (event) => {
       event.stopPropagation();

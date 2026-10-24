@@ -1,9 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { attachmentPath } from "../src/attachments";
+import {
+  attachmentPath,
+  attachmentsFolderFor
+} from "../src/attachments";
 
 const now = new Date("2026-10-25T12:00:00.000Z");
 // 2026-10-25T12:00:00.000Z -> "2026-10-25T12-00-00-000Z"
 const stamp = "2026-10-25T12-00-00-000Z";
+
+describe("attachmentsFolderFor", () => {
+  it("override wins over the convention", () => {
+    expect(
+      attachmentsFolderFor("My Pics", "attachments", "Notes")
+    ).toBe("My Pics");
+  });
+
+  it("empty override follows the convention", () => {
+    expect(attachmentsFolderFor("", "/", "Notes")).toBe("");
+    expect(attachmentsFolderFor("   ", "attachments", "Notes")).toBe(
+      "attachments"
+    );
+    expect(attachmentsFolderFor("", "./assets", "Notes/Daily")).toBe(
+      "Notes/Daily/assets"
+    );
+    expect(attachmentsFolderFor("", "./assets", "")).toBe("assets");
+  });
+
+  it("defaults to vault root when the convention is unset", () => {
+    expect(attachmentsFolderFor("", "", "Notes")).toBe("");
+  });
+});
 
 describe("attachmentPath", () => {
   it("builds a timestamped path inside the folder", () => {
