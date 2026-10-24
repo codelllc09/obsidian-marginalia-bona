@@ -787,3 +787,14 @@
     pointer-events: auto;
   }
 }
+
+/* Settings: the command hint list at the bottom of the settings tab. */
+.marginalia-command-hint {
+  margin: 0;
+}
+
+.marginalia-command-list {
+  color: var(--text-muted);
+  margin: var(--size-4-1) 0 0;
+  padding-inline-start: var(--size-4-6);
+}

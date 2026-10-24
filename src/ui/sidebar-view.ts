@@ -317,7 +317,8 @@ export class MarginaliaSidebarView extends ItemView {
       annotation = await this.plugin.store.create({
         ...draft.input,
         body: draft.body.trim(),
-        ...style
+        ...style,
+        author: this.plugin.settings.userName
       });
     } else {
       annotation = await this.plugin.store.update(draft.annotation.id, {
@@ -814,7 +815,11 @@ export class MarginaliaSidebarView extends ItemView {
   private async sendReply(id: string, body: string): Promise<void> {
     if (!body.trim()) return;
     try {
-      await this.plugin.store.addReply(id, body);
+      await this.plugin.store.addReply(
+        id,
+        body,
+        this.plugin.settings.userName
+      );
     } catch (error) {
       new Notice(
         error instanceof Error ? error.message : "Could not add reply."

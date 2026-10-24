@@ -78,6 +78,7 @@ export function serializeAnnotation(annotation: Annotation): string {
     ...(annotation.markStyle
       ? [`mark-style: ${scalar(annotation.markStyle)}`]
       : []),
+    ...(annotation.author ? [`author: ${scalar(annotation.author)}`] : []),
     `created: ${scalar(annotation.createdAt)}`,
     `updated: ${scalar(annotation.updatedAt)}`,
     "---"
@@ -110,14 +111,18 @@ ${ANCHOR_END}
  *   ## Replies
  *
  *   ### <reply-id> | <createdAt>
+ *   ### <reply-id> | <createdAt> | <author>   (author segment optional)
  *
  *   Reply body.
  */
 function serializeReplies(replies: AnnotationReply[]): string[] {
   if (replies.length === 0) return [];
-  const sections = replies.map(
-    (reply) => `### ${reply.id} | ${reply.createdAt}\n\n${reply.body.trimEnd()}`
-  );
+  const sections = replies.map((reply) => {
+    const heading = reply.author
+      ? `### ${reply.id} | ${reply.createdAt} | ${reply.author}`
+      : `### ${reply.id} | ${reply.createdAt}`;
+    return `${heading}\n\n${reply.body.trimEnd()}`;
+  });
   return [`${REPLIES_HEADING}\n\n${sections.join("\n\n")}`];
 }
 
@@ -137,13 +142,15 @@ function parseReplies(source: string): AnnotationReply[] {
     const newline = block.indexOf("\n");
     const heading = (newline < 0 ? block : block.slice(0, newline)).trim();
     const body = newline < 0 ? "" : block.slice(newline + 1).trim();
-    const [id, createdAt] = heading.split(" | ");
+    const parts = heading.split(" | ");
+    const [id, createdAt] = parts;
     if (!id) {
       throw new Error(`Annotation reply heading is malformed: ${heading}`);
     }
     replies.push({
       id,
       createdAt: createdAt ?? "",
+      ...(parts.length > 2 ? { author: parts.slice(2).join(" | ") } : {}),
       body: body.trimEnd()
     });
   }
@@ -200,6 +207,9 @@ export function parseAnnotation(source: string): Annotation {
     ...(typeof metadata["mark-style"] === "string" &&
     isMarkStyle(metadata["mark-style"])
       ? { markStyle: metadata["mark-style"] }
+      : {}),
+    ...(typeof metadata["author"] === "string" && metadata["author"]
+      ? { author: metadata["author"] }
       : {}),
     createdAt: requiredString(metadata, "created"),
     updatedAt: requiredString(metadata, "updated"),

@@ -18,6 +18,8 @@ export interface MarginaliaSettings {
   defaultMarkStyle: MarkStyle;
   /** Shortcut that saves a draft / sends a reply from a sidebar textarea. */
   submitShortcut: "enter" | "mod-enter";
+  /** Author name recorded on annotations and replies created in this vault. */
+  userName: string;
   forceLongWordBreaks: boolean;
 }
 
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   highlightOpacity: 0.35,
   defaultMarkStyle: "highlight",
   submitShortcut: "enter",
+  userName: "user",
   forceLongWordBreaks: true
 };
 
@@ -143,6 +146,19 @@ export class MarginaliaSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Your name")
+      .setDesc(
+        "Author name recorded on annotations and replies you create. AI agents use their own names (Pi, Codex, …)."
+      )
+      .addText((text) =>
+        text
+          .setValue(this.plugin.settings.userName)
+          .onChange((value) =>
+            this.plugin.updateSettings({ userName: value.trim() || "user" })
+          )
+      );
+
+    new Setting(containerEl)
       .setName("Submit shortcut")
       .setDesc("Key that saves an annotation or sends a reply. Hold shift for a newline when using enter.")
       .addDropdown((dropdown) =>
@@ -171,5 +187,17 @@ export class MarginaliaSettingTab extends PluginSettingTab {
             this.plugin.updateSettings({ forceLongWordBreaks: value })
           )
       );
+
+    new Setting(containerEl).setName("Commands").setHeading();
+    containerEl
+      .createEl("p", {
+        text: "Everything below is available from the command palette (Ctrl/Cmd+P). You can bind hotkeys in Settings → Hotkeys by searching “Marginalia”.",
+        cls: "setting-item-description"
+      })
+      .addClass("marginalia-command-hint");
+    const list = containerEl.createEl("ul", { cls: "marginalia-command-list" });
+    for (const name of this.plugin.commandNames()) {
+      list.createEl("li", { text: name });
+    }
   }
 }
