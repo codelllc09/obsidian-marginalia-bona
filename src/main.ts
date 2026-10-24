@@ -1,6 +1,7 @@
 import {
   Command,
   Editor,
+  Events,
   MarkdownView,
   Menu,
   Notice,
@@ -17,6 +18,7 @@ import {
 import { createMarkdownExtension } from "./editor/markdown-extension";
 import { getExportFormat } from "./export";
 import { registerHoverPreview } from "./hover/hover-preview";
+import { RestBridge } from "./rest-bridge";
 import { PdfAdapter } from "./pdf/pdf-adapter";
 import {
   processReadingView,
@@ -28,7 +30,9 @@ import {
   MarginaliaSettingTab
 } from "./settings";
 import { AnnotationStore } from "./storage/annotation-store";
+import { ensureDataReadme } from "./storage/data-readme";
 import { INDEX_DIRECTORY, rebuildIndex } from "./storage/annotation-index";
+import { registerExternalIngest } from "./storage/external-watcher";
 import {
   MARGINALIA_VIEW_TYPE,
   MarginaliaSidebarView
@@ -43,6 +47,7 @@ export default class MarginaliaPlugin extends Plugin {
   private readonly pluginCommands: Command[] = [];
   /** Annotation waiting for the user to pick its new passage (re-anchor). */
   private pendingReanchor: { id: string } | null = null;
+  private readonly restBridge = new RestBridge(this);
 
   pendingReanchorId(): string | null {
     return this.pendingReanchor?.id ?? null;
@@ -141,6 +146,17 @@ export default class MarginaliaPlugin extends Plugin {
     this.applyCssSettings();
     this.store = new AnnotationStore(this.app, undefined, () => this.refresh());
     await this.store.load();
+    await ensureDataReadme(this.app.vault.adapter, this.store.dataRoot);
+    registerExternalIngest(this, this.store, this.store.dataRoot + "/annotations");
+    this.restBridge.connect();
+    // The loaded event is the host plugin's own; it is not in the typed
+    // Workspace event union, so listen via the base Events class.
+    this.registerEvent(
+      (this.app.workspace as unknown as Events).on(
+        "obsidian-local-rest-api:loaded",
+        () => this.restBridge.connect()
+      )
+    );
     this.pdfAdapter = new PdfAdapter(this);
     this.pdfAdapter.start();
 
@@ -296,6 +312,7 @@ export default class MarginaliaPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.restBridge.disconnect();
     document.body.style.removeProperty("--marginalia-margin-width");
     document.body.style.removeProperty("--marginalia-highlight-color");
     document.body.style.removeProperty("--marginalia-highlight-opacity");

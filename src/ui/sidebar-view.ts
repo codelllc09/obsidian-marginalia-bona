@@ -21,7 +21,9 @@ import { ConfirmModal } from "./confirm-modal";
 export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
 
 type Scope = "current" | "vault";
-type StatusFilter = "open" | "resolved" | "orphaned" | "all";
+/** "drifted" is a pseudo-filter: it selects annotations whose anchored
+ *  passage changed after creation (anchorDrift), regardless of status. */
+type StatusFilter = "open" | "resolved" | "orphaned" | "drifted" | "all";
 
 interface DraftState {
   body: string;
@@ -477,6 +479,7 @@ export class MarginaliaSidebarView extends ItemView {
       "Status",
       [
         { value: "open", label: "Open" },
+        { value: "drifted", label: "Drifted" },
         { value: "resolved", label: "Resolved" },
         { value: "orphaned", label: "Orphaned" },
         { value: "all", label: "All" }
@@ -552,7 +555,10 @@ export class MarginaliaSidebarView extends ItemView {
       this.viewScope === "current" && activePath
         ? this.plugin.store.forSource(activePath)
         : this.plugin.store.all();
-    if (this.status !== "all") {
+    if (this.status === "drifted") {
+      // Review view: passages whose text changed after annotating.
+      annotations = annotations.filter((item) => anchorDrift(item) !== null);
+    } else if (this.status !== "all") {
       annotations = annotations.filter((item) => item.status === this.status);
     }
     const query = this.query.trim().toLocaleLowerCase();
