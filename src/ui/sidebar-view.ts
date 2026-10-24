@@ -100,7 +100,7 @@ export class MarginaliaSidebarView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Marginalia annotations";
+    return "Marginalia Bona annotations";
   }
 
   getIcon(): string {
@@ -127,7 +127,7 @@ export class MarginaliaSidebarView extends ItemView {
   setActiveAnnotation(id: string | null): void {
     this.activeId = id;
     this.containerEl
-      .querySelectorAll(".marginalia-card.is-active")
+      .querySelectorAll(".marginalia-bona-card.is-active")
       .forEach((element) => element.removeClass("is-active"));
     if (id) {
       const card = this.containerEl.querySelector(`[data-marginalia-id="${id}"]`);
@@ -333,7 +333,7 @@ export class MarginaliaSidebarView extends ItemView {
     window.setTimeout(() => {
       const textarea =
         this.containerEl.querySelector<HTMLTextAreaElement>(
-          ".marginalia-draft-textarea"
+          ".marginalia-bona-draft-textarea"
         );
       if (textarea) {
         textarea.focus();
@@ -790,7 +790,7 @@ export class MarginaliaSidebarView extends ItemView {
           new ConfirmModal(
             this.app,
             "Delete annotation?",
-            "The annotation will be moved to Marginalia's hidden trash folder.",
+            "The annotation will be moved to Marginalia Bona's hidden trash folder.",
             "Delete",
             async () => {
               await this.plugin.store.delete(annotation.id);

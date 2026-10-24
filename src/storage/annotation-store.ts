@@ -19,9 +19,9 @@ import {
 import { shardPathFor, rebuildIndex, writeShard } from "./annotation-index";
 
 export const DEFAULT_ANNOTATION_DIRECTORY = ANNOTATIONS_DIRECTORY;
-export const DEFAULT_TRASH_DIRECTORY = ".marginalia/trash";
-/** Pre-rename data root, migrated wholesale on first load. */
-const LEGACY_DATA_ROOT = ".siden-plus";
+export const DEFAULT_TRASH_DIRECTORY = ".marginalia-bona/trash";
+/** Pre-rename data roots, migrated wholesale on first load. */
+const LEGACY_DATA_ROOTS = [".siden-plus", ".marginalia"];
 
 function newReply(body: string): AnnotationReply {
   return {
@@ -68,18 +68,21 @@ export class AnnotationStore {
   }
 
   /**
-   * One-time rename of the pre-"Marginalia" data root (`.siden-plus` →
-   * `.marginalia`). Thread files keep their internal format markers, so a
-   * plain directory rename is lossless.
+   * One-time rename of pre-"Marginalia Bona" data roots (`.siden-plus` or
+   * `.marginalia` → `.marginalia-bona`). Thread files keep their internal
+   * format markers, so a plain directory rename is lossless.
    */
   private async migrateLegacyRoot(): Promise<void> {
     const root = normalizePath(this.directory.split("/")[0] ?? this.directory);
     if (await this.app.vault.adapter.exists(root)) return;
-    if (!(await this.app.vault.adapter.exists(LEGACY_DATA_ROOT))) return;
-    try {
-      await this.app.vault.adapter.rename(LEGACY_DATA_ROOT, root);
-    } catch (error) {
-      console.warn("Marginalia data migration failed", error);
+    for (const legacyRoot of LEGACY_DATA_ROOTS) {
+      if (!(await this.app.vault.adapter.exists(legacyRoot))) continue;
+      try {
+        await this.app.vault.adapter.rename(legacyRoot, root);
+      } catch (error) {
+        console.warn("Marginalia Bona data migration failed", error);
+      }
+      break;
     }
   }
 

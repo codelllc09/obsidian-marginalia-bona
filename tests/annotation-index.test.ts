@@ -52,7 +52,7 @@ describe("annotation index", () => {
     );
     expect(shardNameFor("A 100% done.pdf")).toBe("A 100%25 done.pdf.jsonl");
     expect(shardPathFor("Notes/Test.md")).toBe(
-      ".marginalia/index/Notes/Test.md.jsonl"
+      ".marginalia-bona/index/Notes/Test.md.jsonl"
     );
   });
 
@@ -70,7 +70,7 @@ describe("annotation index", () => {
       line: 4,
       quote: "beta",
       replies: 1,
-      path: threadPathFor(".marginalia/annotations", annotation({ id: "abc" }))
+      path: threadPathFor(".marginalia-bona/annotations", annotation({ id: "abc" }))
     });
   });
 
@@ -101,13 +101,13 @@ describe("annotation index", () => {
 
   it("rebuilds shards and removes stale files in nested folders", async () => {
     await writeShard(adapter, "Notes/Gone.md", [annotation()]);
-    adapter.files.set(".marginalia/index/Old/Deep/stale.md.jsonl", "{}\n");
+    adapter.files.set(".marginalia-bona/index/Old/Deep/stale.md.jsonl", "{}\n");
     await rebuildIndex(adapter, [annotation()]);
     expect(adapter.files.has(`${INDEX_DIRECTORY}/Notes/Gone.md.jsonl`)).toBe(
       false
     );
     expect(
-      adapter.files.has(".marginalia/index/Old/Deep/stale.md.jsonl")
+      adapter.files.has(".marginalia-bona/index/Old/Deep/stale.md.jsonl")
     ).toBe(false);
     expect(adapter.files.has(`${INDEX_DIRECTORY}/Notes/Test.md.jsonl`)).toBe(
       true

@@ -29,7 +29,7 @@ function textSegments(root: HTMLElement): {
       if (
         !parent ||
         parent.closest(
-          ".marginalia-reading-margin-layer, code, pre, script, style, .math"
+          ".marginalia-bona-reading-margin-layer, code, pre, script, style, .math"
         )
       ) {
         return NodeFilter.FILTER_REJECT;
@@ -310,7 +310,7 @@ export function processReadingView(
   context: MarkdownPostProcessorContext,
   plugin: MarginaliaPlugin
 ): void {
-  if (context.sourcePath.startsWith(".marginalia/")) return;
+  if (context.sourcePath.startsWith(".marginalia-bona/")) return;
   const annotations = plugin.store
     .forSource(context.sourcePath)
     .filter(

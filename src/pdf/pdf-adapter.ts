@@ -115,7 +115,7 @@ export class PdfAdapter {
     this.observer?.disconnect();
     try {
       document
-        .querySelectorAll(".marginalia-pdf-highlight-layer")
+        .querySelectorAll(".marginalia-bona-pdf-highlight-layer")
         .forEach((layer) => layer.remove());
       if (!this.plugin.settings.showHighlights) return;
       const file = this.plugin.app.workspace.getActiveFile();
@@ -204,7 +204,7 @@ export class PdfAdapter {
       NodeFilter.SHOW_TEXT,
       {
         acceptNode(node) {
-          return node.parentElement?.closest(".marginalia-pdf-highlight-layer")
+          return node.parentElement?.closest(".marginalia-bona-pdf-highlight-layer")
             ? NodeFilter.FILTER_REJECT
             : NodeFilter.FILTER_ACCEPT;
         }

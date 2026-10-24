@@ -34,9 +34,9 @@ describe("AnnotationStore", () => {
         quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
       }
     });
-    const path = threadPathFor(".marginalia/annotations", annotation);
+    const path = threadPathFor(".marginalia-bona/annotations", annotation);
     expect(path).toBe(
-      `.marginalia/annotations/Notes/Test.md/beta-${annotation.id
+      `.marginalia-bona/annotations/Notes/Test.md/beta-${annotation.id
         .replace(/-/g, "")
         .slice(0, 8)}.md`
     );
@@ -68,17 +68,17 @@ describe("AnnotationStore", () => {
       replies: []
     };
     adapter.files.set(
-      `.marginalia/annotations/${legacy.id}.md`,
+      `.marginalia-bona/annotations/${legacy.id}.md`,
       serializeAnnotation(legacy)
     );
     const fresh = new AnnotationStore({ vault: { adapter } } as never);
     await fresh.load();
-    expect(adapter.files.has(`.marginalia/annotations/${legacy.id}.md`)).toBe(
+    expect(adapter.files.has(`.marginalia-bona/annotations/${legacy.id}.md`)).toBe(
       false
     );
-    const expected = threadPathFor(".marginalia/annotations", legacy);
+    const expected = threadPathFor(".marginalia-bona/annotations", legacy);
     expect(expected).toBe(
-      ".marginalia/annotations/Notes/Old.md/old quote text-aaaaaaaa.md"
+      ".marginalia-bona/annotations/Notes/Old.md/old quote text-aaaaaaaa.md"
     );
     expect(adapter.files.get(expected)).toContain("Legacy body");
     expect(fresh.get(legacy.id)?.body).toBe("Legacy body");
@@ -102,20 +102,20 @@ describe("AnnotationStore", () => {
       body: "Comment",
       anchor
     });
-    const before = threadPathFor(".marginalia/annotations", annotation);
+    const before = threadPathFor(".marginalia-bona/annotations", annotation);
     const updated = await store.update(annotation.id, {
       anchor: {
         ...anchor,
         quote: { exact: "completely different text now" }
       }
     });
-    const after = threadPathFor(".marginalia/annotations", updated);
+    const after = threadPathFor(".marginalia-bona/annotations", updated);
     expect(after).not.toBe(before); // would differ if we derived from quote
     // but the on-disk file did NOT move:
     expect(adapter.files.has(before)).toBe(true);
     expect(
       [...adapter.files.keys()].filter((path) =>
-        path.startsWith(".marginalia/annotations/Notes/Test.md/")
+        path.startsWith(".marginalia-bona/annotations/Notes/Test.md/")
       )
     ).toHaveLength(1);
   });
@@ -137,19 +137,19 @@ describe("AnnotationStore", () => {
         quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
       }
     });
-    const oldPath = threadPathFor(".marginalia/annotations", annotation);
+    const oldPath = threadPathFor(".marginalia-bona/annotations", annotation);
     await store.renameSource("Notes/Test.md", "Notes/Renamed.md");
     expect(adapter.files.has(oldPath)).toBe(false);
     const moved = store.get(annotation.id);
     expect(moved?.sourcePath).toBe("Notes/Renamed.md");
     expect(
       [...adapter.files.keys()].some((path) =>
-        path.startsWith(".marginalia/annotations/Notes/Renamed.md/")
+        path.startsWith(".marginalia-bona/annotations/Notes/Renamed.md/")
       )
     ).toBe(true);
     expect(
       [...adapter.files.keys()].some((path) =>
-        path.startsWith(".marginalia/annotations/Notes/Test.md/")
+        path.startsWith(".marginalia-bona/annotations/Notes/Test.md/")
       )
     ).toBe(false);
   });
@@ -171,9 +171,9 @@ describe("AnnotationStore", () => {
         quote: { exact: "一二三四五六七八九十十一十二十三十四；" }
       }
     });
-    const path = threadPathFor(".marginalia/annotations", annotation);
+    const path = threadPathFor(".marginalia-bona/annotations", annotation);
     expect(path).toBe(
-      `.marginalia/annotations/Notes/长文.md/一二三四五六七八-${annotation.id
+      `.marginalia-bona/annotations/Notes/长文.md/一二三四五六七八-${annotation.id
         .replace(/-/g, "")
         .slice(0, 8)}.md`
     );
@@ -197,22 +197,22 @@ describe("AnnotationStore", () => {
         quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
       }
     });
-    const current = threadPathFor(".marginalia/annotations", annotation);
+    const current = threadPathFor(".marginalia-bona/annotations", annotation);
     const staleName = current.replace(
       /beta-\w{8}\.md$/,
       "一二三四五六七八九十十一十二十三十四-beta.md"
     );
     await adapter.rename(current, staleName);
-    adapter.files.set(".marginalia/index/Notes__Test.md.jsonl", "{}\n");
+    adapter.files.set(".marginalia-bona/index/Notes__Test.md.jsonl", "{}\n");
 
     const fresh = new AnnotationStore({ vault: { adapter } } as never);
     await fresh.load();
     expect(adapter.files.has(staleName)).toBe(false);
     expect(adapter.files.has(current)).toBe(true);
-    expect(adapter.files.has(".marginalia/index/Notes__Test.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia-bona/index/Notes__Test.md.jsonl")).toBe(
       false
     );
-    expect(adapter.files.has(".marginalia/index/Notes/Test.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia-bona/index/Notes/Test.md.jsonl")).toBe(
       true
     );
   });
@@ -254,7 +254,7 @@ describe("AnnotationStore", () => {
     ).toBe(false);
     expect(
       legacyAdapter.files.has(
-        ".marginalia/annotations/Notes/Test.md/note-legacyro.md"
+        ".marginalia-bona/annotations/Notes/Test.md/note-legacyro.md"
       )
     ).toBe(true);
     expect(fresh.get(legacy.id)?.body).toBe("Old root");
@@ -321,7 +321,7 @@ describe("AnnotationStore", () => {
     expect(store.get(annotation.id)).toBeUndefined();
     expect(
       [...adapter.files.keys()].some((path) =>
-        path.startsWith(`.marginalia/trash/${annotation.id}-`)
+        path.startsWith(`.marginalia-bona/trash/${annotation.id}-`)
       )
     ).toBe(true);
   });
@@ -342,7 +342,7 @@ describe("AnnotationStore", () => {
       "Second reply"
     ]);
     const file = adapter.files.get(
-      threadPathFor(".marginalia/annotations", annotation)
+      threadPathFor(".marginalia-bona/annotations", annotation)
     );
     expect(file).toContain("## Replies");
     expect(file).toContain("First reply");
@@ -371,7 +371,7 @@ describe("AnnotationStore", () => {
       body: "Two",
       anchor: { kind: "document" }
     });
-    const shard = adapter.files.get(".marginalia/index/Notes/Test.md.jsonl");
+    const shard = adapter.files.get(".marginalia-bona/index/Notes/Test.md.jsonl");
     expect(shard).toBeTruthy();
     const entry = JSON.parse(shard!.trim()) as AnnotationIndexEntry;
     expect(entry).toMatchObject({
@@ -379,17 +379,17 @@ describe("AnnotationStore", () => {
       color: "#90caf9",
       markStyle: "underline",
       replies: 0,
-      path: threadPathFor(".marginalia/annotations", first)
+      path: threadPathFor(".marginalia-bona/annotations", first)
     });
-    expect(adapter.files.has(".marginalia/index/Notes/Other.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia-bona/index/Notes/Other.md.jsonl")).toBe(
       true
     );
 
     await store.renameSource("Notes/Test.md", "Notes/Renamed.md");
-    expect(adapter.files.has(".marginalia/index/Notes/Test.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia-bona/index/Notes/Test.md.jsonl")).toBe(
       false
     );
-    const renamed = adapter.files.get(".marginalia/index/Notes/Renamed.md.jsonl");
+    const renamed = adapter.files.get(".marginalia-bona/index/Notes/Renamed.md.jsonl");
     expect(
       (JSON.parse(renamed!.trim()) as AnnotationIndexEntry).source
     ).toBe("Notes/Renamed.md");

@@ -1,6 +1,6 @@
 {
-  "id": "marginalia",
-  "name": "Marginalia",
+  "id": "marginalia-bona",
+  "name": "Marginalia Bona",
   "version": "0.2.0",
   "minAppVersion": "1.7.2",
   "description": "Annotate Markdown and PDF with margin notes, reply threads and per-note styles. Fork of Siden by Giuseppe.",

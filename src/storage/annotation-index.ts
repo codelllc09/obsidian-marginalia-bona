@@ -7,7 +7,7 @@ import {
 } from "../domain/annotation";
 import { ANNOTATIONS_DIRECTORY, ensureDirectoryPath, threadPathFor } from "./annotation-paths";
 
-export const INDEX_DIRECTORY = ".marginalia/index";
+export const INDEX_DIRECTORY = ".marginalia-bona/index";
 
 /**
  * One line of `<doc>.jsonl`. The index is a rebuildable cache that lets

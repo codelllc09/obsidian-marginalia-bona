@@ -59,7 +59,7 @@ export default class MarginaliaPlugin extends Plugin {
       processReadingView(element, context, this)
     );
     this.addSettingTab(new MarginaliaSettingTab(this.app, this));
-    this.addRibbonIcon("message-square-text", "Open Marginalia annotations", () =>
+    this.addRibbonIcon("message-square-text", "Open Marginalia Bona annotations", () =>
       void this.openSidebar()
     );
 
@@ -120,7 +120,7 @@ export default class MarginaliaPlugin extends Plugin {
         }
         menu.addItem((item) =>
           item
-            .setTitle("Add Marginalia annotation")
+            .setTitle("Add annotation")
             .setIcon("message-square-plus")
             .onClick(() => this.beginMarkdownAnnotation(editor, view))
         );
@@ -158,11 +158,11 @@ export default class MarginaliaPlugin extends Plugin {
     const diagnostics = this.store.getDiagnostics();
     if (diagnostics.length > 0) {
       new Notice(
-        `Marginalia skipped ${diagnostics.length} invalid annotation file${
+        `Marginalia Bona skipped ${diagnostics.length} invalid annotation file${
           diagnostics.length === 1 ? "" : "s"
         }.`
       );
-      console.warn("Marginalia annotation diagnostics", diagnostics);
+      console.warn("Marginalia Bona annotation diagnostics", diagnostics);
     }
   }
 
@@ -328,7 +328,7 @@ export default class MarginaliaPlugin extends Plugin {
     );
     menu.addItem((item) =>
       item
-        .setTitle("Add Marginalia annotation")
+        .setTitle("Add annotation")
         .setIcon("message-square-plus")
         .onClick(() => this.beginPdfAnnotation(captured))
     );
@@ -337,12 +337,12 @@ export default class MarginaliaPlugin extends Plugin {
 
   private async rebuildAnnotationIndex(): Promise<void> {
     const shards = await rebuildIndex(this.app.vault.adapter, this.store.all());
-    new Notice(`Marginalia index rebuilt: ${shards} shard files in ${INDEX_DIRECTORY}.`);
+    new Notice(`Marginalia Bona index rebuilt: ${shards} shard files in ${INDEX_DIRECTORY}.`);
   }
 
   private async exportAnnotations(): Promise<void> {
     const lines = [
-      "# Marginalia annotation export",
+      "# Marginalia Bona annotation export",
       "",
       `Generated ${new Date().toISOString()}`,
       ""
@@ -369,7 +369,7 @@ export default class MarginaliaPlugin extends Plugin {
       }
       lines.push("---", "");
     }
-    const directory = ".marginalia/exports";
+    const directory = ".marginalia-bona/exports";
     if (!(await this.app.vault.adapter.exists(directory))) {
       await this.app.vault.adapter.mkdir(directory);
     }
@@ -385,14 +385,14 @@ export default class MarginaliaPlugin extends Plugin {
   ): Promise<void> {
     const sidebar = await this.openSidebar();
     if (!sidebar) {
-      new Notice("Marginalia could not open its annotation sidebar.");
+      new Notice("Marginalia Bona could not open its annotation sidebar.");
       return;
     }
     sidebar.beginCreate(input);
   }
 
   private async reconcileFile(file: TFile): Promise<void> {
-    if (file.path.startsWith(".marginalia/")) return;
+    if (file.path.startsWith(".marginalia-bona/")) return;
     await this.store.reconcileMarkdownSource(
       file.path,
       await this.app.vault.cachedRead(file)
