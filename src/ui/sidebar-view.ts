@@ -12,7 +12,8 @@ import {
   AnnotationReply,
   MARK_STYLES,
   MarkStyle,
-  NewAnnotation
+  NewAnnotation,
+  anchorDrift
 } from "../domain/annotation";
 import { MARK_COLORS, resolveMarkColor, resolveMarkStyle } from "../domain/marks";
 import { ConfirmModal } from "./confirm-modal";
@@ -627,6 +628,49 @@ export class MarginaliaSidebarView extends ItemView {
     });
 
     if (annotation.anchor.kind !== "document" && !collapsed) {
+      // Drift: the passage was edited after the annotation was created.
+      // Show the original struck through next to the live quote; ✓ keeps
+      // the current text as the new baseline.
+      const drift = anchorDrift(annotation);
+      if (drift) {
+        const driftEl = card.createDiv({ cls: "marginalia-card-drift" });
+        const head = driftEl.createDiv({ cls: "marginalia-card-drift-head" });
+        head.createSpan({
+          cls: "marginalia-card-drift-chip",
+          text: "text changed"
+        });
+        const accept = head.createEl("button", {
+          cls: "clickable-icon marginalia-card-drift-accept",
+          attr: {
+            "aria-label": "Keep the current text (clear drift)",
+            title: "Keep the current text"
+          }
+        });
+        setIcon(accept, "check");
+        accept.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (annotation.anchor.kind !== "markdown") return;
+          void this.plugin.store
+            .update(annotation.id, {
+              // Accepting means the live text is authoritative: an
+              // annotation whose passage is back is no longer orphaned.
+              ...(annotation.status === "orphaned"
+                ? { status: "open" as const }
+                : {}),
+              anchor: {
+                ...annotation.anchor,
+                originalQuote: annotation.anchor.quote.exact
+              }
+            })
+            .then(() => this.plugin.refresh());
+        });
+        driftEl.createSpan({
+          cls: "marginalia-card-drift-original",
+          text: drift.original,
+          attr: { title: drift.original }
+        });
+      }
+
       // The quote preview wears the same decoration as the in-text mark:
       // the card hints at highlight/underline/wavy/… at a glance.
       const markStyle = resolveMarkStyle(

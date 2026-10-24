@@ -50,8 +50,8 @@
 }
 
 .marginalia-dropdown svg {
-  height: 12px;
-  width: 12px;
+  height: 0.75em;
+  width: 0.75em;
 }
 
 .marginalia-dropdown-label {
@@ -168,7 +168,7 @@
   font-size: var(--font-ui-smaller);
   line-height: 1.5;
   min-width: 1.4em;
-  padding: 0 6px;
+  padding: 0 0.5em;
   text-align: center;
 }
 
@@ -187,17 +187,17 @@
   display: flex;
   gap: var(--size-4-1);
   justify-content: flex-end;
-  min-height: 18px;
+  min-height: 1.125em;
 }
 
 .marginalia-reply-meta .clickable-icon {
-  height: 18px;
-  width: 18px;
+  height: 1.125em;
+  width: 1.125em;
 }
 
 .marginalia-reply-meta .clickable-icon svg {
-  height: 12px;
-  width: 12px;
+  height: 0.75em;
+  width: 0.75em;
 }
 
 .marginalia-reply-body {
@@ -216,8 +216,8 @@
 }
 
 .marginalia-card-actions .clickable-icon {
-  height: 22px;
-  width: 22px;
+  height: 1.375em;
+  width: 1.375em;
 }
 
 .marginalia-card-resolve,
@@ -237,14 +237,14 @@
 
 .marginalia-card-header .marginalia-card-collapse svg,
 .marginalia-card-actions .clickable-icon svg {
-  height: 14px;
-  width: 14px;
+  height: 0.875em;
+  width: 0.875em;
 }
 
 .marginalia-toolbar .marginalia-scroll-button svg,
 .marginalia-toolbar .marginalia-collapse-toggle svg {
-  height: 15px;
-  width: 15px;
+  height: 0.95em;
+  width: 0.95em;
 }
 
 .marginalia-card.marginalia-card-collapsed {
@@ -310,12 +310,12 @@
   flex-direction: row;
   font-size: var(--font-ui-smaller);
   gap: var(--size-4-1);
-  padding: 2px 8px;
+  padding: 0.17em 0.67em;
 }
 
 .marginalia-footer-action svg {
-  height: 12px;
-  width: 12px;
+  height: 1em;
+  width: 1em;
 }
 
 .marginalia-reply-composer {
@@ -347,7 +347,7 @@
 .marginalia-draft-colors button {
   box-shadow: none;
   font-size: var(--font-ui-smaller);
-  padding: 2px 10px;
+  padding: 0.17em 0.83em;
 }
 
 .marginalia-draft-styles button.is-selected,
@@ -359,9 +359,9 @@
 .marginalia-swatch {
   border: 2px solid var(--background-modifier-border);
   border-radius: 999px;
-  height: 18px;
+  height: 1.125em;
   padding: 0;
-  width: 18px;
+  width: 1.125em;
 }
 
 .marginalia-swatch.is-selected {
@@ -797,4 +797,69 @@
   color: var(--text-muted);
   margin: var(--size-4-1) 0 0;
   padding-inline-start: var(--size-4-6);
+}
+
+/* Drift: the anchored passage was edited after the annotation was made.
+   Badge row (chip + accept button), then the struck-through original;
+   the quote below shows the live text. */
+.marginalia-card-drift {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+  margin: 0 0 var(--size-4-2);
+}
+
+.marginalia-card-drift-head {
+  align-items: center;
+  display: inline-flex;
+}
+
+.marginalia-card-drift-chip {
+  background: color-mix(in srgb, var(--color-yellow) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-yellow) 50%, transparent);
+  border-radius: 999px 0 0 999px;
+  border-right: none;
+  color: var(--text-normal);
+  font-size: var(--font-ui-smallest);
+  padding: 0.27em 0.73em;
+}
+
+.marginalia-card-drift-accept {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-yellow) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-yellow) 50%, transparent);
+  border-radius: 0 999px 999px 0;
+  color: var(--text-normal);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--font-ui-smallest);
+  height: 1.9em;
+  justify-content: center;
+  transition: background 120ms ease;
+  width: 2em;
+}
+
+.marginalia-card-drift-accept:hover {
+  background: var(--color-yellow);
+}
+
+.marginalia-card-drift-accept svg {
+  height: 1.09em;
+  width: 1.09em;
+}
+
+.marginalia-card-drift-original {
+  -webkit-box-orient: vertical;
+  color: var(--text-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--text-faint) 60%,
+    transparent
+  );
+  word-break: break-word;
 }

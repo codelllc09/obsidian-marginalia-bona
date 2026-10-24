@@ -48,6 +48,9 @@ export interface MarkdownAnchor {
   endCharacter: number;
   quote: TextQuote;
   quoteHash?: string;
+  /** The exact text when the annotation was created. quote.exact is kept
+   *  up to date as the passage is edited, so a mismatch means drift. */
+  originalQuote?: string;
 }
 
 export interface PdfRectangle {
@@ -105,6 +108,35 @@ export type NewAnnotation = Omit<
   replies?: AnnotationReply[];
 };
 
+export interface AnchorDrift {
+  /** What the passage read when the annotation was created. */
+  original: string;
+  /** What the passage reads now. */
+  current: string;
+}
+
+/** A Markdown anchor has drifted when its live text no longer matches the
+ *  text that was originally selected. Annotations created before drift
+ *  tracking (no originalQuote) never report drift. */
+export function anchorDrift(annotation: Annotation): AnchorDrift | null {
+  const anchor = annotation.anchor;
+  if (anchor.kind !== "markdown" || !anchor.originalQuote) return null;
+  const current = anchor.quote.exact;
+  return current === anchor.originalQuote
+    ? null
+    : { original: anchor.originalQuote, current };
+}
+
+/** Status after an anchor re-map: passage lost → orphaned; passage back →
+ *  no longer orphaned (open); otherwise unchanged. */
+export function statusAfterAnchorMap(
+  annotation: Annotation,
+  passageLost: boolean
+): AnnotationStatus {
+  if (passageLost) return "orphaned";
+  return annotation.status === "orphaned" ? "open" : annotation.status;
+}
+
 export function assertAnnotation(value: unknown): asserts value is Annotation {
   if (!value || typeof value !== "object") {
     throw new Error("Annotation must be an object.");
@@ -155,6 +187,13 @@ export function assertAnnotation(value: unknown): asserts value is Annotation {
   const markStyle = annotation.markStyle;
   if (markStyle !== undefined && !isMarkStyle(markStyle)) {
     throw new Error(`Annotation mark style is invalid: ${String(markStyle)}`);
+  }
+  if (
+    annotation.anchor.kind === "markdown" &&
+    annotation.anchor.originalQuote !== undefined &&
+    typeof annotation.anchor.originalQuote !== "string"
+  ) {
+    throw new Error("Anchor originalQuote must be a string when present.");
   }
   if (
     annotation.author !== undefined &&
