@@ -20,6 +20,7 @@
 .marginalia-toolbar {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--size-4-2);
   max-width: 100%;
   min-width: 0;
@@ -30,8 +31,13 @@
   width: auto;
 }
 
+/* Pushes the scope/filter controls to the trailing edge. */
+.marginalia-toolbar-spacer {
+  flex: 1 1 var(--size-4-4);
+}
+
 .marginalia-toolbar > button:not(.clickable-icon) {
-  flex: 1;
+  flex: 0 0 auto;
   width: auto;
 }
 
@@ -74,6 +80,7 @@
   color: var(--text-muted);
   padding: var(--size-4-4);
   text-align: center;
+  white-space: pre-line;
 }
 
 .marginalia-card {
@@ -91,6 +98,7 @@
   min-width: 0;
   overflow-x: hidden;
   padding: var(--size-4-3);
+  transition: background-color 120ms ease, border-color 120ms ease;
   width: 100%;
 }
 
@@ -186,13 +194,18 @@
   padding-right: 0.5rem;
 }
 
+/* Hover-revealed actions keep their layout slot (opacity, not display):
+   no reflow jitter while the mouse crosses the card. */
 .marginalia-card-copy {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
 .marginalia-card:hover .marginalia-card-copy,
 .marginalia-card-copy:focus-visible {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .marginalia-card-header .marginalia-card-collapse svg {
@@ -234,14 +247,17 @@
 
 .marginalia-reply-remove,
 .marginalia-reply-copy {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
 .marginalia-reply:hover .marginalia-reply-remove,
 .marginalia-reply:hover .marginalia-reply-copy,
 .marginalia-reply-remove:focus-visible,
 .marginalia-reply-copy:focus-visible {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .marginalia-reply-button {
@@ -310,18 +326,34 @@
 }
 
 .marginalia-card-quote {
+  border-inline-start: 2px solid
+    color-mix(
+      in srgb,
+      var(--marginalia-card-color, var(--interactive-accent)) 55%,
+      transparent
+    );
   box-sizing: border-box;
   color: var(--text-muted);
   display: -webkit-box;
   font-size: var(--font-ui-small);
+  margin: 0 0 var(--size-4-2);
   max-width: 100%;
   min-width: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow-x: hidden;
   overflow: hidden;
+  padding-inline-start: var(--size-4-2);
   white-space: normal;
   width: 100%;
+}
+
+/* Comment text is selectable: text cursor there, pointer only on the card
+   chrome. Navigation still works on plain clicks (guarded in TS). */
+.marginalia-card-body,
+.marginalia-card-quote,
+.marginalia-reply-body {
+  cursor: text;
 }
 
 .marginalia-card-body,
@@ -634,5 +666,19 @@
 
   .marginalia-card {
     min-height: 44px;
+  }
+}
+
+/* Touch devices have no hover: keep reveal-by-hover actions discoverable. */
+@media (hover: none) {
+  .marginalia-card-copy,
+  .marginalia-reply-copy,
+  .marginalia-reply-remove {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .marginalia-reply-time {
+    opacity: 0.9;
   }
 }

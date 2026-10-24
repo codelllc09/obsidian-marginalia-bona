@@ -73,6 +73,16 @@ const MARK_STYLE_LABELS: Record<MarkStyle, string> = {
   bold: "Bold"
 };
 
+/** Human-readable swatch names for tooltips/AT (the hex codes are not). */
+const MARK_COLOR_LABELS: Record<string, string> = {
+  "#ffd54f": "Yellow",
+  "#ffab91": "Orange",
+  "#a5d6a7": "Green",
+  "#90caf9": "Blue",
+  "#ce93d8": "Purple",
+  "#ef9a9a": "Red"
+};
+
 export class MarginaliaSidebarView extends ItemView {
   private viewScope: Scope = "current";
   private status: StatusFilter = "open";
@@ -127,7 +137,7 @@ export class MarginaliaSidebarView extends ItemView {
   setActiveAnnotation(id: string | null): void {
     this.activeId = id;
     this.containerEl
-      .querySelectorAll(".marginalia-bona-card.is-active")
+      .querySelectorAll(".marginalia-card.is-active")
       .forEach((element) => element.removeClass("is-active"));
     if (id) {
       const card = this.containerEl.querySelector(`[data-marginalia-id="${id}"]`);
@@ -182,10 +192,13 @@ export class MarginaliaSidebarView extends ItemView {
     this.listEl = list;
     const annotations = this.visibleAnnotations();
     if (annotations.length === 0) {
-      list.createDiv({
-        cls: "marginalia-empty",
-        text: "No annotations match the current view."
-      });
+      let message = "No annotations match the current filters.";
+      if (this.viewScope === "current") {
+        message = this.app.workspace.getActiveFile()
+          ? "No annotations in this file yet.\nSelect text, then right-click → Add annotation."
+          : "Open a note to see its annotations.";
+      }
+      list.createDiv({ cls: "marginalia-empty", text: message });
       return;
     }
     for (const annotation of annotations) this.renderCard(list, annotation);
@@ -234,6 +247,11 @@ export class MarginaliaSidebarView extends ItemView {
       cls: "mod-cta",
       text: "Save"
     });
+    // Empty drafts cannot save: disabled state beats a silent no-op.
+    save.disabled = !textarea.value.trim();
+    textarea.addEventListener("input", () => {
+      save.disabled = !textarea.value.trim();
+    });
     save.addEventListener("click", () => void this.saveDraft());
   }
 
@@ -258,7 +276,12 @@ export class MarginaliaSidebarView extends ItemView {
     const colors = picker.createDiv({ cls: "marginalia-draft-colors" });
     const auto = colors.createEl("button", {
       text: "Auto",
-      attr: { type: "button", "aria-label": "Default color", "aria-pressed": String(draft.color === null) }
+      attr: {
+        type: "button",
+        "aria-label": "Auto (default color)",
+        title: "Use the default color from settings",
+        "aria-pressed": String(draft.color === null)
+      }
     });
     auto.className = draft.color === null ? "is-selected" : "";
     auto.addEventListener("click", () => {
@@ -267,10 +290,12 @@ export class MarginaliaSidebarView extends ItemView {
       this.focusDraft(0);
     });
     for (const color of MARK_COLORS) {
+      const colorLabel = MARK_COLOR_LABELS[color] ?? color;
       const swatch = colors.createEl("button", {
         attr: {
           type: "button",
-          "aria-label": color,
+          "aria-label": colorLabel,
+          title: colorLabel,
           "aria-pressed": String(draft.color === color)
         }
       });
@@ -333,7 +358,7 @@ export class MarginaliaSidebarView extends ItemView {
     window.setTimeout(() => {
       const textarea =
         this.containerEl.querySelector<HTMLTextAreaElement>(
-          ".marginalia-bona-draft-textarea"
+          ".marginalia-draft-textarea"
         );
       if (textarea) {
         textarea.focus();
@@ -343,6 +368,21 @@ export class MarginaliaSidebarView extends ItemView {
   }
 
   private renderToolbar(root: HTMLElement): void {
+    // Search sits at the top, outside the re-rendered body: rebuilding it
+    // would abort an active IME composition (Chinese/Japanese input).
+    const search = root.createEl("input", {
+      cls: "marginalia-search",
+      type: "search",
+      placeholder: "Search annotations…",
+      attr: { "aria-label": "Search annotations" }
+    });
+    search.value = this.query;
+    search.addEventListener("input", () => {
+      this.query = search.value;
+      // Re-render only the body below so the search input itself survives.
+      this.renderBody();
+    });
+
     const toolbar = root.createDiv({ cls: "marginalia-toolbar" });
     const collapseButton = toolbar.createEl("button", {
       cls: "clickable-icon marginalia-collapse-toggle",
@@ -388,9 +428,12 @@ export class MarginaliaSidebarView extends ItemView {
     bottomButton.addEventListener("click", () =>
       this.listEl?.scrollTo({ top: this.listEl.scrollHeight, behavior: "smooth" })
     );
+    toolbar.createDiv({ cls: "marginalia-toolbar-spacer" });
     const scopeButton = toolbar.createEl("button", {
       text: this.viewScope === "current" ? "Current file" : "Whole vault",
-      attr: { "aria-label": "Toggle annotation scope" }
+      attr: {
+        "aria-label": "Show annotations for the current file or the whole vault"
+      }
     });
     scopeButton.addEventListener("click", () => {
       this.viewScope = this.viewScope === "current" ? "vault" : "current";
@@ -400,7 +443,7 @@ export class MarginaliaSidebarView extends ItemView {
     });
 
     const filter = toolbar.createEl("select", {
-      attr: { "aria-label": "Filter annotation status" }
+      attr: { "aria-label": "Filter by status" }
     });
     for (const [value, label] of [
       ["open", "Open"],
@@ -413,20 +456,6 @@ export class MarginaliaSidebarView extends ItemView {
     filter.value = this.status;
     filter.addEventListener("change", () => {
       this.status = filter.value as StatusFilter;
-      this.renderBody();
-    });
-
-    const search = root.createEl("input", {
-      cls: "marginalia-search",
-      type: "search",
-      placeholder: "Search annotations…",
-      attr: { "aria-label": "Search annotations" }
-    });
-    search.value = this.query;
-    search.addEventListener("input", () => {
-      this.query = search.value;
-      // Re-render only the body: rebuilding the search input itself would
-      // abort an active IME composition (Chinese/Japanese input).
       this.renderBody();
     });
   }
@@ -559,15 +588,31 @@ export class MarginaliaSidebarView extends ItemView {
       summary.textContent = annotation.body.split("\n")[0];
     }
 
-    const activate = () => void this.plugin.navigateToAnnotation(annotation);
-    card.addEventListener("click", activate);
+    const activate = (event: MouseEvent | KeyboardEvent) => {
+      // Navigate on plain clicks only: never hijack text selection inside
+      // the comment (the user is copying) or clicks on Markdown links.
+      if (event.target instanceof HTMLElement && event.target.closest("a")) {
+        return;
+      }
+      const selection = window.getSelection();
+      if (
+        selection &&
+        !selection.isCollapsed &&
+        selection.anchorNode !== null &&
+        card.contains(selection.anchorNode)
+      ) {
+        return;
+      }
+      void this.plugin.navigateToAnnotation(annotation);
+    };
+    card.addEventListener("click", (event) => activate(event));
     card.addEventListener("keydown", (event) => {
       // Inner form controls (reply composer) must keep Enter/Space for text
       // input; only act when the card itself has focus.
       if (event.target !== card) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        activate();
+        activate(event);
       }
     });
   }
@@ -656,6 +701,10 @@ export class MarginaliaSidebarView extends ItemView {
         cls: "mod-cta",
         text: "Reply"
       });
+      send.disabled = !textarea.value.trim();
+      textarea.addEventListener("input", () => {
+        send.disabled = !textarea.value.trim();
+      });
       send.addEventListener("click", (event) => {
         event.stopPropagation();
         void this.sendReply(annotation.id, textarea.value);
@@ -663,7 +712,11 @@ export class MarginaliaSidebarView extends ItemView {
       composer.addEventListener("click", (event) =>
         event.stopPropagation()
       );
-      window.setTimeout(() => textarea.focus());
+      window.setTimeout(() => {
+        // Long cards: make sure the composer is actually on screen.
+        composer.scrollIntoView({ block: "nearest" });
+        textarea.focus();
+      });
       return;
     }
     const replyButton = card.createEl("button", {
