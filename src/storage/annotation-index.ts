@@ -1,5 +1,6 @@
 import { normalizePath } from "obsidian";
 import {
+  anchorDrift,
   Annotation,
   AnnotationStatus,
   MarkStyle,
@@ -22,6 +23,8 @@ export interface AnnotationIndexEntry {
   type: SourceType;
   color?: string;
   markStyle?: MarkStyle;
+  /** True when the anchored passage no longer matches the original text. */
+  drifted?: boolean;
   /** Root comment author (user or agent name), when known. */
   author?: string;
   /** 0-based start line for Markdown, page for PDF, -1 for document anchors. */
@@ -80,6 +83,7 @@ export function entryFor(annotation: Annotation): AnnotationIndexEntry {
     ...(annotation.color ? { color: annotation.color } : {}),
     ...(annotation.markStyle ? { markStyle: annotation.markStyle } : {}),
     ...(annotation.author ? { author: annotation.author } : {}),
+    ...(anchorDrift(annotation) ? { drifted: true } : {}),
     line,
     quote,
     replies: annotation.replies.length,

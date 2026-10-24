@@ -798,3 +798,48 @@
   margin: var(--size-4-1) 0 0;
   padding-inline-start: var(--size-4-6);
 }
+
+/* Drift: the anchored passage was edited after the annotation was made.
+   Chip + struck-through original; the quote below shows the live text. */
+.marginalia-card-drift {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  margin: 0 0 var(--size-4-2);
+}
+
+.marginalia-card-drift-chip {
+  background: color-mix(in srgb, var(--color-yellow) 22%, transparent);
+  border-radius: 999px;
+  color: var(--text-normal);
+  flex: 0 0 auto;
+  font-size: var(--font-ui-smallest);
+  padding: 1px 8px;
+}
+
+.marginalia-card-drift-accept {
+  height: 16px;
+  width: 16px;
+}
+
+.marginalia-card-drift-accept svg {
+  height: 10px;
+  width: 10px;
+}
+
+.marginalia-card-drift-original {
+  -webkit-box-orient: vertical;
+  color: var(--text-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--text-faint) 60%,
+    transparent
+  );
+  word-break: break-word;
+}

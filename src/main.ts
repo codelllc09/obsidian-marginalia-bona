@@ -300,7 +300,8 @@ export default class MarginaliaPlugin extends Plugin {
         prefix: documentText.slice(Math.max(0, startOffset - 64), startOffset),
         suffix: documentText.slice(endOffset, endOffset + 64)
       },
-      quoteHash: this.hash(exact)
+      quoteHash: this.hash(exact),
+      originalQuote: exact
     };
     void this.beginSidebarDraft({
       sourcePath: view.file.path,

@@ -253,6 +253,11 @@ async function mapChangedAnchors(
       status: isOrphaned ? "orphaned" : annotation.status,
       anchor: {
         ...anchor,
+        // Seed drift tracking on annotations created before it existed:
+        // the then-current text becomes the baseline to measure against.
+        ...(isOrphaned || anchor.originalQuote
+          ? {}
+          : { originalQuote: selected }),
         startOffset,
         endOffset,
         startLine: startLine.number - 1,
