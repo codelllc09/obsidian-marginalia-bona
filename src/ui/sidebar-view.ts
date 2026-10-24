@@ -54,17 +54,6 @@ function submitHint(shortcut: "enter" | "mod-enter"): string {
     : "Ctrl+Enter saves";
 }
 
-function formatReplyTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const time = date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-  if (date.toDateString() === new Date().toDateString()) return time;
-  return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
-}
-
 const MARK_STYLE_LABELS: Record<MarkStyle, string> = {
   highlight: "Highlight",
   underline: "Underline",
@@ -624,10 +613,11 @@ export class MarginaliaSidebarView extends ItemView {
   private renderCardFooter(card: HTMLElement, annotation: Annotation): void {
     const footer = card.createDiv({ cls: "marginalia-card-footer" });
     const replyButton = footer.createEl("button", {
-      cls: "marginalia-reply-button",
-      text: "Reply",
-      attr: { type: "button" }
+      cls: "marginalia-footer-action",
+      attr: { type: "button", "aria-label": "Reply to annotation" }
     });
+    setIcon(replyButton, "reply");
+    replyButton.createSpan({ text: "Reply" });
     replyButton.addEventListener("click", (event) => {
       event.stopPropagation();
       this.replyFor = annotation.id;
@@ -675,10 +665,6 @@ export class MarginaliaSidebarView extends ItemView {
   ): void {
     const container = card.createDiv({ cls: "marginalia-reply" });
     const meta = container.createDiv({ cls: "marginalia-reply-meta" });
-    meta.createSpan({
-      cls: "marginalia-reply-time",
-      text: formatReplyTime(reply.createdAt)
-    });
     const copyReply = meta.createEl("button", {
       cls: "clickable-icon marginalia-reply-copy",
       attr: { "aria-label": "Copy reply" }
