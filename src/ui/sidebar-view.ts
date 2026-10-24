@@ -90,6 +90,9 @@ export class MarginaliaSidebarView extends ItemView {
   /** Per-card collapse overrides on top of the global toggle. */
   private readonly collapseOverrides = new Map<string, boolean>();
   private listEl: HTMLElement | null = null;
+  /** Cards whose images are collapsed to thumbnails (session-scoped). */
+  private readonly imageCollapsed = new Map<string, boolean>();
+  private lightboxEl: HTMLElement | null = null;
   /** Currently open Obsidian menu + the control that owns it, so a
    *  second click on the same control toggles it closed. */
   private openMenuInstance: Menu | null = null;
@@ -119,6 +122,7 @@ export class MarginaliaSidebarView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.closeLightbox();
     this.plugin.refresh();
   }
 
@@ -736,7 +740,7 @@ export class MarginaliaSidebarView extends ItemView {
         body,
         annotation.sourcePath,
         this
-      );
+      ).then(() => this.enhanceImages(body, annotation));
       for (const reply of annotation.replies) {
         this.renderReply(card, annotation, reply);
       }
@@ -792,6 +796,70 @@ export class MarginaliaSidebarView extends ItemView {
     });
   }
 
+  /** Wrap pasted images: expanded by default (fit to card width), the
+   *  toggle collapses them to thumbnails, clicking a thumbnail opens the
+   *  full-size lightbox. State is per annotation, session-scoped. */
+  private enhanceImages(container: HTMLElement, annotation: Annotation): void {
+    const images = Array.from(container.querySelectorAll("img"));
+    if (images.length === 0) return;
+    const collapsed = this.imageCollapsed.get(annotation.id) ?? false;
+    container.toggleClass("marginalia-imgs-collapsed", collapsed);
+    if (!container.isConnected) return;
+
+    for (const img of images) {
+      const frame = createSpan({ cls: "marginalia-img-frame" });
+      img.replaceWith(frame);
+      frame.appendChild(img);
+      frame.addEventListener("click", (event) => {
+        event.stopPropagation();
+        this.openLightbox(img.src);
+      });
+      const toggle = frame.createEl("button", {
+        cls: "clickable-icon marginalia-img-toggle",
+        attr: {
+          "aria-label": collapsed ? "Expand images" : "Collapse images",
+          title: collapsed ? "Expand images" : "Collapse images"
+        }
+      });
+      setIcon(toggle, collapsed ? "maximize-2" : "minimize-2");
+      toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        this.imageCollapsed.set(
+          annotation.id,
+          !(this.imageCollapsed.get(annotation.id) ?? false)
+        );
+        this.renderBody();
+      });
+    }
+  }
+
+  /** Full-size temporary view over a dimmed backdrop; click/Esc closes. */
+  private openLightbox(src: string): void {
+    if (this.lightboxEl) {
+      this.closeLightbox();
+      return;
+    }
+    const backdrop = createDiv({ cls: "marginalia-lightbox" });
+    backdrop.createEl("img", { attr: { src } });
+    const close = (): void => {
+      backdrop.remove();
+      document.removeEventListener("keydown", onKey);
+      this.lightboxEl = null;
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    backdrop.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+    this.lightboxEl = backdrop;
+  }
+
+  private closeLightbox(): void {
+    this.lightboxEl?.remove();
+    this.lightboxEl = null;
+  }
+
   private beginEdit(annotation: Annotation): void {
     this.draft = {
       mode: "edit",
@@ -840,7 +908,7 @@ export class MarginaliaSidebarView extends ItemView {
       bodyEl,
       annotation.sourcePath,
       this
-    );
+    ).then(() => this.enhanceImages(bodyEl, annotation));
     container.addEventListener("click", (event) => event.stopPropagation());
   }
 

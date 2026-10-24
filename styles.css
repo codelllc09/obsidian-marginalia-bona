@@ -905,3 +905,88 @@
   display: block;
   margin-bottom: 2px;
 }
+
+/* Pasted images in cards: expanded by default (fit the card width), the
+   frame toggle collapses them to a small thumbnail, clicking the frame
+   opens the full-size lightbox. */
+.marginalia-img-frame {
+  display: block;
+  position: relative;
+}
+
+.marginalia-img-frame img {
+  display: block;
+}
+
+.marginalia-sidebar .marginalia-imgs-collapsed .marginalia-img-frame {
+  display: inline-block;
+}
+
+.marginalia-sidebar .marginalia-imgs-collapsed img {
+  cursor: zoom-in;
+  height: auto;
+  max-height: 3.5em;
+  max-width: 32%;
+  width: auto;
+}
+
+.marginalia-img-toggle {
+  align-items: center;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  color: var(--text-normal);
+  cursor: pointer;
+  display: inline-flex;
+  height: 1.4em;
+  justify-content: center;
+  opacity: 0;
+  position: absolute;
+  right: 0.25em;
+  top: 0.25em;
+  transition: opacity 120ms ease;
+  width: 1.4em;
+}
+
+.marginalia-img-toggle:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+}
+
+.marginalia-img-toggle svg {
+  height: 0.9em;
+  width: 0.9em;
+}
+
+.marginalia-img-frame:hover .marginalia-img-toggle,
+.marginalia-img-toggle:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .marginalia-img-toggle {
+    opacity: 1;
+  }
+}
+
+/* Full-size temporary view (lightbox) over a dimmed backdrop. */
+.marginalia-lightbox {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: zoom-out;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: var(--layer-modal);
+}
+
+.marginalia-lightbox img {
+  background: var(--background-primary);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-l);
+  height: auto;
+  max-height: 92vh;
+  max-width: 92vw;
+  width: auto;
+}
