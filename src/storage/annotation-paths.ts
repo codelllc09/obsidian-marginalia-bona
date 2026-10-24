@@ -2,7 +2,7 @@ import { normalizePath } from "obsidian";
 import { Annotation } from "../domain/annotation";
 
 /** Root folder holding one Markdown file per discussion thread. */
-export const ANNOTATIONS_DIRECTORY = ".siden-plus/annotations";
+export const ANNOTATIONS_DIRECTORY = ".marginalia-bona/annotations";
 
 /**
  * Longest quote excerpt used inside a thread file name, measured in

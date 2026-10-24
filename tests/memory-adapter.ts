@@ -50,9 +50,28 @@ export class MemoryAdapter {
   }
 
   async rename(oldPath: string, newPath: string): Promise<void> {
-    const value = await this.read(oldPath);
-    this.files.set(newPath, value);
-    this.files.delete(oldPath);
+    if (this.files.has(oldPath)) {
+      this.files.set(newPath, this.files.get(oldPath)!);
+      this.files.delete(oldPath);
+      return;
+    }
+    // Directory rename: move every key under the old prefix.
+    let moved = false;
+    for (const [key, value] of [...this.files.entries()]) {
+      if (key.startsWith(`${oldPath}/`)) {
+        this.files.set(`${newPath}/${key.slice(oldPath.length + 1)}`, value);
+        this.files.delete(key);
+        moved = true;
+      }
+    }
+    for (const dir of [...this.directories]) {
+      if (dir === oldPath || dir.startsWith(`${oldPath}/`)) {
+        this.directories.add(dir.replace(oldPath, newPath));
+        this.directories.delete(dir);
+        moved = true;
+      }
+    }
+    if (!moved) throw new Error("Missing file");
   }
 
   async rmdir(path: string, _recursive: boolean): Promise<void> {

@@ -1,5 +1,5 @@
 {
-  "name": "siden-plus",
+  "name": "marginalia-bona",
   "version": "0.2.0",
   "private": true,
   "description": "Annotate Markdown and PDF text with highlights, margin notes, and a review sidebar.",
@@ -7,12 +7,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/giuseqpe/siden.git"
+    "url": "git+https://github.com/codelllc09/marginalia-bona.git"
   },
   "bugs": {
-    "url": "https://github.com/giuseqpe/siden/issues"
+    "url": "https://github.com/codelllc09/marginalia-bona/issues"
   },
-  "homepage": "https://github.com/giuseqpe/siden#readme",
+  "homepage": "https://github.com/codelllc09/marginalia-bona#readme",
   "type": "module",
   "scripts": {
     "build": "npm run typecheck && node esbuild.config.mjs production",
@@ -20,7 +20,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "deploy": "npm run build && mkdir -p \"$HOME/Documents/obsidian-notes/mynotes/.obsidian/plugins/siden-plus\" && cp main.js manifest.json styles.css \"$HOME/Documents/obsidian-notes/mynotes/.obsidian/plugins/siden-plus/\"",
+    "deploy": "npm run build && mkdir -p \"$HOME/Documents/obsidian-notes/mynotes/.obsidian/plugins/marginalia-bona\" && cp main.js manifest.json styles.css \"$HOME/Documents/obsidian-notes/mynotes/.obsidian/plugins/marginalia-bona/\"",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "devDependencies": {

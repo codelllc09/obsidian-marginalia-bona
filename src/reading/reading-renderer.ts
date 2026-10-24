@@ -1,5 +1,5 @@
 import { MarkdownPostProcessorContext } from "obsidian";
-import type SidenPlugin from "../main";
+import type MarginaliaPlugin from "../main";
 import { Annotation } from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
 
@@ -10,7 +10,7 @@ interface TextSegment {
 }
 
 interface PreviewState {
-  plugin: SidenPlugin;
+  plugin: MarginaliaPlugin;
   preview: HTMLElement;
   layer: HTMLElement;
   observer: ResizeObserver;
@@ -29,7 +29,7 @@ function textSegments(root: HTMLElement): {
       if (
         !parent ||
         parent.closest(
-          ".siden-reading-margin-layer, code, pre, script, style, .math"
+          ".marginalia-bona-reading-margin-layer, code, pre, script, style, .math"
         )
       ) {
         return NodeFilter.FILTER_REJECT;
@@ -88,11 +88,11 @@ function locateQuote(
 function highlightOccurrence(
   root: HTMLElement,
   annotation: Annotation,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): HTMLElement | null {
   if (annotation.anchor.kind !== "markdown") return null;
   const existing = root.querySelector<HTMLElement>(
-    `[data-siden-id="${annotation.id}"]`
+    `[data-marginalia-id="${annotation.id}"]`
   );
   if (existing) return existing;
   const { text, segments } = textSegments(root);
@@ -115,7 +115,7 @@ function highlightOccurrence(
     });
     mark.className = presentation.class;
     mark.setAttribute("style", presentation.style);
-    mark.dataset.sidenId = annotation.id;
+    mark.dataset.marginaliaId = annotation.id;
     mark.addEventListener("click", () =>
       void plugin.activateAnnotation(annotation.id)
     );
@@ -130,7 +130,7 @@ function findAnchor(
   annotation: Annotation
 ): HTMLElement | null {
   const highlighted = root.querySelector<HTMLElement>(
-    `[data-siden-id="${annotation.id}"]`
+    `[data-marginalia-id="${annotation.id}"]`
   );
   if (highlighted) return highlighted;
   if (annotation.anchor.kind !== "markdown") return null;
@@ -144,14 +144,14 @@ function findAnchor(
 
 function ensurePreviewState(
   preview: HTMLElement,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): PreviewState {
   const existing = [...previewStates].find(
     (state) => state.preview === preview
   );
   if (existing) return existing;
-  preview.addClass("siden-reading-preview");
-  const layer = preview.createDiv({ cls: "siden-reading-margin-layer" });
+  preview.addClass("marginalia-reading-preview");
+  const layer = preview.createDiv({ cls: "marginalia-reading-margin-layer" });
   const state: PreviewState = {
     plugin,
     preview,
@@ -224,7 +224,7 @@ function renderPreviewMargins(state: PreviewState): void {
   if (!plugin.settings.showMargins || plugin.areMarginsSuppressed()) return;
   const placement = measurePlacement(state);
   if (!placement) return;
-  const filePath = preview.dataset.sidenSourcePath;
+  const filePath = preview.dataset.marginaliaSourcePath;
   if (!filePath) return;
   const previewRect = preview.getBoundingClientRect();
   const entries = plugin.store
@@ -257,29 +257,29 @@ function renderPreviewMargins(state: PreviewState): void {
   let nextTop = 6;
   for (const entry of entries) {
     const card = layer.createDiv({
-      cls: `siden-margin-card siden-margin-card-reading${
+      cls: `marginalia-margin-card marginalia-margin-card-reading${
         plugin.settings.forceLongWordBreaks
-          ? " siden-force-word-breaks"
+          ? " marginalia-force-word-breaks"
           : ""
       }`,
       attr: {
-        "data-siden-id": entry.annotation.id,
+        "data-marginalia-id": entry.annotation.id,
         tabindex: "0",
         role: "button",
         "aria-label": `Open annotation: ${entry.annotation.body}`
       }
     });
     card.style.setProperty(
-      "--siden-card-color",
+      "--marginalia-card-color",
       entry.annotation.color ?? plugin.settings.highlightColor
     );
     card.createDiv({
-      cls: "siden-margin-card-body",
+      cls: "marginalia-margin-card-body",
       text: entry.annotation.body
     });
     for (const reply of entry.annotation.replies) {
       card.createDiv({
-        cls: "siden-margin-card-reply",
+        cls: "marginalia-margin-card-reply",
         text: reply.body
       });
     }
@@ -299,7 +299,7 @@ function renderPreviewMargins(state: PreviewState): void {
   }
 }
 
-export function refreshReadingMargins(plugin: SidenPlugin): void {
+export function refreshReadingMargins(plugin: MarginaliaPlugin): void {
   for (const state of previewStates) {
     if (state.plugin === plugin) schedulePreview(state);
   }
@@ -308,9 +308,9 @@ export function refreshReadingMargins(plugin: SidenPlugin): void {
 export function processReadingView(
   element: HTMLElement,
   context: MarkdownPostProcessorContext,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): void {
-  if (context.sourcePath.startsWith(".siden-plus/")) return;
+  if (context.sourcePath.startsWith(".marginalia-bona/")) return;
   const annotations = plugin.store
     .forSource(context.sourcePath)
     .filter(
@@ -325,6 +325,6 @@ export function processReadingView(
   }
   const preview = element.closest<HTMLElement>(".markdown-preview-view");
   if (!preview) return;
-  preview.dataset.sidenSourcePath = context.sourcePath;
+  preview.dataset.marginaliaSourcePath = context.sourcePath;
   schedulePreview(ensurePreviewState(preview, plugin));
 }

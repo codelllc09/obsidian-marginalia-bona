@@ -1,10 +1,10 @@
 {
-  "id": "siden-plus",
-  "name": "Siden Plus",
+  "id": "marginalia-bona",
+  "name": "Marginalia Bona",
   "version": "0.2.0",
   "minAppVersion": "1.7.2",
-  "description": "Annotate Markdown and PDF with margin notes, reply threads and per-note styles. Fork of Siden (giuseqpe/siden).",
-  "author": "Giuseppe",
-  "authorUrl": "https://github.com/giuseqpe",
+  "description": "Annotate Markdown and PDF with margin notes, reply threads and per-note styles. Fork of Siden by Giuseppe.",
+  "author": "codelllc09",
+  "authorUrl": "https://github.com/codelllc09",
   "isDesktopOnly": false
 }
