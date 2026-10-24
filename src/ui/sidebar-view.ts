@@ -807,8 +807,7 @@ export class MarginaliaSidebarView extends ItemView {
     annotation: Annotation,
     collapsed: boolean
   ): HTMLElement {
-    const row = container.createDiv({ cls: "marginalia-img-chip-row" });
-    const button = row.createEl("button", {
+    const button = container.createEl("button", {
       cls: "marginalia-img-chip",
       attr: {
         "aria-label": collapsed ? "Show images" : "Hide images",
@@ -826,7 +825,7 @@ export class MarginaliaSidebarView extends ItemView {
       this.imageCollapsed.set(annotation.id, !collapsed);
       this.renderBody();
     });
-    return row;
+    return button;
   }
 
   private enhanceImages(container: HTMLElement, annotation: Annotation): void {
