@@ -159,6 +159,7 @@
 
 .siden-reply-meta {
   align-items: center;
+  background: var(--background-secondary);
   display: flex;
   gap: var(--size-4-1);
   height: 14px;
@@ -169,16 +170,31 @@
 
 .siden-reply-time {
   color: var(--text-faint);
-  font-size: min(var(--font-ui-smallest), 0.65rem);
+  font-size: min(var(--font-ui-smallest), 0.6rem);
   letter-spacing: 0.02em;
-  opacity: 0.8;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.siden-reply:hover .siden-reply-time {
+  opacity: 0.9;
 }
 
 .siden-reply-body {
   color: var(--text-muted);
   font-size: var(--font-ui-small);
-  /* keep text clear of the corner timestamp */
-  padding-right: 2.75rem;
+  padding-right: 0.5rem;
+}
+
+.siden-card-header .siden-card-collapse svg {
+  height: 14px;
+  width: 14px;
+}
+
+.siden-toolbar .siden-scroll-button svg,
+.siden-toolbar .siden-collapse-toggle svg {
+  height: 15px;
+  width: 15px;
 }
 
 .siden-card.siden-card-collapsed {

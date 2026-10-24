@@ -87,6 +87,9 @@ export class SidenSidebarView extends ItemView {
   private bodyEl: HTMLElement | null = null;
   /** When true, cards render as compact header-only rows. */
   private collapsed = false;
+  /** Per-card collapse overrides on top of the global toggle. */
+  private readonly collapseOverrides = new Map<string, boolean>();
+  private listEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: SidenPlugin) {
     super(leaf);
@@ -161,6 +164,10 @@ export class SidenSidebarView extends ItemView {
     this.renderBody();
   }
 
+  private isCollapsed(id: string): boolean {
+    return this.collapseOverrides.get(id) ?? this.collapsed;
+  }
+
   private renderBody(): void {
     const root = this.bodyEl;
     if (!root) return;
@@ -172,6 +179,7 @@ export class SidenSidebarView extends ItemView {
     root.empty();
     if (this.draft) this.renderDraft(root);
     const list = root.createDiv({ cls: "siden-list" });
+    this.listEl = list;
     const annotations = this.visibleAnnotations();
     if (annotations.length === 0) {
       list.createDiv({
@@ -351,7 +359,6 @@ export class SidenSidebarView extends ItemView {
     );
     collapseButton.addEventListener("click", () => {
       this.collapsed = !this.collapsed;
-      // Update the toolbar button in place; only the list below re-renders.
       collapseButton.setAttribute("aria-pressed", String(this.collapsed));
       collapseButton.setAttribute(
         "aria-label",
@@ -365,6 +372,22 @@ export class SidenSidebarView extends ItemView {
       );
       this.renderBody();
     });
+    const topButton = toolbar.createEl("button", {
+      cls: "clickable-icon siden-scroll-button",
+      attr: { "aria-label": "Scroll annotations back to top" }
+    });
+    setIcon(topButton, "arrow-up");
+    topButton.addEventListener("click", () =>
+      this.listEl?.scrollTo({ top: 0, behavior: "smooth" })
+    );
+    const bottomButton = toolbar.createEl("button", {
+      cls: "clickable-icon siden-scroll-button",
+      attr: { "aria-label": "Scroll annotations to bottom" }
+    });
+    setIcon(bottomButton, "arrow-down");
+    bottomButton.addEventListener("click", () =>
+      this.listEl?.scrollTo({ top: this.listEl.scrollHeight, behavior: "smooth" })
+    );
     const scopeButton = toolbar.createEl("button", {
       text: this.viewScope === "current" ? "Current file" : "Whole vault",
       attr: { "aria-label": "Toggle annotation scope" }
@@ -448,14 +471,16 @@ export class SidenSidebarView extends ItemView {
   }
 
   private renderCard(parent: HTMLElement, annotation: Annotation): void {
+    const collapsed = this.isCollapsed(annotation.id);
     const card = parent.createDiv({
       cls: `siden-card siden-status-${annotation.status}${
         annotation.id === this.activeId ? " is-active" : ""
-      }${this.collapsed ? " siden-card-collapsed" : ""}`,
+      }${collapsed ? " siden-card-collapsed" : ""}`,
       attr: {
         "data-siden-id": annotation.id,
         tabindex: "0",
         role: "button",
+        "aria-expanded": String(!collapsed),
         "aria-label": `Open annotation in ${annotation.sourcePath}`
       }
     });
@@ -487,14 +512,27 @@ export class SidenSidebarView extends ItemView {
       event.stopPropagation();
       this.openMenu(event, annotation);
     });
+    const cardCollapseButton = header.createEl("button", {
+      cls: "clickable-icon siden-card-collapse",
+      attr: {
+        "aria-label": collapsed ? "Expand card" : "Collapse card",
+        "aria-pressed": String(collapsed)
+      }
+    });
+    setIcon(cardCollapseButton, collapsed ? "chevron-right" : "chevron-down");
+    cardCollapseButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.collapseOverrides.set(annotation.id, !collapsed);
+      this.renderBody();
+    });
 
-    if (annotation.anchor.kind !== "document" && !this.collapsed) {
+    if (annotation.anchor.kind !== "document" && !collapsed) {
       card.createEl("blockquote", {
         cls: "siden-card-quote",
         text: annotation.anchor.quote.exact
       });
     }
-    if (!this.collapsed) {
+    if (!collapsed) {
       const body = card.createDiv({ cls: "siden-card-body markdown-rendered" });
       void MarkdownRenderer.render(
         this.app,
