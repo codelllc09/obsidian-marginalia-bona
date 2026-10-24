@@ -46,6 +46,17 @@
   width: 100%;
 }
 
+/* Wraps draft + list; rebuilt on refresh while the toolbar (and its
+   search input / IME composition) stays alive. */
+.siden-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
 .siden-empty {
   color: var(--text-muted);
   padding: var(--size-4-4);
@@ -120,11 +131,35 @@
   text-align: center;
 }
 
+/* Word/WPS-style thread: each reply sits under the root note, separated by
+   a hairline, with a small reply icon and timestamp header. */
 .siden-reply {
-  border-inline-start: 2px solid var(--background-modifier-border);
+  border-top: 1px solid var(--background-modifier-border);
   margin-top: var(--size-4-2);
-  padding-inline-start: var(--size-4-2);
+  padding: var(--size-4-1) 0 0 var(--size-4-3);
   position: relative;
+}
+
+.siden-reply-header {
+  align-items: center;
+  color: var(--text-faint);
+  display: flex;
+  font-size: var(--font-ui-smallest);
+  gap: var(--size-4-1);
+  margin-bottom: var(--size-4-1);
+}
+
+.siden-reply-icon {
+  display: inline-flex;
+}
+
+.siden-reply-icon svg {
+  height: 12px;
+  width: 12px;
+}
+
+.siden-reply-time {
+  letter-spacing: 0.02em;
 }
 
 .siden-reply-body {

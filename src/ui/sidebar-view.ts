@@ -29,6 +29,23 @@ interface DraftState {
   color: string | null;
 }
 
+/** True while an IME (e.g. Chinese pinyin) is composing: keydown then
+ *  carries key "Process"/keyCode 229 and must not trigger shortcuts. */
+function isComposing(event: KeyboardEvent): boolean {
+  return event.isComposing || event.keyCode === 229;
+}
+
+function formatReplyTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  if (date.toDateString() === new Date().toDateString()) return time;
+  return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+}
+
 const MARK_STYLE_LABELS: Record<MarkStyle, string> = {
   highlight: "Highlight",
   underline: "Underline",
@@ -48,6 +65,7 @@ export class SidenSidebarView extends ItemView {
     | null = null;
   /** Annotation id whose reply box is expanded. */
   private replyFor: string | null = null;
+  private bodyEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: SidenPlugin) {
     super(leaf);
@@ -112,6 +130,16 @@ export class SidenSidebarView extends ItemView {
     );
 
     this.renderToolbar(root);
+    // Only the body below the toolbar is re-rendered while typing so that
+    // the search input and IME composition are never destroyed mid-input.
+    this.bodyEl = root.createDiv({ cls: "siden-body" });
+    this.renderBody();
+  }
+
+  private renderBody(): void {
+    const root = this.bodyEl;
+    if (!root) return;
+    root.empty();
     if (this.draft) this.renderDraft(root);
     const list = root.createDiv({ cls: "siden-list" });
     const annotations = this.visibleAnnotations();
@@ -137,7 +165,7 @@ export class SidenSidebarView extends ItemView {
       cls: "siden-draft-textarea",
       attr: {
         "aria-label": "Annotation text",
-        placeholder: "Write a Markdown comment…"
+        placeholder: "Write a Markdown comment… (Ctrl+Enter saves)"
       }
     });
     textarea.value = draft.body;
@@ -145,6 +173,7 @@ export class SidenSidebarView extends ItemView {
       if (this.draft) this.draft.body = textarea.value;
     });
     textarea.addEventListener("keydown", (event) => {
+      if (isComposing(event)) return;
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
         void this.saveDraft();
@@ -178,7 +207,7 @@ export class SidenSidebarView extends ItemView {
       button.className = draft.markStyle === style ? "is-selected" : "";
       button.addEventListener("click", () => {
         if (this.draft) this.draft.markStyle = style;
-        this.render();
+        this.renderBody();
         this.focusDraft(0);
       });
     }
@@ -190,7 +219,7 @@ export class SidenSidebarView extends ItemView {
     auto.className = draft.color === null ? "is-selected" : "";
     auto.addEventListener("click", () => {
       if (this.draft) this.draft.color = null;
-      this.render();
+      this.renderBody();
       this.focusDraft(0);
     });
     for (const color of MARK_COLORS) {
@@ -206,7 +235,7 @@ export class SidenSidebarView extends ItemView {
       swatch.style.setProperty("--siden-swatch-color", color);
       swatch.addEventListener("click", () => {
         if (this.draft) this.draft.color = color;
-        this.render();
+        this.renderBody();
         this.focusDraft(0);
       });
     }
@@ -277,7 +306,7 @@ export class SidenSidebarView extends ItemView {
     });
     scopeButton.addEventListener("click", () => {
       this.viewScope = this.viewScope === "current" ? "vault" : "current";
-      this.render();
+      this.renderBody();
     });
 
     const filter = toolbar.createEl("select", {
@@ -294,7 +323,7 @@ export class SidenSidebarView extends ItemView {
     filter.value = this.status;
     filter.addEventListener("change", () => {
       this.status = filter.value as StatusFilter;
-      this.render();
+      this.renderBody();
     });
 
     const search = root.createEl("input", {
@@ -306,7 +335,9 @@ export class SidenSidebarView extends ItemView {
     search.value = this.query;
     search.addEventListener("input", () => {
       this.query = search.value;
-      this.render();
+      // Re-render only the body: rebuilding the search input itself would
+      // abort an active IME composition (Chinese/Japanese input).
+      this.renderBody();
     });
   }
 
@@ -412,6 +443,9 @@ export class SidenSidebarView extends ItemView {
     const activate = () => void this.plugin.navigateToAnnotation(annotation);
     card.addEventListener("click", activate);
     card.addEventListener("keydown", (event) => {
+      // Inner form controls (reply composer) must keep Enter/Space for text
+      // input; only act when the card itself has focus.
+      if (event.target !== card) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         activate();
@@ -425,6 +459,13 @@ export class SidenSidebarView extends ItemView {
     reply: AnnotationReply
   ): void {
     const container = card.createDiv({ cls: "siden-reply" });
+    const header = container.createDiv({ cls: "siden-reply-header" });
+    const icon = header.createSpan({ cls: "siden-reply-icon" });
+    setIcon(icon, "corner-down-right");
+    header.createSpan({
+      cls: "siden-reply-time",
+      text: formatReplyTime(reply.createdAt)
+    });
     const bodyEl = container.createDiv({
       cls: "siden-reply-body markdown-rendered"
     });
@@ -459,17 +500,18 @@ export class SidenSidebarView extends ItemView {
         cls: "siden-reply-textarea",
         attr: {
           "aria-label": "Reply text",
-          placeholder: "Reply… (Ctrl+Enter to send)"
+          placeholder: "Reply… (Ctrl+Enter sends)"
         }
       });
       textarea.addEventListener("keydown", (event) => {
+        if (isComposing(event)) return;
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
           event.preventDefault();
           void this.sendReply(annotation.id, textarea.value);
         } else if (event.key === "Escape") {
           event.preventDefault();
           this.replyFor = null;
-          this.render();
+          this.renderBody();
         }
       });
       const actions = composer.createDiv({ cls: "siden-draft-actions" });
@@ -477,7 +519,7 @@ export class SidenSidebarView extends ItemView {
       cancel.addEventListener("click", (event) => {
         event.stopPropagation();
         this.replyFor = null;
-        this.render();
+        this.renderBody();
       });
       const send = actions.createEl("button", {
         cls: "mod-cta",
@@ -501,7 +543,7 @@ export class SidenSidebarView extends ItemView {
     replyButton.addEventListener("click", (event) => {
       event.stopPropagation();
       this.replyFor = annotation.id;
-      this.render();
+      this.renderBody();
     });
   }
 
