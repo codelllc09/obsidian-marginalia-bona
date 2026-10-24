@@ -1,6 +1,7 @@
 import { MarkdownPostProcessorContext } from "obsidian";
 import type SidenPlugin from "../main";
 import { Annotation } from "../domain/annotation";
+import { markPresentation } from "../domain/marks";
 
 interface TextSegment {
   node: Text;
@@ -107,7 +108,13 @@ function highlightOccurrence(
     range.setStart(segment.node, from - segment.start);
     range.setEnd(segment.node, to - segment.start);
     const mark = createEl("mark");
-    mark.className = `siden-highlight siden-highlight-${plugin.settings.highlightStyle}`;
+    const presentation = markPresentation(annotation, {
+      defaultStyle: plugin.settings.defaultMarkStyle,
+      defaultColor: plugin.settings.highlightColor,
+      opacity: plugin.settings.highlightOpacity
+    });
+    mark.className = presentation.class;
+    mark.setAttribute("style", presentation.style);
     mark.dataset.sidenId = annotation.id;
     mark.addEventListener("click", () =>
       void plugin.activateAnnotation(annotation.id)
@@ -255,7 +262,6 @@ function renderPreviewMargins(state: PreviewState): void {
           ? " siden-force-word-breaks"
           : ""
       }`,
-      text: entry.annotation.body,
       attr: {
         "data-siden-id": entry.annotation.id,
         tabindex: "0",
@@ -263,6 +269,20 @@ function renderPreviewMargins(state: PreviewState): void {
         "aria-label": `Open annotation: ${entry.annotation.body}`
       }
     });
+    card.style.setProperty(
+      "--siden-card-color",
+      entry.annotation.color ?? plugin.settings.highlightColor
+    );
+    card.createDiv({
+      cls: "siden-margin-card-body",
+      text: entry.annotation.body
+    });
+    for (const reply of entry.annotation.replies) {
+      card.createDiv({
+        cls: "siden-margin-card-reply",
+        text: reply.body
+      });
+    }
     card.style.left = `${Math.floor(placement.left)}px`;
     card.style.width = `${Math.floor(placement.width)}px`;
     const top = Math.max(entry.desiredTop, nextTop);

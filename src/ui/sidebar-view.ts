@@ -7,7 +7,14 @@ import {
   setIcon
 } from "obsidian";
 import type SidenPlugin from "../main";
-import { Annotation, NewAnnotation } from "../domain/annotation";
+import {
+  Annotation,
+  AnnotationReply,
+  MARK_STYLES,
+  MarkStyle,
+  NewAnnotation
+} from "../domain/annotation";
+import { MARK_COLORS } from "../domain/marks";
 import { ConfirmModal } from "./confirm-modal";
 
 export const SIDEN_VIEW_TYPE = "siden-annotations";
@@ -15,15 +22,32 @@ export const SIDEN_VIEW_TYPE = "siden-annotations";
 type Scope = "current" | "vault";
 type StatusFilter = "open" | "resolved" | "orphaned" | "all";
 
+interface DraftState {
+  body: string;
+  markStyle: MarkStyle;
+  /** null = use the default color from settings. */
+  color: string | null;
+}
+
+const MARK_STYLE_LABELS: Record<MarkStyle, string> = {
+  highlight: "Highlight",
+  underline: "Underline",
+  wavy: "Wavy",
+  strikethrough: "Strike",
+  bold: "Bold"
+};
+
 export class SidenSidebarView extends ItemView {
   private viewScope: Scope = "current";
   private status: StatusFilter = "open";
   private query = "";
   private activeId: string | null = null;
   private draft:
-    | { mode: "create"; input: NewAnnotation; body: string }
-    | { mode: "edit"; annotation: Annotation; body: string }
+    | ({ mode: "create"; input: NewAnnotation } & DraftState)
+    | ({ mode: "edit"; annotation: Annotation } & DraftState)
     | null = null;
+  /** Annotation id whose reply box is expanded. */
+  private replyFor: string | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: SidenPlugin) {
     super(leaf);
@@ -67,7 +91,13 @@ export class SidenSidebarView extends ItemView {
   }
 
   beginCreate(input: NewAnnotation): void {
-    this.draft = { mode: "create", input, body: "" };
+    this.draft = {
+      mode: "create",
+      input,
+      body: "",
+      markStyle: input.markStyle ?? this.plugin.settings.defaultMarkStyle,
+      color: input.color ?? null
+    };
     this.render();
     this.focusDraft();
   }
@@ -123,6 +153,7 @@ export class SidenSidebarView extends ItemView {
         this.cancelDraft();
       }
     });
+    this.renderStylePicker(form, draft);
     const actions = form.createDiv({ cls: "siden-draft-actions" });
     const cancel = actions.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.cancelDraft());
@@ -133,18 +164,72 @@ export class SidenSidebarView extends ItemView {
     save.addEventListener("click", () => void this.saveDraft());
   }
 
+  private renderStylePicker(form: HTMLElement, draft: DraftState): void {
+    const picker = form.createDiv({ cls: "siden-draft-style" });
+    const styles = picker.createDiv({ cls: "siden-draft-styles" });
+    for (const style of MARK_STYLES) {
+      const button = styles.createEl("button", {
+        text: MARK_STYLE_LABELS[style],
+        attr: {
+          type: "button",
+          "aria-pressed": String(draft.markStyle === style)
+        }
+      });
+      button.className = draft.markStyle === style ? "is-selected" : "";
+      button.addEventListener("click", () => {
+        if (this.draft) this.draft.markStyle = style;
+        this.render();
+        this.focusDraft(0);
+      });
+    }
+    const colors = picker.createDiv({ cls: "siden-draft-colors" });
+    const auto = colors.createEl("button", {
+      text: "Auto",
+      attr: { type: "button", "aria-label": "Default color", "aria-pressed": String(draft.color === null) }
+    });
+    auto.className = draft.color === null ? "is-selected" : "";
+    auto.addEventListener("click", () => {
+      if (this.draft) this.draft.color = null;
+      this.render();
+      this.focusDraft(0);
+    });
+    for (const color of MARK_COLORS) {
+      const swatch = colors.createEl("button", {
+        attr: {
+          type: "button",
+          "aria-label": color,
+          "aria-pressed": String(draft.color === color)
+        }
+      });
+      swatch.className =
+        draft.color === color ? "siden-swatch is-selected" : "siden-swatch";
+      swatch.style.setProperty("--siden-swatch-color", color);
+      swatch.addEventListener("click", () => {
+        if (this.draft) this.draft.color = color;
+        this.render();
+        this.focusDraft(0);
+      });
+    }
+  }
+
   private async saveDraft(): Promise<void> {
     const draft = this.draft;
     if (!draft?.body.trim()) return;
+    const style = {
+      markStyle: draft.markStyle,
+      color: draft.color ?? undefined
+    };
     let annotation: Annotation;
     if (draft.mode === "create") {
       annotation = await this.plugin.store.create({
         ...draft.input,
-        body: draft.body.trim()
+        body: draft.body.trim(),
+        ...style
       });
     } else {
       annotation = await this.plugin.store.update(draft.annotation.id, {
-        body: draft.body.trim()
+        body: draft.body.trim(),
+        ...style
       });
     }
     this.draft = null;
@@ -171,10 +256,17 @@ export class SidenSidebarView extends ItemView {
     this.render();
   }
 
-  private focusDraft(): void {
-    window.setTimeout(() =>
-      this.containerEl.querySelector<HTMLTextAreaElement>(".siden-draft-textarea")?.focus()
-    );
+  private focusDraft(cursorAt?: number): void {
+    window.setTimeout(() => {
+      const textarea =
+        this.containerEl.querySelector<HTMLTextAreaElement>(
+          ".siden-draft-textarea"
+        );
+      if (textarea) {
+        textarea.focus();
+        if (cursorAt !== undefined) textarea.setSelectionRange(cursorAt, cursorAt);
+      }
+    });
   }
 
   private renderToolbar(root: HTMLElement): void {
@@ -231,7 +323,8 @@ export class SidenSidebarView extends ItemView {
     if (query) {
       annotations = annotations.filter((item) => {
         const quote = item.anchor.kind === "document" ? "" : item.anchor.quote.exact;
-        return `${item.body}\n${quote}\n${item.sourcePath}`
+        const replies = item.replies.map((reply) => reply.body).join("\n");
+        return `${item.body}\n${replies}\n${quote}\n${item.sourcePath}`
           .toLocaleLowerCase()
           .includes(query);
       });
@@ -268,11 +361,21 @@ export class SidenSidebarView extends ItemView {
         "aria-label": `Open annotation in ${annotation.sourcePath}`
       }
     });
+    card.style.setProperty(
+      "--siden-card-color",
+      annotation.color ?? this.plugin.settings.highlightColor
+    );
     const header = card.createDiv({ cls: "siden-card-header" });
     header.createSpan({
       cls: "siden-card-source",
       text: annotation.sourcePath.split("/").pop() ?? annotation.sourcePath
     });
+    if (annotation.replies.length > 0) {
+      header.createSpan({
+        cls: "siden-card-replies-badge",
+        text: `${annotation.replies.length}`
+      });
+    }
     header.createSpan({
       cls: "siden-card-status",
       text: annotation.status
@@ -301,6 +404,10 @@ export class SidenSidebarView extends ItemView {
       annotation.sourcePath,
       this
     );
+    for (const reply of annotation.replies) {
+      this.renderReply(card, annotation, reply);
+    }
+    this.renderReplyComposer(card, annotation);
 
     const activate = () => void this.plugin.navigateToAnnotation(annotation);
     card.addEventListener("click", activate);
@@ -312,11 +419,118 @@ export class SidenSidebarView extends ItemView {
     });
   }
 
+  private renderReply(
+    card: HTMLElement,
+    annotation: Annotation,
+    reply: AnnotationReply
+  ): void {
+    const container = card.createDiv({ cls: "siden-reply" });
+    const bodyEl = container.createDiv({
+      cls: "siden-reply-body markdown-rendered"
+    });
+    void MarkdownRenderer.render(
+      this.app,
+      reply.body,
+      bodyEl,
+      annotation.sourcePath,
+      this
+    );
+    const remove = container.createEl("button", {
+      cls: "clickable-icon siden-reply-remove",
+      attr: { "aria-label": "Delete reply" }
+    });
+    setIcon(remove, "x");
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.plugin.store
+        .deleteReply(annotation.id, reply.id)
+        .then(() => this.plugin.refresh());
+    });
+    container.addEventListener("click", (event) => event.stopPropagation());
+  }
+
+  private renderReplyComposer(
+    card: HTMLElement,
+    annotation: Annotation
+  ): void {
+    if (this.replyFor === annotation.id) {
+      const composer = card.createDiv({ cls: "siden-reply-composer" });
+      const textarea = composer.createEl("textarea", {
+        cls: "siden-reply-textarea",
+        attr: {
+          "aria-label": "Reply text",
+          placeholder: "Reply… (Ctrl+Enter to send)"
+        }
+      });
+      textarea.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault();
+          void this.sendReply(annotation.id, textarea.value);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          this.replyFor = null;
+          this.render();
+        }
+      });
+      const actions = composer.createDiv({ cls: "siden-draft-actions" });
+      const cancel = actions.createEl("button", { text: "Cancel" });
+      cancel.addEventListener("click", (event) => {
+        event.stopPropagation();
+        this.replyFor = null;
+        this.render();
+      });
+      const send = actions.createEl("button", {
+        cls: "mod-cta",
+        text: "Reply"
+      });
+      send.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void this.sendReply(annotation.id, textarea.value);
+      });
+      composer.addEventListener("click", (event) =>
+        event.stopPropagation()
+      );
+      window.setTimeout(() => textarea.focus());
+      return;
+    }
+    const replyButton = card.createEl("button", {
+      cls: "siden-reply-button",
+      text: "Reply",
+      attr: { type: "button" }
+    });
+    replyButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.replyFor = annotation.id;
+      this.render();
+    });
+  }
+
+  private async sendReply(id: string, body: string): Promise<void> {
+    if (!body.trim()) return;
+    try {
+      await this.plugin.store.addReply(id, body);
+    } catch (error) {
+      new Notice(
+        error instanceof Error ? error.message : "Could not add reply."
+      );
+      return;
+    }
+    this.replyFor = null;
+    this.plugin.refresh();
+  }
+
   private openMenu(event: MouseEvent, annotation: Annotation): void {
     const menu = new Menu();
     menu.addItem((item) =>
       item.setTitle("Edit").setIcon("pencil").onClick(() => {
-        this.draft = { mode: "edit", annotation, body: annotation.body };
+        this.draft = {
+          mode: "edit",
+          annotation,
+          body: annotation.body,
+          markStyle:
+            annotation.markStyle ?? this.plugin.settings.defaultMarkStyle,
+          color: annotation.color ?? null
+        };
         this.render();
         this.focusDraft();
       })

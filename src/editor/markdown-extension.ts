@@ -9,6 +9,7 @@ import {
 import { MarkdownView } from "obsidian";
 import type SidenPlugin from "../main";
 import { Annotation, MarkdownAnchor } from "../domain/annotation";
+import { markPresentation } from "../domain/marks";
 
 interface MarginPlacement {
   side: "left" | "right";
@@ -60,12 +61,20 @@ function buildHighlights(
     const from = Math.max(0, Math.min(anchor.startOffset, view.state.doc.length));
     const to = Math.max(from, Math.min(anchor.endOffset, view.state.doc.length));
     if (to <= from) continue;
+    const presentation = markPresentation(annotation, {
+      defaultStyle: plugin.settings.defaultMarkStyle,
+      defaultColor: plugin.settings.highlightColor,
+      opacity: plugin.settings.highlightOpacity
+    });
     builder.add(
       from,
       to,
       Decoration.mark({
-        class: `siden-highlight siden-highlight-${plugin.settings.highlightStyle}`,
-        attributes: { "data-siden-id": annotation.id }
+        class: presentation.class,
+        attributes: {
+          "data-siden-id": annotation.id,
+          style: presentation.style
+        }
       })
     );
   }
@@ -132,8 +141,28 @@ function createMarginCard(
   card.dataset.sidenId = annotation.id;
   card.tabIndex = 0;
   card.setAttribute("role", "button");
-  card.textContent = annotation.body;
   card.style.width = `${Math.floor(width)}px`;
+  card.style.setProperty(
+    "--siden-card-color",
+    annotation.color ?? plugin.settings.highlightColor
+  );
+  const body = createDiv({ cls: "siden-margin-card-body" });
+  body.textContent = annotation.body;
+  card.appendChild(body);
+  for (const reply of annotation.replies) {
+    card.createDiv({
+      cls: "siden-margin-card-reply",
+      text: reply.body
+    });
+  }
+  if (annotation.replies.length > 0) {
+    card.createDiv({
+      cls: "siden-margin-card-count",
+      text: `${annotation.replies.length} repl${
+        annotation.replies.length === 1 ? "y" : "ies"
+      }`
+    });
+  }
   card.setAttribute("aria-label", `Open annotation: ${annotation.body}`);
   card.addEventListener("click", (event) => {
     event.preventDefault();
