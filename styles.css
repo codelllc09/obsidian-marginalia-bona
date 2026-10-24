@@ -931,11 +931,13 @@
 }
 
 .marginalia-img-toggle {
+  /* Fixed badge colors: the button sits on top of arbitrary image content,
+     so it must keep its own contrast in every theme. */
   align-items: center;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.28);
   border-radius: 999px;
-  color: var(--text-normal);
+  color: #1f1f1f;
   cursor: pointer;
   display: inline-flex;
   height: 1.6em;
@@ -946,6 +948,11 @@
   top: 0.25em;
   transition: opacity 120ms ease;
   width: 1.6em;
+}
+
+.marginalia-img-toggle:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
 }
 
 .marginalia-img-toggle:hover {

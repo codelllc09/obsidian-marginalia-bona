@@ -796,6 +796,39 @@ export class MarginaliaSidebarView extends ItemView {
     });
   }
 
+  /** Solid inward/outward triangle pair for the image toggle: filled shapes
+   *  read at thumbnail sizes where thin lucide strokes disappear. */
+  /** Solid inward/outward triangle pair for the image toggle: filled shapes
+   *  read at thumbnail sizes where thin lucide strokes disappear. */
+  private setTriangleIcon(
+    button: HTMLElement,
+    direction: "collapse" | "expand"
+  ): void {
+    button.empty();
+    const namespace = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(namespace, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.addClass("marginalia-tri-icon");
+    // collapse = both triangles point inward (▶◀); expand = outward (◀▶).
+    const left = document.createElementNS(namespace, "path");
+    const right = document.createElementNS(namespace, "path");
+    left.setAttribute(
+      "d",
+      direction === "collapse" ? "M4 6 L12 12 L4 18 Z" : "M10 6 L2 12 L10 18 Z"
+    );
+    right.setAttribute(
+      "d",
+      direction === "collapse"
+        ? "M20 6 L12 12 L20 18 Z"
+        : "M14 6 L22 12 L14 18 Z"
+    );
+    for (const path of [left, right]) {
+      path.setAttribute("fill", "currentColor");
+      svg.appendChild(path);
+    }
+    button.appendChild(svg);
+  }
+
   /** Wrap pasted images: expanded by default (fit to card width), the
    *  toggle collapses them to thumbnails, clicking a thumbnail opens the
    *  full-size lightbox. State is per annotation, session-scoped. */
@@ -821,7 +854,7 @@ export class MarginaliaSidebarView extends ItemView {
           title: collapsed ? "Expand images" : "Collapse images"
         }
       });
-      setIcon(toggle, collapsed ? "maximize-2" : "minimize-2");
+      this.setTriangleIcon(toggle, collapsed ? "expand" : "collapse");
       toggle.addEventListener("click", (event) => {
         event.stopPropagation();
         this.imageCollapsed.set(
