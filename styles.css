@@ -938,14 +938,14 @@
   color: var(--text-normal);
   cursor: pointer;
   display: inline-flex;
-  height: 1.4em;
+  height: 1.6em;
   justify-content: center;
   opacity: 0;
   position: absolute;
   right: 0.25em;
   top: 0.25em;
   transition: opacity 120ms ease;
-  width: 1.4em;
+  width: 1.6em;
 }
 
 .marginalia-img-toggle:hover {
@@ -954,8 +954,8 @@
 }
 
 .marginalia-img-toggle svg {
-  height: 0.9em;
-  width: 0.9em;
+  height: 1em;
+  width: 1em;
 }
 
 .marginalia-img-frame:hover .marginalia-img-toggle,
