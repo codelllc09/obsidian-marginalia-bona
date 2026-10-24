@@ -14,7 +14,7 @@ import {
   MarkStyle,
   NewAnnotation
 } from "../domain/annotation";
-import { MARK_COLORS } from "../domain/marks";
+import { MARK_COLORS, resolveMarkColor, resolveMarkStyle } from "../domain/marks";
 import { ConfirmModal } from "./confirm-modal";
 
 export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
@@ -626,10 +626,20 @@ export class MarginaliaSidebarView extends ItemView {
     });
 
     if (annotation.anchor.kind !== "document" && !collapsed) {
-      card.createEl("blockquote", {
-        cls: "marginalia-card-quote",
-        text: annotation.anchor.quote.exact
+      // The quote preview wears the same decoration as the in-text mark:
+      // the card hints at highlight/underline/wavy/… at a glance.
+      const markStyle = resolveMarkStyle(
+        annotation,
+        this.plugin.settings.defaultMarkStyle
+      );
+      const quote = card.createEl("blockquote", {
+        cls: `marginalia-card-quote marginalia-mark-${markStyle}`
       });
+      quote.style.setProperty(
+        "--marginalia-mark-color",
+        resolveMarkColor(annotation, this.plugin.settings.highlightColor)
+      );
+      quote.setText(annotation.anchor.quote.exact);
     }
     if (!collapsed) {
       const body = card.createDiv({ cls: "marginalia-card-body markdown-rendered" });
