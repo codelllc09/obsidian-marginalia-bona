@@ -496,47 +496,83 @@
 }
 
 /* Per-annotation marks. --marginalia-mark-color/--marginalia-mark-opacity are set
-   inline per mark; unset values fall back to the global defaults. */
+   inline per mark; unset values fall back to the global defaults.
+
+   Design intent: these are reviewer's pen strokes, not theme formatting —
+   they must never be mistaken for Obsidian's native ==highlight== (flat
+   sharp block) or **bold** (plain dark weight). */
 .marginalia-mark-highlight {
-  background: color-mix(
-    in srgb,
-    var(--marginalia-mark-color, var(--marginalia-highlight-color))
-      calc(var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity)) * 100%),
-    transparent
-  );
+  background:
+    linear-gradient(
+        to top,
+        color-mix(
+          in srgb,
+          var(--marginalia-mark-color, var(--marginalia-highlight-color))
+            calc(var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity)) * 150%),
+          transparent
+        ),
+        transparent 60%
+      )
+      no-repeat 100% 100% / 100% 42%,
+    color-mix(
+      in srgb,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color))
+        calc(var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity)) * 100%),
+      transparent
+    );
+  /* Marker stroke: thicker than the glyphs, rounded ends on every wrapped
+     line; the negative margin keeps the line layout untouched. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  border-radius: 0.2em;
+  margin: -0.12em -0.18em;
+  padding: 0.12em 0.18em;
 }
 
 .marginalia-mark-underline,
 .marginalia-mark-wavy,
-.marginalia-mark-strikethrough,
-.marginalia-mark-bold {
+.marginalia-mark-strikethrough {
   background: color-mix(
     in srgb,
-    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 12%,
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 10%,
     transparent
   );
   text-decoration-color: var(--marginalia-mark-color, var(--marginalia-highlight-color));
-  text-decoration-thickness: 2px;
   text-decoration-skip-ink: none;
 }
 
 .marginalia-mark-underline {
   text-decoration-line: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 0.11em;
+  text-underline-offset: 0.16em;
 }
 
 .marginalia-mark-wavy {
   text-decoration-line: underline wavy;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-decoration-thickness: max(1px, 0.06em);
+  text-underline-offset: 0.2em;
 }
 
 .marginalia-mark-strikethrough {
   text-decoration-line: line-through;
+  text-decoration-thickness: 0.13em;
 }
 
+/* Bold reads as a colored pen pressed hard: text tinted toward the mark
+   color with a hairline same-color ink swell — not plain dark bold. */
 .marginalia-mark-bold {
+  color: color-mix(
+    in srgb,
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 60%,
+    var(--text-normal)
+  );
   font-weight: var(--font-bold, 700);
+  text-shadow: 0 0 0.04em
+    color-mix(
+      in srgb,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color)) 60%,
+      transparent
+    );
 }
 
 .marginalia-margin-card {
