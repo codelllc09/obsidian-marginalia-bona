@@ -46,7 +46,7 @@ export function registerMcpTools(
       "status=drifted returns annotations whose quoted passage moved.",
     {
       ...SOURCE_SHAPE,
-      status: STATUS_ENUM.describe(
+      status: STATUS_ENUM.optional().describe(
         "Filter: open, resolved, orphaned, drifted, or all (default all)"
       )
     },
