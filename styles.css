@@ -18,15 +18,28 @@
 }
 
 .siden-toolbar {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  display: flex;
   gap: var(--size-4-2);
   max-width: 100%;
   min-width: 0;
 }
 
-.siden-toolbar button,
-.siden-toolbar select,
+.siden-toolbar .clickable-icon {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.siden-toolbar > button:not(.clickable-icon) {
+  flex: 1;
+  width: auto;
+}
+
+.siden-toolbar select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .siden-search {
   box-sizing: border-box;
   max-width: 100%;
@@ -46,6 +59,17 @@
   width: 100%;
 }
 
+/* Wraps draft + list; rebuilt on refresh while the toolbar (and its
+   search input / IME composition) stays alive. */
+.siden-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
 .siden-empty {
   color: var(--text-muted);
   padding: var(--size-4-4);
@@ -55,11 +79,14 @@
 .siden-card {
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
-  border-inline-start: 3px solid var(--interactive-accent);
+  border-inline-start: 3px solid var(--siden-card-color, var(--interactive-accent));
   border-radius: var(--radius-m);
   box-sizing: border-box;
   contain: inline-size;
   cursor: pointer;
+  /* Keep cards at natural height inside the fixed-height list: overflow
+     must become a scrollbar, never squeezed one-line strips. */
+  flex-shrink: 0;
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
@@ -107,6 +134,179 @@
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   text-transform: capitalize;
+}
+
+.siden-card-replies-badge {
+  background: var(--background-modifier-border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+  min-width: 1.4em;
+  padding: 0 6px;
+  text-align: center;
+}
+
+/* Word/WPS-style thread: replies are indented under the root note with a
+   hairline separator; the timestamp sits as a tiny hint in the top-right. */
+.siden-reply {
+  border-top: 1px solid var(--background-modifier-border);
+  margin-left: var(--size-4-2);
+  margin-top: var(--size-4-2);
+  padding: var(--size-4-1) 0 0 var(--size-4-2);
+  position: relative;
+}
+
+.siden-reply-meta {
+  align-items: center;
+  background: var(--background-secondary);
+  display: flex;
+  gap: var(--size-4-1);
+  height: 14px;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.siden-reply-time {
+  color: var(--text-faint);
+  font-size: min(var(--font-ui-smallest), 0.6rem);
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.siden-reply:hover .siden-reply-time {
+  opacity: 0.9;
+}
+
+.siden-reply-body {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding-right: 0.5rem;
+}
+
+.siden-card-copy {
+  display: none;
+}
+
+.siden-card:hover .siden-card-copy,
+.siden-card-copy:focus-visible {
+  display: inline-flex;
+}
+
+.siden-card-header .siden-card-collapse svg {
+  height: 14px;
+  width: 14px;
+}
+
+.siden-toolbar .siden-scroll-button svg,
+.siden-toolbar .siden-collapse-toggle svg {
+  height: 15px;
+  width: 15px;
+}
+
+.siden-card.siden-card-collapsed {
+  padding-block: var(--size-4-1);
+}
+
+.siden-card-summary {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.siden-reply-body,
+.siden-reply-body.markdown-rendered,
+.siden-reply-body.markdown-rendered > * {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.siden-reply-body > :last-child {
+  margin-bottom: 0;
+}
+
+.siden-reply-remove,
+.siden-reply-copy {
+  display: none;
+}
+
+.siden-reply:hover .siden-reply-remove,
+.siden-reply:hover .siden-reply-copy,
+.siden-reply-remove:focus-visible,
+.siden-reply-copy:focus-visible {
+  display: inline-flex;
+}
+
+.siden-reply-button {
+  align-self: flex-start;
+  font-size: var(--font-ui-smaller);
+  margin-top: var(--size-4-2);
+  padding: 2px 10px;
+}
+
+.siden-reply-composer {
+  margin-top: var(--size-4-2);
+}
+
+.siden-reply-textarea {
+  min-height: 3.5rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.siden-draft-style {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-2);
+}
+
+.siden-draft-styles,
+.siden-draft-colors {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+}
+
+.siden-draft-styles button,
+.siden-draft-colors button {
+  box-shadow: none;
+  font-size: var(--font-ui-smaller);
+  padding: 2px 10px;
+}
+
+.siden-draft-styles button.is-selected,
+.siden-draft-colors button.is-selected {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.siden-swatch {
+  border: 2px solid var(--background-modifier-border);
+  border-radius: 999px;
+  height: 18px;
+  padding: 0;
+  width: 18px;
+}
+
+.siden-swatch.is-selected {
+  border-color: var(--text-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-accent) 40%, transparent);
+  background: var(--siden-swatch-color) !important;
+  color: transparent;
+}
+
+.siden-swatch:not(.is-selected) {
+  background: var(--siden-swatch-color) !important;
+  color: transparent;
 }
 
 .siden-card-quote {
@@ -183,6 +383,7 @@
   background: var(--background-secondary);
   border: 1px solid var(--interactive-accent);
   border-radius: var(--radius-m);
+  flex-shrink: 0;
   padding: var(--size-4-3);
 }
 
@@ -211,27 +412,54 @@
   cursor: pointer;
 }
 
-.siden-highlight-background,
-.siden-highlight-both {
+/* Per-annotation marks. --siden-mark-color/--siden-mark-opacity are set
+   inline per mark; unset values fall back to the global defaults. */
+.siden-mark-highlight {
   background: color-mix(
     in srgb,
-    var(--siden-highlight-color) calc(var(--siden-highlight-opacity) * 100%),
+    var(--siden-mark-color, var(--siden-highlight-color))
+      calc(var(--siden-mark-opacity, var(--siden-highlight-opacity)) * 100%),
     transparent
   );
 }
 
-.siden-highlight-underline,
-.siden-highlight-both {
-  text-decoration-color: var(--siden-highlight-color);
-  text-decoration-line: underline;
+.siden-mark-underline,
+.siden-mark-wavy,
+.siden-mark-strikethrough,
+.siden-mark-bold {
+  background: color-mix(
+    in srgb,
+    var(--siden-mark-color, var(--siden-highlight-color)) 12%,
+    transparent
+  );
+  text-decoration-color: var(--siden-mark-color, var(--siden-highlight-color));
   text-decoration-thickness: 2px;
+  text-decoration-skip-ink: none;
+}
+
+.siden-mark-underline {
+  text-decoration-line: underline;
   text-underline-offset: 2px;
+}
+
+.siden-mark-wavy {
+  text-decoration-line: underline wavy;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.siden-mark-strikethrough {
+  text-decoration-line: line-through;
+}
+
+.siden-mark-bold {
+  font-weight: var(--font-bold, 700);
 }
 
 .siden-margin-card {
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
-  border-inline-start: 3px solid var(--interactive-accent);
+  border-inline-start: 3px solid var(--siden-card-color, var(--interactive-accent));
   border-radius: var(--radius-s);
   color: var(--text-normal);
   cursor: pointer;
@@ -288,6 +516,20 @@
   outline: none;
 }
 
+.siden-margin-card-reply {
+  border-top: 1px dashed var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-top: var(--size-4-1);
+  padding-top: var(--size-4-1);
+}
+
+.siden-margin-card-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smallest);
+  margin-top: 2px;
+}
+
 .cm-editor {
   position: relative;
 }
@@ -337,11 +579,36 @@
 }
 
 .siden-pdf-highlight {
-  background: var(--siden-highlight-color);
   border-radius: 2px;
-  opacity: var(--siden-highlight-opacity);
   pointer-events: auto;
   position: absolute;
+}
+
+.siden-pdf-mark-highlight {
+  background: var(--siden-mark-color, var(--siden-highlight-color));
+  opacity: var(--siden-mark-opacity, var(--siden-highlight-opacity));
+}
+
+.siden-pdf-mark-underline {
+  border-bottom: 3px solid var(--siden-mark-color, var(--siden-highlight-color));
+}
+
+.siden-pdf-mark-wavy {
+  border-bottom: 3px dashed var(--siden-mark-color, var(--siden-highlight-color));
+}
+
+.siden-pdf-mark-strikethrough {
+  background: linear-gradient(
+    to bottom,
+    transparent calc(50% - 1.5px),
+    var(--siden-mark-color, var(--siden-highlight-color)) calc(50% - 1.5px),
+    var(--siden-mark-color, var(--siden-highlight-color)) calc(50% + 1.5px),
+    transparent calc(50% + 1.5px)
+  );
+}
+
+.siden-pdf-mark-bold {
+  border: 2px solid var(--siden-mark-color, var(--siden-highlight-color));
 }
 
 .siden-pdf-highlight-layer.is-active .siden-pdf-highlight {

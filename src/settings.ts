@@ -1,8 +1,8 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type SidenPlugin from "./main";
+import { MARK_STYLES, MarkStyle } from "./domain/annotation";
 
 export type MarginSide = "auto" | "left" | "right";
-export type HighlightStyle = "background" | "underline" | "both";
 
 export interface SidenSettings {
   showHighlights: boolean;
@@ -11,9 +11,13 @@ export interface SidenSettings {
   marginSide: MarginSide;
   marginWidth: number;
   narrowPaneThreshold: number;
+  /** Default color for annotations created without an explicit color. */
   highlightColor: string;
   highlightOpacity: number;
-  highlightStyle: HighlightStyle;
+  /** Default mark style for annotations created without an explicit style. */
+  defaultMarkStyle: MarkStyle;
+  /** Shortcut that saves a draft / sends a reply from a sidebar textarea. */
+  submitShortcut: "enter" | "mod-enter";
   forceLongWordBreaks: boolean;
 }
 
@@ -26,7 +30,8 @@ export const DEFAULT_SETTINGS: SidenSettings = {
   narrowPaneThreshold: 900,
   highlightColor: "#ffd54f",
   highlightOpacity: 0.35,
-  highlightStyle: "both",
+  defaultMarkStyle: "highlight",
+  submitShortcut: "enter",
   forceLongWordBreaks: true
 };
 
@@ -99,7 +104,8 @@ export class SidenSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Highlight color")
+      .setName("Default color")
+      .setDesc("Used by annotations that do not pick their own color.")
       .addColorPicker((picker) =>
         picker
           .setValue(this.plugin.settings.highlightColor)
@@ -118,17 +124,38 @@ export class SidenSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Highlight style")
+      .setName("Default mark style")
+      .setDesc("Applied to annotations created without an explicit style.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(
+            Object.fromEntries(
+              MARK_STYLES.map((style) => [
+                style,
+                style[0].toUpperCase() + style.slice(1)
+              ])
+            )
+          )
+          .setValue(this.plugin.settings.defaultMarkStyle)
+          .onChange((value) =>
+            this.plugin.updateSettings({ defaultMarkStyle: value as MarkStyle })
+          )
+      );
+
+    new Setting(containerEl)
+      .setName("Submit shortcut")
+      .setDesc("Key that saves an annotation or sends a reply. Hold shift for a newline when using enter.")
       .addDropdown((dropdown) =>
         dropdown
           .addOptions({
-            background: "Background",
-            underline: "Underline",
-            both: "Background and underline"
+            enter: "Enter (Shift+Enter = newline)",
+            "mod-enter": "Ctrl/Cmd+Enter"
           })
-          .setValue(this.plugin.settings.highlightStyle)
+          .setValue(this.plugin.settings.submitShortcut)
           .onChange((value) =>
-            this.plugin.updateSettings({ highlightStyle: value as HighlightStyle })
+            this.plugin.updateSettings({
+              submitShortcut: value as SidenSettings["submitShortcut"]
+            })
           )
       );
 

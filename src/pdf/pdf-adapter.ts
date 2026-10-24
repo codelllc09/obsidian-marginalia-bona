@@ -1,6 +1,7 @@
 import { Notice, TFile } from "obsidian";
 import type SidenPlugin from "../main";
-import { Annotation, PdfAnchor, PdfRectangle } from "../domain/annotation";
+import { Annotation, MarkStyle, PdfAnchor, PdfRectangle } from "../domain/annotation";
+import { resolveMarkStyle } from "../domain/marks";
 import { normalizeRectangle, rectangleCss } from "./geometry";
 
 export interface CapturedPdfSelection {
@@ -165,13 +166,23 @@ export class PdfAdapter {
       cls: `siden-pdf-highlight-layer${activeId === annotation.id ? " is-active" : ""}`,
       attr: { "data-siden-pdf-id": annotation.id }
     });
+    const color = annotation.color ?? this.plugin.settings.highlightColor;
+    const style: MarkStyle = resolveMarkStyle(
+      annotation,
+      this.plugin.settings.defaultMarkStyle
+    );
     for (const rectangle of rectangles) {
-      const mark = layer.createDiv({ cls: "siden-pdf-highlight" });
-      const style = rectangleCss(rectangle, coordinateSpace);
-      mark.style.left = style.left;
-      mark.style.top = style.top;
-      mark.style.width = style.width;
-      mark.style.height = style.height;
+      const mark = layer.createDiv({ cls: `siden-pdf-highlight siden-pdf-mark-${style}` });
+      mark.style.setProperty("--siden-mark-color", color);
+      mark.style.setProperty(
+        "--siden-mark-opacity",
+        String(this.plugin.settings.highlightOpacity)
+      );
+      const css = rectangleCss(rectangle, coordinateSpace);
+      mark.style.left = css.left;
+      mark.style.top = css.top;
+      mark.style.width = css.width;
+      mark.style.height = css.height;
     }
     layer.addEventListener("click", () => void this.plugin.activateAnnotation(annotation.id));
   }

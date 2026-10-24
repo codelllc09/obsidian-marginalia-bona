@@ -27,7 +27,8 @@ const annotation: Annotation = {
       prefix: "A ",
       suffix: " follows."
     }
-  }
+  },
+  replies: []
 };
 
 describe("annotation Markdown format", () => {
@@ -53,5 +54,70 @@ siden-schema: 1
 
 Missing anchor`)
     ).toThrow("anchor metadata is missing");
+  });
+
+  it("round-trips color, mark style and replies", () => {
+    const styled: Annotation = {
+      ...annotation,
+      color: "#90caf9",
+      markStyle: "wavy",
+      replies: [
+        {
+          id: "a1b2c3d4",
+          createdAt: "2026-07-28T09:00:00.000Z",
+          body: "First reply"
+        },
+        {
+          id: "e5f6a7b8",
+          createdAt: "2026-07-29T10:00:00.000Z",
+          body: "Second **reply** with\nmultiple lines"
+        }
+      ]
+    };
+    const source = serializeAnnotation(styled);
+    expect(source).toContain('color: "#90caf9"');
+    expect(source).toContain('mark-style: "wavy"');
+    expect(source).toContain("## Replies");
+    expect(parseAnnotation(source)).toEqual(styled);
+  });
+
+  it("parses legacy files without new fields", () => {
+    const legacy = `---
+siden-schema: 1
+id: "legacy-id"
+source: "Notes/Old.md"
+source-type: "markdown"
+status: "open"
+created: "2026-01-01T00:00:00.000Z"
+updated: "2026-01-01T00:00:00.000Z"
+---
+
+# Annotation
+
+Old body.
+
+<!-- siden:anchor -->
+
+## Anchor metadata
+
+\`\`\`json
+${JSON.stringify(annotation.anchor, null, 2)}
+\`\`\`
+
+<!-- /siden:anchor -->
+`;
+    const parsed = parseAnnotation(legacy);
+    expect(parsed.color).toBeUndefined();
+    expect(parsed.markStyle).toBeUndefined();
+    expect(parsed.replies).toEqual([]);
+    expect(parsed.body).toBe("Old body.");
+  });
+
+  it("rejects malformed reply headings", () => {
+    const broken = serializeAnnotation({
+      ...annotation,
+      replies: [{ id: "x", createdAt: "t", body: "hi" }]
+    }).replace("### x | t", "###");
+    expect(() => parseAnnotation(broken)).toThrow("reply heading is malformed");
   });
 });

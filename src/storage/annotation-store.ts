@@ -2,6 +2,7 @@ import { App, normalizePath } from "obsidian";
 import {
   ANNOTATION_SCHEMA_VERSION,
   Annotation,
+  AnnotationReply,
   AnnotationStatus,
   NewAnnotation
 } from "../domain/annotation";
@@ -9,6 +10,15 @@ import {
   parseAnnotation,
   serializeAnnotation
 } from "./annotation-markdown";
+import { INDEX_DIRECTORY, shardNameFor, writeShard } from "./annotation-index";
+
+function newReply(body: string): AnnotationReply {
+  return {
+    id: crypto.randomUUID().slice(0, 8),
+    createdAt: new Date().toISOString(),
+    body: body.trim()
+  };
+}
 
 export const DEFAULT_ANNOTATION_DIRECTORY = ".siden-plus/annotations";
 export const DEFAULT_TRASH_DIRECTORY = ".siden-plus/trash";
@@ -87,7 +97,8 @@ export class AnnotationStore {
       id: input.id ?? crypto.randomUUID(),
       sourcePath: normalizePath(input.sourcePath),
       createdAt: input.createdAt ?? now,
-      updatedAt: now
+      updatedAt: now,
+      replies: input.replies ?? []
     };
 
     if (this.byId.has(annotation.id)) {
@@ -95,13 +106,19 @@ export class AnnotationStore {
     }
     await this.write(annotation);
     this.index(annotation);
+    await this.syncShard(annotation.sourcePath);
     this.onChange();
     return annotation;
   }
 
   async update(
     id: string,
-    changes: Partial<Pick<Annotation, "body" | "anchor" | "status">>
+    changes: Partial<
+      Pick<
+        Annotation,
+        "body" | "anchor" | "status" | "color" | "markStyle" | "replies"
+      >
+    >
   ): Promise<Annotation> {
     const current = this.require(id);
     const updated: Annotation = {
@@ -111,8 +128,24 @@ export class AnnotationStore {
     };
     await this.write(updated);
     this.index(updated);
+    await this.syncShard(updated.sourcePath);
     this.onChange();
     return updated;
+  }
+
+  async addReply(id: string, body: string): Promise<Annotation> {
+    if (!body.trim()) throw new Error("Reply body must not be empty.");
+    const current = this.require(id);
+    return this.update(id, {
+      replies: [...current.replies, newReply(body)]
+    });
+  }
+
+  async deleteReply(id: string, replyId: string): Promise<Annotation> {
+    const current = this.require(id);
+    return this.update(id, {
+      replies: current.replies.filter((reply) => reply.id !== replyId)
+    });
   }
 
   resolve(id: string): Promise<Annotation> {
@@ -130,7 +163,9 @@ export class AnnotationStore {
       `${DEFAULT_TRASH_DIRECTORY}/${annotation.id}-${Date.now()}.md`
     );
     await this.app.vault.adapter.rename(this.pathFor(annotation.id), trashPath);
+    const sourcePath = annotation.sourcePath;
     this.unindex(annotation);
+    await this.syncShard(sourcePath);
     this.onChange();
   }
 
@@ -146,7 +181,11 @@ export class AnnotationStore {
       await this.write(updated);
       this.index(updated);
     }
-    if (annotations.length > 0) this.onChange();
+    if (annotations.length > 0) {
+      await this.syncShard(newPath);
+      await this.removeShard(oldPath);
+      this.onChange();
+    }
   }
 
   async reconcileMarkdownSource(
@@ -256,6 +295,30 @@ export class AnnotationStore {
       this.pathFor(annotation.id),
       serializeAnnotation(annotation)
     );
+  }
+
+  /** Keep the per-document index shard in sync (best effort; rebuildable). */
+  private async syncShard(sourcePath: string): Promise<void> {
+    try {
+      await writeShard(
+        this.app.vault.adapter,
+        sourcePath,
+        this.forSource(sourcePath)
+      );
+    } catch (error) {
+      console.warn("Siden index update failed", error);
+    }
+  }
+
+  private async removeShard(sourcePath: string): Promise<void> {
+    const path = normalizePath(
+      `${INDEX_DIRECTORY}/${shardNameFor(sourcePath)}`
+    );
+    try {
+      await this.app.vault.adapter.remove(path);
+    } catch {
+      // Shard may not exist yet; the index is a rebuildable cache.
+    }
   }
 
   private pathFor(id: string): string {

@@ -24,6 +24,7 @@ import {
   SidenSettingTab
 } from "./settings";
 import { AnnotationStore } from "./storage/annotation-store";
+import { INDEX_DIRECTORY, rebuildIndex } from "./storage/annotation-index";
 import {
   SIDEN_VIEW_TYPE,
   SidenSidebarView
@@ -96,6 +97,11 @@ export default class SidenPlugin extends Plugin {
         if (!checking) this.beginPdfAnnotation(captured);
         return true;
       }
+    });
+    this.addCommand({
+      id: "rebuild-annotation-index",
+      name: "Rebuild annotation index",
+      callback: () => void this.rebuildAnnotationIndex()
     });
     this.addCommand({
       id: "export-annotations",
@@ -329,6 +335,11 @@ export default class SidenPlugin extends Plugin {
     menu.showAtMouseEvent(event);
   }
 
+  private async rebuildAnnotationIndex(): Promise<void> {
+    const shards = await rebuildIndex(this.app.vault.adapter, this.store.all());
+    new Notice(`Siden index rebuilt: ${shards} shard files in ${INDEX_DIRECTORY}.`);
+  }
+
   private async exportAnnotations(): Promise<void> {
     const lines = [
       "# Siden annotation export",
@@ -342,13 +353,21 @@ export default class SidenPlugin extends Plugin {
         "",
         `- Status: ${annotation.status}`,
         `- Type: ${annotation.sourceType}`,
+        ...(annotation.color ? [`- Color: ${annotation.color}`] : []),
+        ...(annotation.markStyle
+          ? [`- Mark style: ${annotation.markStyle}`]
+          : []),
         `- ID: \`${annotation.id}\``,
         ""
       );
       if (annotation.anchor.kind !== "document") {
         lines.push("> " + annotation.anchor.quote.exact.replaceAll("\n", "\n> "), "");
       }
-      lines.push(annotation.body, "", "---", "");
+      lines.push(annotation.body, "");
+      for (const reply of annotation.replies) {
+        lines.push(`> **Reply** (${reply.createdAt})`, "", reply.body, "");
+      }
+      lines.push("---", "");
     }
     const directory = ".siden-plus/exports";
     if (!(await this.app.vault.adapter.exists(directory))) {

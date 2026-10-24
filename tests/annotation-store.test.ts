@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { AnnotationStore } from "../src/storage/annotation-store";
+import type { AnnotationIndexEntry } from "../src/storage/annotation-index";
 
 class MemoryAdapter {
   files = new Map<string, string>();
@@ -138,5 +139,71 @@ describe("AnnotationStore", () => {
         path.startsWith(`.siden-plus/trash/${annotation.id}-`)
       )
     ).toBe(true);
+  });
+
+  it("adds and deletes replies inside the same file", async () => {
+    const annotation = await store.create({
+      sourcePath: "Notes/Test.md",
+      sourceType: "markdown",
+      status: "open",
+      body: "Root",
+      anchor: { kind: "document" }
+    });
+    await store.addReply(annotation.id, "First reply");
+    await store.addReply(annotation.id, "Second reply");
+    let current = store.get(annotation.id);
+    expect(current?.replies.map((reply) => reply.body)).toEqual([
+      "First reply",
+      "Second reply"
+    ]);
+    const file = adapter.files.get(`.siden-plus/annotations/${annotation.id}.md`);
+    expect(file).toContain("## Replies");
+    expect(file).toContain("First reply");
+
+    await store.deleteReply(annotation.id, current!.replies[0].id);
+    current = store.get(annotation.id);
+    expect(current?.replies.map((reply) => reply.body)).toEqual([
+      "Second reply"
+    ]);
+  });
+
+  it("keeps the per-document index shard in sync", async () => {
+    const first = await store.create({
+      sourcePath: "Notes/Test.md",
+      sourceType: "markdown",
+      status: "open",
+      body: "One",
+      anchor: { kind: "document" },
+      color: "#90caf9",
+      markStyle: "underline"
+    });
+    await store.create({
+      sourcePath: "Notes/Other.md",
+      sourceType: "markdown",
+      status: "open",
+      body: "Two",
+      anchor: { kind: "document" }
+    });
+    const shard = adapter.files.get(".siden-plus/index/Notes__Test.md.jsonl");
+    expect(shard).toBeTruthy();
+    const entry = JSON.parse(shard!.trim()) as AnnotationIndexEntry;
+    expect(entry).toMatchObject({
+      id: first.id,
+      color: "#90caf9",
+      markStyle: "underline",
+      replies: 0
+    });
+    expect(
+      adapter.files.has(".siden-plus/index/Notes__Other.md.jsonl")
+    ).toBe(true);
+
+    await store.renameSource("Notes/Test.md", "Notes/Renamed.md");
+    expect(
+      adapter.files.has(".siden-plus/index/Notes__Test.md.jsonl")
+    ).toBe(false);
+    const renamed = adapter.files.get(".siden-plus/index/Notes__Renamed.md.jsonl");
+    expect((JSON.parse(renamed!.trim()) as AnnotationIndexEntry).source).toBe(
+      "Notes/Renamed.md"
+    );
   });
 });
