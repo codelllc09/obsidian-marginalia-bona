@@ -18,11 +18,20 @@ export type RouteHandler = (
   req: VaultRouteContext
 ) => Promise<RouteResult> | RouteResult;
 
+/** Express-style middleware: the host passes (req, res) and the handler
+ *  MUST send the response itself (returned values are ignored). */
+export type SubresourceHandler = (
+  req: VaultRouteContext,
+  res: {
+    status(code: number): { json(body: unknown): void; end(): void };
+  }
+) => Promise<void> | void;
+
 export interface SubresourceRouter {
-  get(path: string, handler: RouteHandler): void;
-  post(path: string, handler: RouteHandler): void;
-  patch(path: string, handler: RouteHandler): void;
-  delete(path: string, handler: RouteHandler): void;
+  get(path: string, handler: SubresourceHandler): void;
+  post(path: string, handler: SubresourceHandler): void;
+  patch(path: string, handler: SubresourceHandler): void;
+  delete(path: string, handler: SubresourceHandler): void;
 }
 
 export interface RestApiHost {
