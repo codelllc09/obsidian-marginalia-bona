@@ -955,3 +955,14 @@
   max-width: 92vw;
   width: auto;
 }
+
+/* Lucide icons are 2px-stroke vectors on a 24-unit canvas: at button
+   sizes the stroke thins to ~1.3px and the glyph nearly disappears.
+   CSS stroke-width overrides the attribute for the small action icons. */
+.marginalia-card-actions .clickable-icon svg,
+.marginalia-card-header .marginalia-card-collapse svg,
+.marginalia-reply-meta .clickable-icon svg,
+.marginalia-footer-action svg,
+.marginalia-dropdown-icon svg {
+  stroke-width: 2.5;
+}
