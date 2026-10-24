@@ -652,6 +652,11 @@ export class MarginaliaSidebarView extends ItemView {
           if (annotation.anchor.kind !== "markdown") return;
           void this.plugin.store
             .update(annotation.id, {
+              // Accepting means the live text is authoritative: an
+              // annotation whose passage is back is no longer orphaned.
+              ...(annotation.status === "orphaned"
+                ? { status: "open" as const }
+                : {}),
               anchor: {
                 ...annotation.anchor,
                 originalQuote: annotation.anchor.quote.exact

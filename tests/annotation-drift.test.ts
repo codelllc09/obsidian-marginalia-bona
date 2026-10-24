@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   anchorDrift,
   Annotation,
-  ANNOTATION_SCHEMA_VERSION
+  ANNOTATION_SCHEMA_VERSION,
+  statusAfterAnchorMap
 } from "../src/domain/annotation";
 import { entryFor } from "../src/storage/annotation-index";
 import { parseAnnotation, serializeAnnotation } from "../src/storage/annotation-markdown";
@@ -61,6 +62,26 @@ describe("anchorDrift", () => {
     expect(
       anchorDrift(makeAnnotation({ anchor: { kind: "document" } }))
     ).toBeNull();
+  });
+});
+
+describe("statusAfterAnchorMap", () => {
+  it("orphans when the passage is lost, whatever the previous status", () => {
+    for (const status of ["open", "resolved", "orphaned"] as const) {
+      expect(
+        statusAfterAnchorMap(makeAnnotation({ status }), true)
+      ).toBe("orphaned");
+    }
+  });
+
+  it("un-orphans when the passage is back, otherwise keeps status", () => {
+    expect(
+      statusAfterAnchorMap(makeAnnotation({ status: "orphaned" }), false)
+    ).toBe("open");
+    expect(
+      statusAfterAnchorMap(makeAnnotation({ status: "resolved" }), false)
+    ).toBe("resolved");
+    expect(statusAfterAnchorMap(makeAnnotation(), false)).toBe("open");
   });
 });
 

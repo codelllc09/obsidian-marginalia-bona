@@ -8,7 +8,11 @@ import {
 } from "@codemirror/view";
 import { MarkdownView } from "obsidian";
 import type MarginaliaPlugin from "../main";
-import { Annotation, MarkdownAnchor } from "../domain/annotation";
+import {
+  Annotation,
+  MarkdownAnchor,
+  statusAfterAnchorMap
+} from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
 
 interface MarginPlacement {
@@ -250,7 +254,7 @@ async function mapChangedAnchors(
     const endLine = update.state.doc.lineAt(endOffset);
     const documentText = update.state.doc.toString();
     await plugin.store.update(annotation.id, {
-      status: isOrphaned ? "orphaned" : annotation.status,
+      status: statusAfterAnchorMap(annotation, isOrphaned),
       anchor: {
         ...anchor,
         // Seed drift tracking on annotations created before it existed:

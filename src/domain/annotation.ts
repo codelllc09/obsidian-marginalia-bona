@@ -127,6 +127,16 @@ export function anchorDrift(annotation: Annotation): AnchorDrift | null {
     : { original: anchor.originalQuote, current };
 }
 
+/** Status after an anchor re-map: passage lost → orphaned; passage back →
+ *  no longer orphaned (open); otherwise unchanged. */
+export function statusAfterAnchorMap(
+  annotation: Annotation,
+  passageLost: boolean
+): AnnotationStatus {
+  if (passageLost) return "orphaned";
+  return annotation.status === "orphaned" ? "open" : annotation.status;
+}
+
 export function assertAnnotation(value: unknown): asserts value is Annotation {
   if (!value || typeof value !== "object") {
     throw new Error("Annotation must be an object.");
