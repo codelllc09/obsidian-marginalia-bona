@@ -206,9 +206,9 @@
   padding-right: 0.5rem;
 }
 
-/* Card actions: jump and the overflow menu stay visible, secondary
-   actions fade in on hover. Opacity (not display) keeps the header
-   layout jitter-free while the mouse crosses the card. */
+/* Card actions are always visible at muted weight (hover-hidden icons
+   were repeatedly reported as invisible); the card hover simply lifts
+   their color for affordance. */
 .marginalia-card-actions {
   align-items: center;
   display: flex;
@@ -216,23 +216,14 @@
 }
 
 .marginalia-card-actions .clickable-icon {
+  color: var(--text-muted);
   height: 1.375em;
   width: 1.375em;
 }
 
-.marginalia-card-resolve,
-.marginalia-card-copy {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.marginalia-card:hover .marginalia-card-resolve,
-.marginalia-card:hover .marginalia-card-copy,
-.marginalia-card-resolve:focus-visible,
-.marginalia-card-copy:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
+.marginalia-card:hover .marginalia-card-actions .clickable-icon,
+.marginalia-card-actions .clickable-icon:focus-visible {
+  color: var(--text-normal);
 }
 
 .marginalia-card-header .marginalia-card-collapse svg,
@@ -276,17 +267,12 @@
 
 .marginalia-reply-remove,
 .marginalia-reply-copy {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
+  color: var(--text-faint);
 }
 
-.marginalia-reply:hover .marginalia-reply-remove,
-.marginalia-reply:hover .marginalia-reply-copy,
-.marginalia-reply-remove:focus-visible,
-.marginalia-reply-copy:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
+.marginalia-reply-copy:hover,
+.marginalia-reply-remove:hover {
+  color: var(--text-normal);
 }
 
 /* Bottom card row: Reply on the left, Edit + Jump on the right. */
@@ -774,17 +760,6 @@
 
   .marginalia-card {
     min-height: 44px;
-  }
-}
-
-/* Touch devices have no hover: keep reveal-by-hover actions discoverable. */
-@media (hover: none) {
-  .marginalia-card-resolve,
-  .marginalia-card-copy,
-  .marginalia-reply-copy,
-  .marginalia-reply-remove {
-    opacity: 1;
-    pointer-events: auto;
   }
 }
 
