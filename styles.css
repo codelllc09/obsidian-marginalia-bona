@@ -90,7 +90,6 @@
   border-radius: var(--radius-m);
   box-sizing: border-box;
   contain: inline-size;
-  cursor: pointer;
   /* Keep cards at natural height inside the fixed-height list: overflow
      must become a scrollbar, never squeezed one-line strips. */
   flex-shrink: 0;
@@ -103,7 +102,6 @@
 }
 
 .marginalia-card:hover,
-.marginalia-card:focus-visible,
 .marginalia-card.is-active {
   background: var(--background-secondary-alt);
   border-color: var(--interactive-accent);
@@ -194,21 +192,40 @@
   padding-right: 0.5rem;
 }
 
-/* Hover-revealed actions keep their layout slot (opacity, not display):
-   no reflow jitter while the mouse crosses the card. */
+/* Card actions: jump and the overflow menu stay visible, secondary
+   actions fade in on hover. Opacity (not display) keeps the header
+   layout jitter-free while the mouse crosses the card. */
+.marginalia-card-actions {
+  align-items: center;
+  display: flex;
+  gap: var(--size-4-1);
+}
+
+.marginalia-card-actions .clickable-icon {
+  height: 22px;
+  width: 22px;
+}
+
+.marginalia-card-edit,
+.marginalia-card-resolve,
 .marginalia-card-copy {
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
 }
 
+.marginalia-card:hover .marginalia-card-edit,
+.marginalia-card:hover .marginalia-card-resolve,
 .marginalia-card:hover .marginalia-card-copy,
+.marginalia-card-edit:focus-visible,
+.marginalia-card-resolve:focus-visible,
 .marginalia-card-copy:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }
 
-.marginalia-card-header .marginalia-card-collapse svg {
+.marginalia-card-header .marginalia-card-collapse svg,
+.marginalia-card-actions .clickable-icon svg {
   height: 14px;
   width: 14px;
 }
@@ -671,6 +688,8 @@
 
 /* Touch devices have no hover: keep reveal-by-hover actions discoverable. */
 @media (hover: none) {
+  .marginalia-card-edit,
+  .marginalia-card-resolve,
   .marginalia-card-copy,
   .marginalia-reply-copy,
   .marginalia-reply-remove {
