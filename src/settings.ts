@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type MarginaliaPlugin from "./main";
 import { MARK_STYLES, MarkStyle } from "./domain/annotation";
+import type { HoverPreviewMode } from "./hover/hover-preview";
 
 export type MarginSide = "auto" | "left" | "right";
 
@@ -18,6 +19,8 @@ export interface MarginaliaSettings {
   defaultMarkStyle: MarkStyle;
   /** Shortcut that saves a draft / sends a reply from a sidebar textarea. */
   submitShortcut: "enter" | "mod-enter";
+  /** When hovering a marked passage shows an annotation preview. */
+  hoverPreview: HoverPreviewMode;
   /** Author name recorded on annotations and replies created in this vault. */
   userName: string;
   forceLongWordBreaks: boolean;
@@ -34,6 +37,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   highlightOpacity: 0.35,
   defaultMarkStyle: "highlight",
   submitShortcut: "enter",
+  hoverPreview: "hover",
   userName: "user",
   forceLongWordBreaks: true
 };
@@ -142,6 +146,24 @@ export class MarginaliaSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.defaultMarkStyle)
           .onChange((value) =>
             this.plugin.updateSettings({ defaultMarkStyle: value as MarkStyle })
+          )
+      );
+
+    new Setting(containerEl)
+      .setName("Hover preview")
+      .setDesc("Show an annotation preview when hovering a marked passage.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            off: "Off",
+            hover: "On hover",
+            ctrl: "Ctrl/Cmd + hover"
+          })
+          .setValue(this.plugin.settings.hoverPreview)
+          .onChange((value) =>
+            this.plugin.updateSettings({
+              hoverPreview: value as HoverPreviewMode
+            })
           )
       );
 
