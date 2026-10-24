@@ -530,7 +530,6 @@
 }
 
 .marginalia-mark-underline,
-.marginalia-mark-wavy,
 .marginalia-mark-strikethrough {
   background: color-mix(
     in srgb,
@@ -548,11 +547,31 @@
 }
 
 .marginalia-mark-wavy {
-  text-decoration-line: underline wavy;
-  /* Chromium scales the wave's amplitude with the stroke width: below
-     2px the "wave" flattens into a faint straight line. */
-  text-decoration-thickness: max(2px, 0.08em);
-  text-underline-offset: 0.22em;
+  /* Hand-rolled zigzag instead of `underline wavy`: Chromium scales the
+     native wave's amplitude with stroke width, and in Obsidian's editor
+     it collapses to an invisible faint line at body sizes. Background
+     gradients render everywhere and take the color from CSS vars. */
+  background-color: color-mix(
+    in srgb,
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 10%,
+    transparent
+  );
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 0 62%,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color)) 62% 88%,
+      transparent 88%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 0 62%,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color)) 62% 88%,
+      transparent 88%
+    );
+  background-size: 0.5em 0.32em;
+  background-position: 0 100%;
+  background-repeat: repeat-x;
 }
 
 .marginalia-mark-strikethrough {
