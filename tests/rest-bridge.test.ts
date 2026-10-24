@@ -4,6 +4,8 @@ import { AnnotationStore } from "../src/storage/annotation-store";
 import { MemoryAdapter } from "./memory-adapter";
 import { TFile } from "./obsidian-runtime-mock";
 import { AnnotationsApi } from "../src/rest-bridge/annotations-api";
+import { registerMcpTools } from "../src/rest-bridge/mcp-tools";
+import type { McpToolCallback } from "../src/rest-bridge/types";
 import type MarginaliaPlugin from "../src/main";
 
 const NOTE = "Notes/Test.md";
@@ -148,5 +150,116 @@ describe("annotations REST handlers", () => {
       body: { threads: unknown[] };
     };
     expect(drifted.body.threads).toHaveLength(0);
+  });
+});
+
+type RegisteredTool = { description: string; callback: McpToolCallback };
+
+function makeHost() {
+  const tools = new Map<string, RegisteredTool>();
+  const host = {
+    addMcpTool(
+      name: string,
+      description: string,
+      _schema: unknown,
+      callback: McpToolCallback
+    ) {
+      tools.set(name, { description, callback });
+    }
+  };
+  return { host, tools };
+}
+
+describe("annotations MCP tools", () => {
+  it("registers six tools and round-trips create/reply/update/delete", async () => {
+    const { api } = makeApi();
+    const { host, tools } = makeHost();
+    registerMcpTools(host as never, api);
+    expect([...tools.keys()].sort()).toEqual(
+      [
+        "marginalia_add_reply",
+        "marginalia_create_annotation",
+        "marginalia_delete_annotation",
+        "marginalia_get_annotation",
+        "marginalia_list_annotations",
+        "marginalia_update_annotation"
+      ]
+    );
+
+    const created = JSON.parse(
+      (await tools.get("marginalia_create_annotation")!.callback({
+        source: NOTE,
+        text: "Via MCP.",
+        quote: "lazy dog"
+      }))
+    ) as { id: string; status: string; author: string };
+    expect(created.id).toBeTruthy();
+    expect(created.status).toBe("open");
+    expect(created.author).toBe("Agent");
+
+    const reply = JSON.parse(
+      (await tools.get("marginalia_add_reply")!.callback({
+        source: NOTE,
+        id: created.id,
+        text: "A reply.",
+        author: "Pi"
+      }))
+    ) as { replies: unknown[] };
+    expect(reply.replies).toHaveLength(1);
+
+    const updated = JSON.parse(
+      (await tools.get("marginalia_update_annotation")!.callback({
+        source: NOTE,
+        id: created.id,
+        status: "resolved"
+      }))
+    ) as { status: string };
+    expect(updated.status).toBe("resolved");
+
+    const listed = JSON.parse(
+      (await tools.get("marginalia_list_annotations")!.callback({
+        source: NOTE,
+        status: "resolved"
+      }))
+    ) as { threads: unknown[] };
+    expect(listed.threads).toHaveLength(1);
+
+    const deleted = JSON.parse(
+      (await tools.get("marginalia_delete_annotation")!.callback({
+        source: NOTE,
+        id: created.id
+      }))
+    ) as { deleted: boolean };
+    expect(deleted.deleted).toBe(true);
+  });
+
+  it("surfaces API errors as error JSON instead of throwing", async () => {
+    const { api } = makeApi();
+    const { host, tools } = makeHost();
+    registerMcpTools(host as never, api);
+
+    const ambiguous = JSON.parse(
+      (await tools.get("marginalia_create_annotation")!.callback({
+        source: NOTE,
+        text: "Which fox?",
+        quote: "quick brown fox"
+      }))
+    ) as { error: { errorCode: number } };
+    expect(ambiguous.error.errorCode).toBe(40902);
+
+    const disambiguated = JSON.parse(
+      (await tools.get("marginalia_create_annotation")!.callback({
+        source: NOTE,
+        text: "The second fox.",
+        quote: "quick brown fox",
+        occurrence: 2
+      }))
+    ) as { id: string };
+    expect(disambiguated.id).toBeTruthy();
+  });
+
+  it("registers nothing when the host lacks an MCP server", () => {
+    const { api } = makeApi();
+    expect(() => registerMcpTools({} as never, api)).not.toThrow();
   });
 });

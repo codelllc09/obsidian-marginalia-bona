@@ -7,6 +7,7 @@ import type {
   VaultRouteContext
 } from "./rest-bridge/types";
 import { AnnotationsApi } from "./rest-bridge/annotations-api";
+import { registerMcpTools } from "./rest-bridge/mcp-tools";
 
 const SUBRESOURCE = "annotations";
 
@@ -61,6 +62,13 @@ export class RestBridge {
     router.post("/:id/replies", route((req) =>
       api.addReply(req.vaultFile.path, req.params.id, req.body)
     ));
+    // Best-effort: hosts without an MCP server simply skip this, and a
+    // failed registration never takes the REST sub-resource down.
+    try {
+      registerMcpTools(connection.api, api);
+    } catch {
+      // Reserved-name collisions or host quirks stay invisible.
+    }
   }
 
   disconnect(): void {

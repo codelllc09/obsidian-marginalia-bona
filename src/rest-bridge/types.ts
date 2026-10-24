@@ -34,9 +34,23 @@ export interface SubresourceRouter {
   delete(path: string, handler: SubresourceHandler): void;
 }
 
+/** MCP tool callback: receives parsed arguments, returns text content
+ *  (the host wraps it as an MCP text part). */
+export type McpToolCallback = (
+  args: Record<string, unknown>
+) => Promise<string> | string;
+
 export interface RestApiHost {
   apiVersion?: number;
   addVaultSubresource(name: string): SubresourceRouter;
+  /** Present on hosts whose extension API exposes an MCP server.
+   *  Schema is a ZodRawShape - the host wraps it with its own zod. */
+  addMcpTool?(
+    name: string,
+    description: string,
+    schema: Record<string, unknown>,
+    callback: McpToolCallback
+  ): void;
   unregister(): void;
 }
 
