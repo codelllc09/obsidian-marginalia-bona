@@ -7,7 +7,7 @@ import {
   ViewUpdate
 } from "@codemirror/view";
 import { MarkdownView } from "obsidian";
-import type SidenPlugin from "../main";
+import type MarginaliaPlugin from "../main";
 import { Annotation, MarkdownAnchor } from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
 
@@ -19,7 +19,7 @@ interface MarginPlacement {
 
 function markdownPathForEditor(
   editorView: EditorView,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): string | null {
   let path: string | null = null;
   plugin.app.workspace.iterateAllLeaves((leaf) => {
@@ -32,7 +32,7 @@ function markdownPathForEditor(
 
 function visibleAnnotations(
   view: EditorView,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): Annotation[] {
   const path = markdownPathForEditor(view, plugin);
   if (!path) return [];
@@ -52,7 +52,7 @@ function visibleAnnotations(
 
 function buildHighlights(
   view: EditorView,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   if (!plugin.settings.showHighlights) return builder.finish();
@@ -72,7 +72,7 @@ function buildHighlights(
       Decoration.mark({
         class: presentation.class,
         attributes: {
-          "data-siden-id": annotation.id,
+          "data-marginalia-id": annotation.id,
           style: presentation.style
         }
       })
@@ -97,7 +97,7 @@ function measureContentColumn(view: EditorView): DOMRect {
 
 function choosePlacement(
   view: EditorView,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): MarginPlacement | null {
   const editorRect = view.dom.getBoundingClientRect();
   const contentRect = measureContentColumn(view);
@@ -129,35 +129,35 @@ function choosePlacement(
 
 function createMarginCard(
   annotation: Annotation,
-  plugin: SidenPlugin,
+  plugin: MarginaliaPlugin,
   width: number
 ): HTMLElement {
   const card = createDiv();
-  card.className = "siden-margin-card siden-margin-card-live";
+  card.className = "marginalia-margin-card marginalia-margin-card-live";
   card.classList.toggle(
-    "siden-force-word-breaks",
+    "marginalia-force-word-breaks",
     plugin.settings.forceLongWordBreaks
   );
-  card.dataset.sidenId = annotation.id;
+  card.dataset.marginaliaId = annotation.id;
   card.tabIndex = 0;
   card.setAttribute("role", "button");
   card.style.width = `${Math.floor(width)}px`;
   card.style.setProperty(
-    "--siden-card-color",
+    "--marginalia-card-color",
     annotation.color ?? plugin.settings.highlightColor
   );
-  const body = createDiv({ cls: "siden-margin-card-body" });
+  const body = createDiv({ cls: "marginalia-margin-card-body" });
   body.textContent = annotation.body;
   card.appendChild(body);
   for (const reply of annotation.replies) {
     card.createDiv({
-      cls: "siden-margin-card-reply",
+      cls: "marginalia-margin-card-reply",
       text: reply.body
     });
   }
   if (annotation.replies.length > 0) {
     card.createDiv({
-      cls: "siden-margin-card-count",
+      cls: "marginalia-margin-card-count",
       text: `${annotation.replies.length} repl${
         annotation.replies.length === 1 ? "y" : "ies"
       }`
@@ -180,7 +180,7 @@ function createMarginCard(
 
 function renderMargins(
   view: EditorView,
-  plugin: SidenPlugin,
+  plugin: MarginaliaPlugin,
   layer: HTMLElement
 ): void {
   layer.empty();
@@ -234,7 +234,7 @@ function renderMargins(
 
 async function mapChangedAnchors(
   update: ViewUpdate,
-  plugin: SidenPlugin
+  plugin: MarginaliaPlugin
 ): Promise<void> {
   if (!update.docChanged) return;
   const path = markdownPathForEditor(update.view, plugin);
@@ -274,7 +274,7 @@ async function mapChangedAnchors(
   }
 }
 
-export function createMarkdownExtension(plugin: SidenPlugin) {
+export function createMarkdownExtension(plugin: MarginaliaPlugin) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
@@ -287,7 +287,7 @@ export function createMarkdownExtension(plugin: SidenPlugin) {
         this.revision = plugin.editorRevision;
         this.decorations = buildHighlights(view, plugin);
         this.marginLayer = view.dom.createDiv({
-          cls: "siden-editor-margin-layer"
+          cls: "marginalia-editor-margin-layer"
         });
         this.resizeObserver = new ResizeObserver(() => this.scheduleMargins());
         this.resizeObserver.observe(view.dom);
@@ -328,9 +328,9 @@ export function createMarkdownExtension(plugin: SidenPlugin) {
       eventHandlers: {
         click(event) {
           const target = event.target as HTMLElement;
-          const highlight = target.closest<HTMLElement>("[data-siden-id]");
-          if (!highlight?.dataset.sidenId) return false;
-          void plugin.activateAnnotation(highlight.dataset.sidenId);
+          const highlight = target.closest<HTMLElement>("[data-marginalia-id]");
+          if (!highlight?.dataset.marginaliaId) return false;
+          void plugin.activateAnnotation(highlight.dataset.marginaliaId);
           return true;
         }
       }

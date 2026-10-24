@@ -1,5 +1,5 @@
 import { Notice, TFile } from "obsidian";
-import type SidenPlugin from "../main";
+import type MarginaliaPlugin from "../main";
 import { Annotation, MarkStyle, PdfAnchor, PdfRectangle } from "../domain/annotation";
 import { resolveMarkStyle } from "../domain/marks";
 import { normalizeRectangle, rectangleCss } from "./geometry";
@@ -14,7 +14,7 @@ export class PdfAdapter {
   private renderScheduled = false;
   private readonly legacyMigrations = new Set<string>();
 
-  constructor(private readonly plugin: SidenPlugin) {}
+  constructor(private readonly plugin: MarginaliaPlugin) {}
 
   start(): void {
     this.observer = new MutationObserver(() => {
@@ -115,7 +115,7 @@ export class PdfAdapter {
     this.observer?.disconnect();
     try {
       document
-        .querySelectorAll(".siden-pdf-highlight-layer")
+        .querySelectorAll(".marginalia-pdf-highlight-layer")
         .forEach((layer) => layer.remove());
       if (!this.plugin.settings.showHighlights) return;
       const file = this.plugin.app.workspace.getActiveFile();
@@ -153,7 +153,7 @@ export class PdfAdapter {
     const page = document.querySelector<HTMLElement>(
       `.pdf-viewer .page[data-page-number="${annotation.anchor.page}"], .page[data-page-number="${annotation.anchor.page}"]`
     );
-    if (!page || page.querySelector(`[data-siden-pdf-id="${annotation.id}"]`)) return;
+    if (!page || page.querySelector(`[data-marginalia-pdf-id="${annotation.id}"]`)) return;
     const recovered =
       annotation.anchor.coordinateSpace === "normalized"
         ? null
@@ -163,8 +163,8 @@ export class PdfAdapter {
       ? "normalized"
       : (annotation.anchor.coordinateSpace ?? "css-pixels");
     const layer = page.createDiv({
-      cls: `siden-pdf-highlight-layer${activeId === annotation.id ? " is-active" : ""}`,
-      attr: { "data-siden-pdf-id": annotation.id }
+      cls: `marginalia-pdf-highlight-layer${activeId === annotation.id ? " is-active" : ""}`,
+      attr: { "data-marginalia-pdf-id": annotation.id }
     });
     const color = annotation.color ?? this.plugin.settings.highlightColor;
     const style: MarkStyle = resolveMarkStyle(
@@ -172,10 +172,10 @@ export class PdfAdapter {
       this.plugin.settings.defaultMarkStyle
     );
     for (const rectangle of rectangles) {
-      const mark = layer.createDiv({ cls: `siden-pdf-highlight siden-pdf-mark-${style}` });
-      mark.style.setProperty("--siden-mark-color", color);
+      const mark = layer.createDiv({ cls: `marginalia-pdf-highlight marginalia-pdf-mark-${style}` });
+      mark.style.setProperty("--marginalia-mark-color", color);
       mark.style.setProperty(
-        "--siden-mark-opacity",
+        "--marginalia-mark-opacity",
         String(this.plugin.settings.highlightOpacity)
       );
       const css = rectangleCss(rectangle, coordinateSpace);
@@ -204,7 +204,7 @@ export class PdfAdapter {
       NodeFilter.SHOW_TEXT,
       {
         acceptNode(node) {
-          return node.parentElement?.closest(".siden-pdf-highlight-layer")
+          return node.parentElement?.closest(".marginalia-pdf-highlight-layer")
             ? NodeFilter.FILTER_REJECT
             : NodeFilter.FILTER_ACCEPT;
         }

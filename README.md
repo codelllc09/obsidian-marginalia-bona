@@ -1,11 +1,11 @@
-# Siden Plus
+# Marginalia
 
 > Fork of [Siden](https://github.com/giuseqpe/siden) by Giuseppe (MIT), with
 > per-annotation styling, reply threads, and an agent-friendly index. All
 > credit for the original design and implementation belongs to the upstream
 > author.
 
-Siden adds annotations to Markdown notes and PDFs in Obsidian.
+Marginalia adds annotations to Markdown notes and PDFs in Obsidian.
 
 Select a passage, write a Markdown comment in the sidebar, and return to it
 later. Markdown annotations can also appear beside the text as margin cards.
@@ -16,12 +16,12 @@ later. Markdown annotations can also appear beside the text as margin cards.
   style (highlight / underline / wavy / strikethrough / bold)
 - **Reply threads**: discuss inside one annotation; replies stay in the same
   Markdown file as the root comment
-- **Agent-friendly index**: `.siden-plus/index/<doc>.jsonl` shards give
+- **Agent-friendly index**: `.marginalia/index/<doc>.jsonl` shards give
   quick location lookups without reading every file (rebuildable via the
   *Rebuild annotation index* command)
 - **Sidebar ergonomics**: Enter-to-submit (Shift+Enter for newline), card
   collapse, scroll-to-top/bottom, copy comment / thread / quote / reply
-- Isolated data directory `.siden-plus/` — coexists with upstream Siden
+- Isolated data directory `.marginalia/` — coexists with upstream Siden
 
 ## Features (inherited from Siden)
 

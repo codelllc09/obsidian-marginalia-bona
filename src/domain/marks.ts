@@ -32,7 +32,7 @@ export function markPresentation(
   const style = resolveMarkStyle(annotation, defaults.defaultStyle);
   const color = resolveMarkColor(annotation, defaults.defaultColor);
   return {
-    class: `siden-highlight siden-mark-${style}`,
-    style: `--siden-mark-color: ${color}; --siden-mark-opacity: ${defaults.opacity}`
+    class: `marginalia-highlight marginalia-mark-${style}`,
+    style: `--marginalia-mark-color: ${color}; --marginalia-mark-opacity: ${defaults.opacity}`
   };
 }

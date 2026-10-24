@@ -1,10 +1,10 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import type SidenPlugin from "./main";
+import type MarginaliaPlugin from "./main";
 import { MARK_STYLES, MarkStyle } from "./domain/annotation";
 
 export type MarginSide = "auto" | "left" | "right";
 
-export interface SidenSettings {
+export interface MarginaliaSettings {
   showHighlights: boolean;
   showMargins: boolean;
   showResolved: boolean;
@@ -21,7 +21,7 @@ export interface SidenSettings {
   forceLongWordBreaks: boolean;
 }
 
-export const DEFAULT_SETTINGS: SidenSettings = {
+export const DEFAULT_SETTINGS: MarginaliaSettings = {
   showHighlights: true,
   showMargins: true,
   showResolved: false,
@@ -35,8 +35,8 @@ export const DEFAULT_SETTINGS: SidenSettings = {
   forceLongWordBreaks: true
 };
 
-export class SidenSettingTab extends PluginSettingTab {
-  constructor(app: App, private readonly plugin: SidenPlugin) {
+export class MarginaliaSettingTab extends PluginSettingTab {
+  constructor(app: App, private readonly plugin: MarginaliaPlugin) {
     super(app, plugin);
   }
 
@@ -154,7 +154,7 @@ export class SidenSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.submitShortcut)
           .onChange((value) =>
             this.plugin.updateSettings({
-              submitShortcut: value as SidenSettings["submitShortcut"]
+              submitShortcut: value as MarginaliaSettings["submitShortcut"]
             })
           )
       );

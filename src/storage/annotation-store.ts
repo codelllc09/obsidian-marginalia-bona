@@ -19,7 +19,9 @@ import {
 import { shardPathFor, rebuildIndex, writeShard } from "./annotation-index";
 
 export const DEFAULT_ANNOTATION_DIRECTORY = ANNOTATIONS_DIRECTORY;
-export const DEFAULT_TRASH_DIRECTORY = ".siden-plus/trash";
+export const DEFAULT_TRASH_DIRECTORY = ".marginalia/trash";
+/** Pre-rename data root, migrated wholesale on first load. */
+const LEGACY_DATA_ROOT = ".siden-plus";
 
 function newReply(body: string): AnnotationReply {
   return {
@@ -52,6 +54,7 @@ export class AnnotationStore {
     this.idsBySource.clear();
     this.paths.clear();
     this.diagnostics = [];
+    await this.migrateLegacyRoot();
     await this.ensureDirectory();
     await this.loadDirectory(this.directory);
     // Self-heal shards: rewrites changed ones, removes stale ones (including
@@ -59,9 +62,25 @@ export class AnnotationStore {
     try {
       await rebuildIndex(this.app.vault.adapter, this.all());
     } catch (error) {
-      console.warn("Siden index rebuild failed", error);
+      console.warn("Marginalia index rebuild failed", error);
     }
     this.onChange();
+  }
+
+  /**
+   * One-time rename of the pre-"Marginalia" data root (`.siden-plus` →
+   * `.marginalia`). Thread files keep their internal format markers, so a
+   * plain directory rename is lossless.
+   */
+  private async migrateLegacyRoot(): Promise<void> {
+    const root = normalizePath(this.directory.split("/")[0] ?? this.directory);
+    if (await this.app.vault.adapter.exists(root)) return;
+    if (!(await this.app.vault.adapter.exists(LEGACY_DATA_ROOT))) return;
+    try {
+      await this.app.vault.adapter.rename(LEGACY_DATA_ROOT, root);
+    } catch (error) {
+      console.warn("Marginalia data migration failed", error);
+    }
   }
 
   /** Load one directory level, recursing into mirrored source folders. */
@@ -395,7 +414,7 @@ export class AnnotationStore {
         this.forSource(sourcePath)
       );
     } catch (error) {
-      console.warn("Siden index update failed", error);
+      console.warn("Marginalia index update failed", error);
     }
   }
 

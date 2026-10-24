@@ -1,10 +1,10 @@
 :root {
-  --siden-margin-width: 200px;
-  --siden-highlight-color: #ffd54f;
-  --siden-highlight-opacity: 0.35;
+  --marginalia-margin-width: 200px;
+  --marginalia-highlight-color: #ffd54f;
+  --marginalia-highlight-opacity: 0.35;
 }
 
-.siden-sidebar {
+.marginalia-sidebar {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -17,7 +17,7 @@
   width: 100%;
 }
 
-.siden-toolbar {
+.marginalia-toolbar {
   align-items: center;
   display: flex;
   gap: var(--size-4-2);
@@ -25,29 +25,29 @@
   min-width: 0;
 }
 
-.siden-toolbar .clickable-icon {
+.marginalia-toolbar .clickable-icon {
   flex: 0 0 auto;
   width: auto;
 }
 
-.siden-toolbar > button:not(.clickable-icon) {
+.marginalia-toolbar > button:not(.clickable-icon) {
   flex: 1;
   width: auto;
 }
 
-.siden-toolbar select {
+.marginalia-toolbar select {
   flex: 0 0 auto;
   width: auto;
 }
 
-.siden-search {
+.marginalia-search {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
   width: 100%;
 }
 
-.siden-list {
+.marginalia-list {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -61,7 +61,7 @@
 
 /* Wraps draft + list; rebuilt on refresh while the toolbar (and its
    search input / IME composition) stays alive. */
-.siden-body {
+.marginalia-body {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -70,16 +70,16 @@
   min-width: 0;
 }
 
-.siden-empty {
+.marginalia-empty {
   color: var(--text-muted);
   padding: var(--size-4-4);
   text-align: center;
 }
 
-.siden-card {
+.marginalia-card {
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
-  border-inline-start: 3px solid var(--siden-card-color, var(--interactive-accent));
+  border-inline-start: 3px solid var(--marginalia-card-color, var(--interactive-accent));
   border-radius: var(--radius-m);
   box-sizing: border-box;
   contain: inline-size;
@@ -94,24 +94,24 @@
   width: 100%;
 }
 
-.siden-card:hover,
-.siden-card:focus-visible,
-.siden-card.is-active {
+.marginalia-card:hover,
+.marginalia-card:focus-visible,
+.marginalia-card.is-active {
   background: var(--background-secondary-alt);
   border-color: var(--interactive-accent);
   outline: none;
 }
 
-.siden-card.siden-status-resolved {
+.marginalia-card.marginalia-status-resolved {
   border-inline-start-color: var(--text-muted);
   opacity: 0.78;
 }
 
-.siden-card.siden-status-orphaned {
+.marginalia-card.marginalia-status-orphaned {
   border-inline-start-color: var(--color-red);
 }
 
-.siden-card-header {
+.marginalia-card-header {
   align-items: center;
   display: flex;
   gap: var(--size-4-2);
@@ -120,7 +120,7 @@
   overflow: hidden;
 }
 
-.siden-card-source {
+.marginalia-card-source {
   flex: 1;
   font-size: var(--font-ui-small);
   font-weight: var(--font-semibold);
@@ -130,13 +130,13 @@
   white-space: nowrap;
 }
 
-.siden-card-status {
+.marginalia-card-status {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   text-transform: capitalize;
 }
 
-.siden-card-replies-badge {
+.marginalia-card-replies-badge {
   background: var(--background-modifier-border);
   border-radius: 999px;
   color: var(--text-muted);
@@ -149,7 +149,7 @@
 
 /* Word/WPS-style thread: replies are indented under the root note with a
    hairline separator; the timestamp sits as a tiny hint in the top-right. */
-.siden-reply {
+.marginalia-reply {
   border-top: 1px solid var(--background-modifier-border);
   margin-left: var(--size-4-2);
   margin-top: var(--size-4-2);
@@ -157,7 +157,7 @@
   position: relative;
 }
 
-.siden-reply-meta {
+.marginalia-reply-meta {
   align-items: center;
   background: var(--background-secondary);
   display: flex;
@@ -168,7 +168,7 @@
   top: 0;
 }
 
-.siden-reply-time {
+.marginalia-reply-time {
   color: var(--text-faint);
   font-size: min(var(--font-ui-smallest), 0.6rem);
   letter-spacing: 0.02em;
@@ -176,41 +176,41 @@
   transition: opacity 120ms ease;
 }
 
-.siden-reply:hover .siden-reply-time {
+.marginalia-reply:hover .marginalia-reply-time {
   opacity: 0.9;
 }
 
-.siden-reply-body {
+.marginalia-reply-body {
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   padding-right: 0.5rem;
 }
 
-.siden-card-copy {
+.marginalia-card-copy {
   display: none;
 }
 
-.siden-card:hover .siden-card-copy,
-.siden-card-copy:focus-visible {
+.marginalia-card:hover .marginalia-card-copy,
+.marginalia-card-copy:focus-visible {
   display: inline-flex;
 }
 
-.siden-card-header .siden-card-collapse svg {
+.marginalia-card-header .marginalia-card-collapse svg {
   height: 14px;
   width: 14px;
 }
 
-.siden-toolbar .siden-scroll-button svg,
-.siden-toolbar .siden-collapse-toggle svg {
+.marginalia-toolbar .marginalia-scroll-button svg,
+.marginalia-toolbar .marginalia-collapse-toggle svg {
   height: 15px;
   width: 15px;
 }
 
-.siden-card.siden-card-collapsed {
+.marginalia-card.marginalia-card-collapsed {
   padding-block: var(--size-4-1);
 }
 
-.siden-card-summary {
+.marginalia-card-summary {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   max-width: 100%;
@@ -219,77 +219,77 @@
   white-space: nowrap;
 }
 
-.siden-reply-body,
-.siden-reply-body.markdown-rendered,
-.siden-reply-body.markdown-rendered > * {
+.marginalia-reply-body,
+.marginalia-reply-body.markdown-rendered,
+.marginalia-reply-body.markdown-rendered > * {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
 }
 
-.siden-reply-body > :last-child {
+.marginalia-reply-body > :last-child {
   margin-bottom: 0;
 }
 
-.siden-reply-remove,
-.siden-reply-copy {
+.marginalia-reply-remove,
+.marginalia-reply-copy {
   display: none;
 }
 
-.siden-reply:hover .siden-reply-remove,
-.siden-reply:hover .siden-reply-copy,
-.siden-reply-remove:focus-visible,
-.siden-reply-copy:focus-visible {
+.marginalia-reply:hover .marginalia-reply-remove,
+.marginalia-reply:hover .marginalia-reply-copy,
+.marginalia-reply-remove:focus-visible,
+.marginalia-reply-copy:focus-visible {
   display: inline-flex;
 }
 
-.siden-reply-button {
+.marginalia-reply-button {
   align-self: flex-start;
   font-size: var(--font-ui-smaller);
   margin-top: var(--size-4-2);
   padding: 2px 10px;
 }
 
-.siden-reply-composer {
+.marginalia-reply-composer {
   margin-top: var(--size-4-2);
 }
 
-.siden-reply-textarea {
+.marginalia-reply-textarea {
   min-height: 3.5rem;
   resize: vertical;
   width: 100%;
 }
 
-.siden-draft-style {
+.marginalia-draft-style {
   display: flex;
   flex-direction: column;
   gap: var(--size-4-2);
   margin-top: var(--size-4-2);
 }
 
-.siden-draft-styles,
-.siden-draft-colors {
+.marginalia-draft-styles,
+.marginalia-draft-colors {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: var(--size-4-1);
 }
 
-.siden-draft-styles button,
-.siden-draft-colors button {
+.marginalia-draft-styles button,
+.marginalia-draft-colors button {
   box-shadow: none;
   font-size: var(--font-ui-smaller);
   padding: 2px 10px;
 }
 
-.siden-draft-styles button.is-selected,
-.siden-draft-colors button.is-selected {
+.marginalia-draft-styles button.is-selected,
+.marginalia-draft-colors button.is-selected {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
 }
 
-.siden-swatch {
+.marginalia-swatch {
   border: 2px solid var(--background-modifier-border);
   border-radius: 999px;
   height: 18px;
@@ -297,19 +297,19 @@
   width: 18px;
 }
 
-.siden-swatch.is-selected {
+.marginalia-swatch.is-selected {
   border-color: var(--text-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-accent) 40%, transparent);
-  background: var(--siden-swatch-color) !important;
+  background: var(--marginalia-swatch-color) !important;
   color: transparent;
 }
 
-.siden-swatch:not(.is-selected) {
-  background: var(--siden-swatch-color) !important;
+.marginalia-swatch:not(.is-selected) {
+  background: var(--marginalia-swatch-color) !important;
   color: transparent;
 }
 
-.siden-card-quote {
+.marginalia-card-quote {
   box-sizing: border-box;
   color: var(--text-muted);
   display: -webkit-box;
@@ -324,24 +324,24 @@
   width: 100%;
 }
 
-.siden-card-body,
-.siden-card-body.markdown-rendered,
-.siden-card-body.markdown-rendered > * {
+.marginalia-card-body,
+.marginalia-card-body.markdown-rendered,
+.marginalia-card-body.markdown-rendered > * {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
 }
 
-.siden-card-body > :first-child,
-.siden-margin-card .markdown-rendered > :first-child {
+.marginalia-card-body > :first-child,
+.marginalia-margin-card .markdown-rendered > :first-child {
   margin-top: 0;
 }
 
-.siden-sidebar.siden-force-word-breaks .siden-card,
-.siden-sidebar.siden-force-word-breaks .siden-card *,
-.siden-sidebar.siden-force-word-breaks .siden-card-quote,
-.siden-sidebar.siden-force-word-breaks .siden-card-body {
+.marginalia-sidebar.marginalia-force-word-breaks .marginalia-card,
+.marginalia-sidebar.marginalia-force-word-breaks .marginalia-card *,
+.marginalia-sidebar.marginalia-force-word-breaks .marginalia-card-quote,
+.marginalia-sidebar.marginalia-force-word-breaks .marginalia-card-body {
   hyphens: auto !important;
   max-inline-size: 100% !important;
   min-inline-size: 0 !important;
@@ -350,15 +350,15 @@
   word-break: break-all !important;
 }
 
-.siden-sidebar .siden-card pre,
-.siden-sidebar .siden-card code {
+.marginalia-sidebar .marginalia-card pre,
+.marginalia-sidebar .marginalia-card code {
   box-sizing: border-box;
   max-width: 100%;
   overflow-x: hidden !important;
   white-space: pre-wrap !important;
 }
 
-.siden-sidebar .siden-card table {
+.marginalia-sidebar .marginalia-card table {
   display: block;
   max-width: 100%;
   overflow-x: hidden;
@@ -366,20 +366,20 @@
   width: 100%;
 }
 
-.siden-sidebar .siden-card img,
-.siden-sidebar .siden-card video,
-.siden-sidebar .siden-card iframe,
-.siden-sidebar .siden-card svg {
+.marginalia-sidebar .marginalia-card img,
+.marginalia-sidebar .marginalia-card video,
+.marginalia-sidebar .marginalia-card iframe,
+.marginalia-sidebar .marginalia-card svg {
   height: auto;
   max-width: 100%;
 }
 
-.siden-card-body > :last-child,
-.siden-margin-card .markdown-rendered > :last-child {
+.marginalia-card-body > :last-child,
+.marginalia-margin-card .markdown-rendered > :last-child {
   margin-bottom: 0;
 }
 
-.siden-draft {
+.marginalia-draft {
   background: var(--background-secondary);
   border: 1px solid var(--interactive-accent);
   border-radius: var(--radius-m);
@@ -387,79 +387,79 @@
   padding: var(--size-4-3);
 }
 
-.siden-draft-label {
+.marginalia-draft-label {
   display: block;
   font-size: var(--font-ui-small);
   font-weight: var(--font-semibold);
   margin-bottom: var(--size-4-2);
 }
 
-.siden-draft-textarea {
+.marginalia-draft-textarea {
   min-height: 8rem;
   resize: vertical;
   width: 100%;
 }
 
-.siden-draft-actions {
+.marginalia-draft-actions {
   display: flex;
   gap: var(--size-4-2);
   justify-content: flex-end;
   margin-top: var(--size-4-2);
 }
 
-.siden-highlight {
+.marginalia-highlight {
   border-radius: 2px;
   cursor: pointer;
 }
 
-/* Per-annotation marks. --siden-mark-color/--siden-mark-opacity are set
+/* Per-annotation marks. --marginalia-mark-color/--marginalia-mark-opacity are set
    inline per mark; unset values fall back to the global defaults. */
-.siden-mark-highlight {
+.marginalia-mark-highlight {
   background: color-mix(
     in srgb,
-    var(--siden-mark-color, var(--siden-highlight-color))
-      calc(var(--siden-mark-opacity, var(--siden-highlight-opacity)) * 100%),
+    var(--marginalia-mark-color, var(--marginalia-highlight-color))
+      calc(var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity)) * 100%),
     transparent
   );
 }
 
-.siden-mark-underline,
-.siden-mark-wavy,
-.siden-mark-strikethrough,
-.siden-mark-bold {
+.marginalia-mark-underline,
+.marginalia-mark-wavy,
+.marginalia-mark-strikethrough,
+.marginalia-mark-bold {
   background: color-mix(
     in srgb,
-    var(--siden-mark-color, var(--siden-highlight-color)) 12%,
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 12%,
     transparent
   );
-  text-decoration-color: var(--siden-mark-color, var(--siden-highlight-color));
+  text-decoration-color: var(--marginalia-mark-color, var(--marginalia-highlight-color));
   text-decoration-thickness: 2px;
   text-decoration-skip-ink: none;
 }
 
-.siden-mark-underline {
+.marginalia-mark-underline {
   text-decoration-line: underline;
   text-underline-offset: 2px;
 }
 
-.siden-mark-wavy {
+.marginalia-mark-wavy {
   text-decoration-line: underline wavy;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
-.siden-mark-strikethrough {
+.marginalia-mark-strikethrough {
   text-decoration-line: line-through;
 }
 
-.siden-mark-bold {
+.marginalia-mark-bold {
   font-weight: var(--font-bold, 700);
 }
 
-.siden-margin-card {
+.marginalia-margin-card {
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
-  border-inline-start: 3px solid var(--siden-card-color, var(--interactive-accent));
+  border-inline-start: 3px solid var(--marginalia-card-color, var(--interactive-accent));
   border-radius: var(--radius-s);
   color: var(--text-normal);
   cursor: pointer;
@@ -471,37 +471,37 @@
   box-sizing: border-box;
   height: fit-content;
   max-height: min(24rem, 70vh);
-  max-width: var(--siden-available-width, var(--siden-margin-width));
-  min-width: min(72px, var(--siden-available-width, 72px));
+  max-width: var(--marginalia-available-width, var(--marginalia-margin-width));
+  min-width: min(72px, var(--marginalia-available-width, 72px));
   min-inline-size: 0 !important;
   overflow-x: hidden;
   overflow-y: auto;
   white-space: normal;
   width: min(
-    var(--siden-margin-width),
-    var(--siden-available-width, var(--siden-margin-width))
+    var(--marginalia-margin-width),
+    var(--marginalia-available-width, var(--marginalia-margin-width))
   );
   z-index: var(--layer-popover);
 }
 
-.siden-margin-card *,
-.siden-margin-card .markdown-rendered {
+.marginalia-margin-card *,
+.marginalia-margin-card .markdown-rendered {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
   white-space: normal;
 }
 
-.siden-margin-card pre,
-.siden-margin-card code {
+.marginalia-margin-card pre,
+.marginalia-margin-card code {
   max-width: 100%;
   overflow-x: hidden;
   white-space: pre-wrap;
 }
 
-.siden-margin-card.siden-force-word-breaks,
-.siden-margin-card.siden-force-word-breaks *,
-.siden-margin-card.siden-force-word-breaks .markdown-rendered {
+.marginalia-margin-card.marginalia-force-word-breaks,
+.marginalia-margin-card.marginalia-force-word-breaks *,
+.marginalia-margin-card.marginalia-force-word-breaks .markdown-rendered {
   hyphens: auto !important;
   max-inline-size: 100% !important;
   min-inline-size: 0 !important;
@@ -510,13 +510,13 @@
   word-break: break-all !important;
 }
 
-.siden-margin-card:hover,
-.siden-margin-card:focus-visible {
+.marginalia-margin-card:hover,
+.marginalia-margin-card:focus-visible {
   border-color: var(--interactive-accent);
   outline: none;
 }
 
-.siden-margin-card-reply {
+.marginalia-margin-card-reply {
   border-top: 1px dashed var(--background-modifier-border);
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
@@ -524,7 +524,7 @@
   padding-top: var(--size-4-1);
 }
 
-.siden-margin-card-count {
+.marginalia-margin-card-count {
   color: var(--text-muted);
   font-size: var(--font-ui-smallest);
   margin-top: 2px;
@@ -534,7 +534,7 @@
   position: relative;
 }
 
-.siden-editor-margin-layer {
+.marginalia-editor-margin-layer {
   inset: 0;
   overflow: hidden;
   pointer-events: none;
@@ -542,16 +542,16 @@
   z-index: var(--layer-popover);
 }
 
-.siden-editor-margin-layer .siden-margin-card {
+.marginalia-editor-margin-layer .marginalia-margin-card {
   pointer-events: auto;
   position: absolute;
 }
 
-.siden-reading-preview {
+.marginalia-reading-preview {
   position: relative;
 }
 
-.siden-reading-margin-layer {
+.marginalia-reading-margin-layer {
   inset: 0 0 auto;
   min-height: 100%;
   overflow: hidden;
@@ -561,7 +561,7 @@
   z-index: var(--layer-popover);
 }
 
-.siden-margin-card-reading {
+.marginalia-margin-card-reading {
   pointer-events: auto;
   position: absolute;
 }
@@ -571,53 +571,53 @@
   position: relative;
 }
 
-.siden-pdf-highlight-layer {
+.marginalia-pdf-highlight-layer {
   inset: 0;
   pointer-events: none;
   position: absolute;
   z-index: 4;
 }
 
-.siden-pdf-highlight {
+.marginalia-pdf-highlight {
   border-radius: 2px;
   pointer-events: auto;
   position: absolute;
 }
 
-.siden-pdf-mark-highlight {
-  background: var(--siden-mark-color, var(--siden-highlight-color));
-  opacity: var(--siden-mark-opacity, var(--siden-highlight-opacity));
+.marginalia-pdf-mark-highlight {
+  background: var(--marginalia-mark-color, var(--marginalia-highlight-color));
+  opacity: var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity));
 }
 
-.siden-pdf-mark-underline {
-  border-bottom: 3px solid var(--siden-mark-color, var(--siden-highlight-color));
+.marginalia-pdf-mark-underline {
+  border-bottom: 3px solid var(--marginalia-mark-color, var(--marginalia-highlight-color));
 }
 
-.siden-pdf-mark-wavy {
-  border-bottom: 3px dashed var(--siden-mark-color, var(--siden-highlight-color));
+.marginalia-pdf-mark-wavy {
+  border-bottom: 3px dashed var(--marginalia-mark-color, var(--marginalia-highlight-color));
 }
 
-.siden-pdf-mark-strikethrough {
+.marginalia-pdf-mark-strikethrough {
   background: linear-gradient(
     to bottom,
     transparent calc(50% - 1.5px),
-    var(--siden-mark-color, var(--siden-highlight-color)) calc(50% - 1.5px),
-    var(--siden-mark-color, var(--siden-highlight-color)) calc(50% + 1.5px),
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) calc(50% - 1.5px),
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) calc(50% + 1.5px),
     transparent calc(50% + 1.5px)
   );
 }
 
-.siden-pdf-mark-bold {
-  border: 2px solid var(--siden-mark-color, var(--siden-highlight-color));
+.marginalia-pdf-mark-bold {
+  border: 2px solid var(--marginalia-mark-color, var(--marginalia-highlight-color));
 }
 
-.siden-pdf-highlight-layer.is-active .siden-pdf-highlight {
+.marginalia-pdf-highlight-layer.is-active .marginalia-pdf-highlight {
   box-shadow: 0 0 0 2px var(--interactive-accent);
 }
 
 @container (max-width: 899px) {
-  .siden-margin-card-live,
-  .siden-reading-margin-layer {
+  .marginalia-margin-card-live,
+  .marginalia-reading-margin-layer {
     display: none;
   }
 }
@@ -627,12 +627,12 @@
 }
 
 @media (max-width: 700px) {
-  .siden-margin-card-live,
-  .siden-reading-margin-layer {
+  .marginalia-margin-card-live,
+  .marginalia-reading-margin-layer {
     display: none;
   }
 
-  .siden-card {
+  .marginalia-card {
     min-height: 44px;
   }
 }

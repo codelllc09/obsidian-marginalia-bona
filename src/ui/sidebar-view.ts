@@ -6,7 +6,7 @@ import {
   WorkspaceLeaf,
   setIcon
 } from "obsidian";
-import type SidenPlugin from "../main";
+import type MarginaliaPlugin from "../main";
 import {
   Annotation,
   AnnotationReply,
@@ -17,7 +17,7 @@ import {
 import { MARK_COLORS } from "../domain/marks";
 import { ConfirmModal } from "./confirm-modal";
 
-export const SIDEN_VIEW_TYPE = "siden-annotations";
+export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
 
 type Scope = "current" | "vault";
 type StatusFilter = "open" | "resolved" | "orphaned" | "all";
@@ -73,7 +73,7 @@ const MARK_STYLE_LABELS: Record<MarkStyle, string> = {
   bold: "Bold"
 };
 
-export class SidenSidebarView extends ItemView {
+export class MarginaliaSidebarView extends ItemView {
   private viewScope: Scope = "current";
   private status: StatusFilter = "open";
   private query = "";
@@ -91,16 +91,16 @@ export class SidenSidebarView extends ItemView {
   private readonly collapseOverrides = new Map<string, boolean>();
   private listEl: HTMLElement | null = null;
 
-  constructor(leaf: WorkspaceLeaf, private readonly plugin: SidenPlugin) {
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: MarginaliaPlugin) {
     super(leaf);
   }
 
   getViewType(): string {
-    return SIDEN_VIEW_TYPE;
+    return MARGINALIA_VIEW_TYPE;
   }
 
   getDisplayText(): string {
-    return "Siden annotations";
+    return "Marginalia annotations";
   }
 
   getIcon(): string {
@@ -127,10 +127,10 @@ export class SidenSidebarView extends ItemView {
   setActiveAnnotation(id: string | null): void {
     this.activeId = id;
     this.containerEl
-      .querySelectorAll(".siden-card.is-active")
+      .querySelectorAll(".marginalia-card.is-active")
       .forEach((element) => element.removeClass("is-active"));
     if (id) {
-      const card = this.containerEl.querySelector(`[data-siden-id="${id}"]`);
+      const card = this.containerEl.querySelector(`[data-marginalia-id="${id}"]`);
       card?.addClass("is-active");
       card?.scrollIntoView({ block: "nearest" });
     }
@@ -151,16 +151,16 @@ export class SidenSidebarView extends ItemView {
   private render(): void {
     const root = this.containerEl.children[1] as HTMLElement;
     root.empty();
-    root.addClass("siden-sidebar");
+    root.addClass("marginalia-sidebar");
     root.toggleClass(
-      "siden-force-word-breaks",
+      "marginalia-force-word-breaks",
       this.plugin.settings.forceLongWordBreaks
     );
 
     this.renderToolbar(root);
     // Only the body below the toolbar is re-rendered while typing so that
     // the search input and IME composition are never destroyed mid-input.
-    this.bodyEl = root.createDiv({ cls: "siden-body" });
+    this.bodyEl = root.createDiv({ cls: "marginalia-body" });
     this.renderBody();
   }
 
@@ -174,16 +174,16 @@ export class SidenSidebarView extends ItemView {
     const active = document.activeElement;
     const wasDraftTextarea =
       active instanceof HTMLTextAreaElement &&
-      active.classList.contains("siden-draft-textarea");
+      active.classList.contains("marginalia-draft-textarea");
     const caret = wasDraftTextarea ? active.selectionStart : null;
     root.empty();
     if (this.draft) this.renderDraft(root);
-    const list = root.createDiv({ cls: "siden-list" });
+    const list = root.createDiv({ cls: "marginalia-list" });
     this.listEl = list;
     const annotations = this.visibleAnnotations();
     if (annotations.length === 0) {
       list.createDiv({
-        cls: "siden-empty",
+        cls: "marginalia-empty",
         text: "No annotations match the current view."
       });
       return;
@@ -195,13 +195,13 @@ export class SidenSidebarView extends ItemView {
   private renderDraft(root: HTMLElement): void {
     if (!this.draft) return;
     const draft = this.draft;
-    const form = root.createDiv({ cls: "siden-draft" });
+    const form = root.createDiv({ cls: "marginalia-draft" });
     form.createEl("label", {
-      cls: "siden-draft-label",
+      cls: "marginalia-draft-label",
       text: draft.mode === "create" ? "New annotation" : "Edit annotation"
     });
     const textarea = form.createEl("textarea", {
-      cls: "siden-draft-textarea",
+      cls: "marginalia-draft-textarea",
       attr: {
         "aria-label": "Annotation text",
         placeholder: `Write a Markdown comment… (${submitHint(
@@ -227,7 +227,7 @@ export class SidenSidebarView extends ItemView {
       }
     });
     this.renderStylePicker(form, draft);
-    const actions = form.createDiv({ cls: "siden-draft-actions" });
+    const actions = form.createDiv({ cls: "marginalia-draft-actions" });
     const cancel = actions.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.cancelDraft());
     const save = actions.createEl("button", {
@@ -238,8 +238,8 @@ export class SidenSidebarView extends ItemView {
   }
 
   private renderStylePicker(form: HTMLElement, draft: DraftState): void {
-    const picker = form.createDiv({ cls: "siden-draft-style" });
-    const styles = picker.createDiv({ cls: "siden-draft-styles" });
+    const picker = form.createDiv({ cls: "marginalia-draft-style" });
+    const styles = picker.createDiv({ cls: "marginalia-draft-styles" });
     for (const style of MARK_STYLES) {
       const button = styles.createEl("button", {
         text: MARK_STYLE_LABELS[style],
@@ -255,7 +255,7 @@ export class SidenSidebarView extends ItemView {
         this.focusDraft(0);
       });
     }
-    const colors = picker.createDiv({ cls: "siden-draft-colors" });
+    const colors = picker.createDiv({ cls: "marginalia-draft-colors" });
     const auto = colors.createEl("button", {
       text: "Auto",
       attr: { type: "button", "aria-label": "Default color", "aria-pressed": String(draft.color === null) }
@@ -275,8 +275,8 @@ export class SidenSidebarView extends ItemView {
         }
       });
       swatch.className =
-        draft.color === color ? "siden-swatch is-selected" : "siden-swatch";
-      swatch.style.setProperty("--siden-swatch-color", color);
+        draft.color === color ? "marginalia-swatch is-selected" : "marginalia-swatch";
+      swatch.style.setProperty("--marginalia-swatch-color", color);
       swatch.addEventListener("click", () => {
         if (this.draft) this.draft.color = color;
         this.renderBody();
@@ -333,7 +333,7 @@ export class SidenSidebarView extends ItemView {
     window.setTimeout(() => {
       const textarea =
         this.containerEl.querySelector<HTMLTextAreaElement>(
-          ".siden-draft-textarea"
+          ".marginalia-draft-textarea"
         );
       if (textarea) {
         textarea.focus();
@@ -343,9 +343,9 @@ export class SidenSidebarView extends ItemView {
   }
 
   private renderToolbar(root: HTMLElement): void {
-    const toolbar = root.createDiv({ cls: "siden-toolbar" });
+    const toolbar = root.createDiv({ cls: "marginalia-toolbar" });
     const collapseButton = toolbar.createEl("button", {
-      cls: "clickable-icon siden-collapse-toggle",
+      cls: "clickable-icon marginalia-collapse-toggle",
       attr: {
         "aria-label": this.collapsed
           ? "Expand all annotation cards"
@@ -373,7 +373,7 @@ export class SidenSidebarView extends ItemView {
       this.renderBody();
     });
     const topButton = toolbar.createEl("button", {
-      cls: "clickable-icon siden-scroll-button",
+      cls: "clickable-icon marginalia-scroll-button",
       attr: { "aria-label": "Scroll annotations back to top" }
     });
     setIcon(topButton, "arrow-up");
@@ -381,7 +381,7 @@ export class SidenSidebarView extends ItemView {
       this.listEl?.scrollTo({ top: 0, behavior: "smooth" })
     );
     const bottomButton = toolbar.createEl("button", {
-      cls: "clickable-icon siden-scroll-button",
+      cls: "clickable-icon marginalia-scroll-button",
       attr: { "aria-label": "Scroll annotations to bottom" }
     });
     setIcon(bottomButton, "arrow-down");
@@ -417,7 +417,7 @@ export class SidenSidebarView extends ItemView {
     });
 
     const search = root.createEl("input", {
-      cls: "siden-search",
+      cls: "marginalia-search",
       type: "search",
       placeholder: "Search annotations…",
       attr: { "aria-label": "Search annotations" }
@@ -473,11 +473,11 @@ export class SidenSidebarView extends ItemView {
   private renderCard(parent: HTMLElement, annotation: Annotation): void {
     const collapsed = this.isCollapsed(annotation.id);
     const card = parent.createDiv({
-      cls: `siden-card siden-status-${annotation.status}${
+      cls: `marginalia-card marginalia-status-${annotation.status}${
         annotation.id === this.activeId ? " is-active" : ""
-      }${collapsed ? " siden-card-collapsed" : ""}`,
+      }${collapsed ? " marginalia-card-collapsed" : ""}`,
       attr: {
-        "data-siden-id": annotation.id,
+        "data-marginalia-id": annotation.id,
         tabindex: "0",
         role: "button",
         "aria-expanded": String(!collapsed),
@@ -485,22 +485,22 @@ export class SidenSidebarView extends ItemView {
       }
     });
     card.style.setProperty(
-      "--siden-card-color",
+      "--marginalia-card-color",
       annotation.color ?? this.plugin.settings.highlightColor
     );
-    const header = card.createDiv({ cls: "siden-card-header" });
+    const header = card.createDiv({ cls: "marginalia-card-header" });
     header.createSpan({
-      cls: "siden-card-source",
+      cls: "marginalia-card-source",
       text: annotation.sourcePath.split("/").pop() ?? annotation.sourcePath
     });
     if (annotation.replies.length > 0) {
       header.createSpan({
-        cls: "siden-card-replies-badge",
+        cls: "marginalia-card-replies-badge",
         text: `${annotation.replies.length}`
       });
     }
     header.createSpan({
-      cls: "siden-card-status",
+      cls: "marginalia-card-status",
       text: annotation.status
     });
     const menuButton = header.createEl("button", {
@@ -513,7 +513,7 @@ export class SidenSidebarView extends ItemView {
       this.openMenu(event, annotation);
     });
     const copyButton = header.createEl("button", {
-      cls: "clickable-icon siden-card-copy",
+      cls: "clickable-icon marginalia-card-copy",
       attr: { "aria-label": "Copy comment" }
     });
     setIcon(copyButton, "copy");
@@ -522,7 +522,7 @@ export class SidenSidebarView extends ItemView {
       void this.copyText(annotation.body, "Comment copied.");
     });
     const cardCollapseButton = header.createEl("button", {
-      cls: "clickable-icon siden-card-collapse",
+      cls: "clickable-icon marginalia-card-collapse",
       attr: {
         "aria-label": collapsed ? "Expand card" : "Collapse card",
         "aria-pressed": String(collapsed)
@@ -537,12 +537,12 @@ export class SidenSidebarView extends ItemView {
 
     if (annotation.anchor.kind !== "document" && !collapsed) {
       card.createEl("blockquote", {
-        cls: "siden-card-quote",
+        cls: "marginalia-card-quote",
         text: annotation.anchor.quote.exact
       });
     }
     if (!collapsed) {
-      const body = card.createDiv({ cls: "siden-card-body markdown-rendered" });
+      const body = card.createDiv({ cls: "marginalia-card-body markdown-rendered" });
       void MarkdownRenderer.render(
         this.app,
         annotation.body,
@@ -555,7 +555,7 @@ export class SidenSidebarView extends ItemView {
       }
       this.renderReplyComposer(card, annotation);
     } else {
-      const summary = card.createDiv({ cls: "siden-card-summary" });
+      const summary = card.createDiv({ cls: "marginalia-card-summary" });
       summary.textContent = annotation.body.split("\n")[0];
     }
 
@@ -577,14 +577,14 @@ export class SidenSidebarView extends ItemView {
     annotation: Annotation,
     reply: AnnotationReply
   ): void {
-    const container = card.createDiv({ cls: "siden-reply" });
-    const meta = container.createDiv({ cls: "siden-reply-meta" });
+    const container = card.createDiv({ cls: "marginalia-reply" });
+    const meta = container.createDiv({ cls: "marginalia-reply-meta" });
     meta.createSpan({
-      cls: "siden-reply-time",
+      cls: "marginalia-reply-time",
       text: formatReplyTime(reply.createdAt)
     });
     const copyReply = meta.createEl("button", {
-      cls: "clickable-icon siden-reply-copy",
+      cls: "clickable-icon marginalia-reply-copy",
       attr: { "aria-label": "Copy reply" }
     });
     setIcon(copyReply, "copy");
@@ -593,7 +593,7 @@ export class SidenSidebarView extends ItemView {
       void this.copyText(reply.body, "Reply copied.");
     });
     const remove = meta.createEl("button", {
-      cls: "clickable-icon siden-reply-remove",
+      cls: "clickable-icon marginalia-reply-remove",
       attr: { "aria-label": "Delete reply" }
     });
     setIcon(remove, "x");
@@ -604,7 +604,7 @@ export class SidenSidebarView extends ItemView {
         .then(() => this.plugin.refresh());
     });
     const bodyEl = container.createDiv({
-      cls: "siden-reply-body markdown-rendered"
+      cls: "marginalia-reply-body markdown-rendered"
     });
     void MarkdownRenderer.render(
       this.app,
@@ -621,9 +621,9 @@ export class SidenSidebarView extends ItemView {
     annotation: Annotation
   ): void {
     if (this.replyFor === annotation.id) {
-      const composer = card.createDiv({ cls: "siden-reply-composer" });
+      const composer = card.createDiv({ cls: "marginalia-reply-composer" });
       const textarea = composer.createEl("textarea", {
-        cls: "siden-reply-textarea",
+        cls: "marginalia-reply-textarea",
         attr: {
           "aria-label": "Reply text",
           placeholder: `Reply… (${submitHint(
@@ -645,7 +645,7 @@ export class SidenSidebarView extends ItemView {
           void this.sendReply(annotation.id, textarea.value);
         }
       });
-      const actions = composer.createDiv({ cls: "siden-draft-actions" });
+      const actions = composer.createDiv({ cls: "marginalia-draft-actions" });
       const cancel = actions.createEl("button", { text: "Cancel" });
       cancel.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -667,7 +667,7 @@ export class SidenSidebarView extends ItemView {
       return;
     }
     const replyButton = card.createEl("button", {
-      cls: "siden-reply-button",
+      cls: "marginalia-reply-button",
       text: "Reply",
       attr: { type: "button" }
     });
@@ -790,7 +790,7 @@ export class SidenSidebarView extends ItemView {
           new ConfirmModal(
             this.app,
             "Delete annotation?",
-            "The annotation will be moved to Siden's hidden trash folder.",
+            "The annotation will be moved to Marginalia's hidden trash folder.",
             "Delete",
             async () => {
               await this.plugin.store.delete(annotation.id);

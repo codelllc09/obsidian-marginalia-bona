@@ -34,9 +34,9 @@ describe("AnnotationStore", () => {
         quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
       }
     });
-    const path = threadPathFor(".siden-plus/annotations", annotation);
+    const path = threadPathFor(".marginalia/annotations", annotation);
     expect(path).toBe(
-      `.siden-plus/annotations/Notes/Test.md/beta-${annotation.id
+      `.marginalia/annotations/Notes/Test.md/beta-${annotation.id
         .replace(/-/g, "")
         .slice(0, 8)}.md`
     );
@@ -68,17 +68,17 @@ describe("AnnotationStore", () => {
       replies: []
     };
     adapter.files.set(
-      `.siden-plus/annotations/${legacy.id}.md`,
+      `.marginalia/annotations/${legacy.id}.md`,
       serializeAnnotation(legacy)
     );
     const fresh = new AnnotationStore({ vault: { adapter } } as never);
     await fresh.load();
-    expect(adapter.files.has(`.siden-plus/annotations/${legacy.id}.md`)).toBe(
+    expect(adapter.files.has(`.marginalia/annotations/${legacy.id}.md`)).toBe(
       false
     );
-    const expected = threadPathFor(".siden-plus/annotations", legacy);
+    const expected = threadPathFor(".marginalia/annotations", legacy);
     expect(expected).toBe(
-      ".siden-plus/annotations/Notes/Old.md/old quote text-aaaaaaaa.md"
+      ".marginalia/annotations/Notes/Old.md/old quote text-aaaaaaaa.md"
     );
     expect(adapter.files.get(expected)).toContain("Legacy body");
     expect(fresh.get(legacy.id)?.body).toBe("Legacy body");
@@ -102,20 +102,20 @@ describe("AnnotationStore", () => {
       body: "Comment",
       anchor
     });
-    const before = threadPathFor(".siden-plus/annotations", annotation);
+    const before = threadPathFor(".marginalia/annotations", annotation);
     const updated = await store.update(annotation.id, {
       anchor: {
         ...anchor,
         quote: { exact: "completely different text now" }
       }
     });
-    const after = threadPathFor(".siden-plus/annotations", updated);
+    const after = threadPathFor(".marginalia/annotations", updated);
     expect(after).not.toBe(before); // would differ if we derived from quote
     // but the on-disk file did NOT move:
     expect(adapter.files.has(before)).toBe(true);
     expect(
       [...adapter.files.keys()].filter((path) =>
-        path.startsWith(".siden-plus/annotations/Notes/Test.md/")
+        path.startsWith(".marginalia/annotations/Notes/Test.md/")
       )
     ).toHaveLength(1);
   });
@@ -137,19 +137,19 @@ describe("AnnotationStore", () => {
         quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
       }
     });
-    const oldPath = threadPathFor(".siden-plus/annotations", annotation);
+    const oldPath = threadPathFor(".marginalia/annotations", annotation);
     await store.renameSource("Notes/Test.md", "Notes/Renamed.md");
     expect(adapter.files.has(oldPath)).toBe(false);
     const moved = store.get(annotation.id);
     expect(moved?.sourcePath).toBe("Notes/Renamed.md");
     expect(
       [...adapter.files.keys()].some((path) =>
-        path.startsWith(".siden-plus/annotations/Notes/Renamed.md/")
+        path.startsWith(".marginalia/annotations/Notes/Renamed.md/")
       )
     ).toBe(true);
     expect(
       [...adapter.files.keys()].some((path) =>
-        path.startsWith(".siden-plus/annotations/Notes/Test.md/")
+        path.startsWith(".marginalia/annotations/Notes/Test.md/")
       )
     ).toBe(false);
   });
@@ -171,9 +171,9 @@ describe("AnnotationStore", () => {
         quote: { exact: "一二三四五六七八九十十一十二十三十四；" }
       }
     });
-    const path = threadPathFor(".siden-plus/annotations", annotation);
+    const path = threadPathFor(".marginalia/annotations", annotation);
     expect(path).toBe(
-      `.siden-plus/annotations/Notes/长文.md/一二三四五六七八-${annotation.id
+      `.marginalia/annotations/Notes/长文.md/一二三四五六七八-${annotation.id
         .replace(/-/g, "")
         .slice(0, 8)}.md`
     );
@@ -197,24 +197,67 @@ describe("AnnotationStore", () => {
         quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
       }
     });
-    const current = threadPathFor(".siden-plus/annotations", annotation);
+    const current = threadPathFor(".marginalia/annotations", annotation);
     const staleName = current.replace(
       /beta-\w{8}\.md$/,
       "一二三四五六七八九十十一十二十三十四-beta.md"
     );
     await adapter.rename(current, staleName);
-    adapter.files.set(".siden-plus/index/Notes__Test.md.jsonl", "{}\n");
+    adapter.files.set(".marginalia/index/Notes__Test.md.jsonl", "{}\n");
 
     const fresh = new AnnotationStore({ vault: { adapter } } as never);
     await fresh.load();
     expect(adapter.files.has(staleName)).toBe(false);
     expect(adapter.files.has(current)).toBe(true);
-    expect(adapter.files.has(".siden-plus/index/Notes__Test.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia/index/Notes__Test.md.jsonl")).toBe(
       false
     );
-    expect(adapter.files.has(".siden-plus/index/Notes/Test.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia/index/Notes/Test.md.jsonl")).toBe(
       true
     );
+  });
+
+  it("migrates the legacy .siden-plus data root on first load", async () => {
+    const legacyAdapter = new MemoryAdapter();
+    const legacy: Annotation = {
+      schemaVersion: 1,
+      id: "legacy-root-0000",
+      sourcePath: "Notes/Test.md",
+      sourceType: "markdown",
+      status: "open",
+      createdAt: "2026-10-24T00:00:00.000Z",
+      updatedAt: "2026-10-24T00:00:00.000Z",
+      body: "Old root",
+      anchor: { kind: "document" },
+      replies: []
+    };
+    legacyAdapter.files.set(
+      ".siden-plus/annotations/Notes/Test.md/note-legacyro.md",
+      serializeAnnotation(legacy)
+    );
+    for (const dir of [
+      ".siden-plus",
+      ".siden-plus/annotations",
+      ".siden-plus/annotations/Notes",
+      ".siden-plus/annotations/Notes/Test.md"
+    ]) {
+      legacyAdapter.directories.add(dir);
+    }
+    const fresh = new AnnotationStore({
+      vault: { adapter: legacyAdapter }
+    } as never);
+    await fresh.load();
+    expect(
+      [...legacyAdapter.files.keys()].some((path) =>
+        path.startsWith(".siden-plus/")
+      )
+    ).toBe(false);
+    expect(
+      legacyAdapter.files.has(
+        ".marginalia/annotations/Notes/Test.md/note-legacyro.md"
+      )
+    ).toBe(true);
+    expect(fresh.get(legacy.id)?.body).toBe("Old root");
   });
 
   it("recovers a moved unique passage", async () => {
@@ -278,7 +321,7 @@ describe("AnnotationStore", () => {
     expect(store.get(annotation.id)).toBeUndefined();
     expect(
       [...adapter.files.keys()].some((path) =>
-        path.startsWith(`.siden-plus/trash/${annotation.id}-`)
+        path.startsWith(`.marginalia/trash/${annotation.id}-`)
       )
     ).toBe(true);
   });
@@ -299,7 +342,7 @@ describe("AnnotationStore", () => {
       "Second reply"
     ]);
     const file = adapter.files.get(
-      threadPathFor(".siden-plus/annotations", annotation)
+      threadPathFor(".marginalia/annotations", annotation)
     );
     expect(file).toContain("## Replies");
     expect(file).toContain("First reply");
@@ -328,7 +371,7 @@ describe("AnnotationStore", () => {
       body: "Two",
       anchor: { kind: "document" }
     });
-    const shard = adapter.files.get(".siden-plus/index/Notes/Test.md.jsonl");
+    const shard = adapter.files.get(".marginalia/index/Notes/Test.md.jsonl");
     expect(shard).toBeTruthy();
     const entry = JSON.parse(shard!.trim()) as AnnotationIndexEntry;
     expect(entry).toMatchObject({
@@ -336,17 +379,17 @@ describe("AnnotationStore", () => {
       color: "#90caf9",
       markStyle: "underline",
       replies: 0,
-      path: threadPathFor(".siden-plus/annotations", first)
+      path: threadPathFor(".marginalia/annotations", first)
     });
-    expect(adapter.files.has(".siden-plus/index/Notes/Other.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia/index/Notes/Other.md.jsonl")).toBe(
       true
     );
 
     await store.renameSource("Notes/Test.md", "Notes/Renamed.md");
-    expect(adapter.files.has(".siden-plus/index/Notes/Test.md.jsonl")).toBe(
+    expect(adapter.files.has(".marginalia/index/Notes/Test.md.jsonl")).toBe(
       false
     );
-    const renamed = adapter.files.get(".siden-plus/index/Notes/Renamed.md.jsonl");
+    const renamed = adapter.files.get(".marginalia/index/Notes/Renamed.md.jsonl");
     expect(
       (JSON.parse(renamed!.trim()) as AnnotationIndexEntry).source
     ).toBe("Notes/Renamed.md");

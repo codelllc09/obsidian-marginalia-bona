@@ -20,19 +20,19 @@ import {
 } from "./reading/reading-renderer";
 import {
   DEFAULT_SETTINGS,
-  SidenSettings,
-  SidenSettingTab
+  MarginaliaSettings,
+  MarginaliaSettingTab
 } from "./settings";
 import { AnnotationStore } from "./storage/annotation-store";
 import { INDEX_DIRECTORY, rebuildIndex } from "./storage/annotation-index";
 import {
-  SIDEN_VIEW_TYPE,
-  SidenSidebarView
+  MARGINALIA_VIEW_TYPE,
+  MarginaliaSidebarView
 } from "./ui/sidebar-view";
 
-export default class SidenPlugin extends Plugin {
+export default class MarginaliaPlugin extends Plugin {
   store!: AnnotationStore;
-  settings: SidenSettings = DEFAULT_SETTINGS;
+  settings: MarginaliaSettings = DEFAULT_SETTINGS;
   editorRevision = 0;
   private pdfAdapter!: PdfAdapter;
 
@@ -51,15 +51,15 @@ export default class SidenPlugin extends Plugin {
     this.pdfAdapter.start();
 
     this.registerView(
-      SIDEN_VIEW_TYPE,
-      (leaf) => new SidenSidebarView(leaf, this)
+      MARGINALIA_VIEW_TYPE,
+      (leaf) => new MarginaliaSidebarView(leaf, this)
     );
     this.registerEditorExtension(createMarkdownExtension(this));
     this.registerMarkdownPostProcessor((element, context) =>
       processReadingView(element, context, this)
     );
-    this.addSettingTab(new SidenSettingTab(this.app, this));
-    this.addRibbonIcon("message-square-text", "Open Siden annotations", () =>
+    this.addSettingTab(new MarginaliaSettingTab(this.app, this));
+    this.addRibbonIcon("message-square-text", "Open Marginalia annotations", () =>
       void this.openSidebar()
     );
 
@@ -120,7 +120,7 @@ export default class SidenPlugin extends Plugin {
         }
         menu.addItem((item) =>
           item
-            .setTitle("Add Siden annotation")
+            .setTitle("Add Marginalia annotation")
             .setIcon("message-square-plus")
             .onClick(() => this.beginMarkdownAnnotation(editor, view))
         );
@@ -158,43 +158,43 @@ export default class SidenPlugin extends Plugin {
     const diagnostics = this.store.getDiagnostics();
     if (diagnostics.length > 0) {
       new Notice(
-        `Siden skipped ${diagnostics.length} invalid annotation file${
+        `Marginalia skipped ${diagnostics.length} invalid annotation file${
           diagnostics.length === 1 ? "" : "s"
         }.`
       );
-      console.warn("Siden annotation diagnostics", diagnostics);
+      console.warn("Marginalia annotation diagnostics", diagnostics);
     }
   }
 
   onunload(): void {
-    document.body.style.removeProperty("--siden-margin-width");
-    document.body.style.removeProperty("--siden-highlight-color");
-    document.body.style.removeProperty("--siden-highlight-opacity");
-    delete document.body.dataset.sidenForceWordBreaks;
+    document.body.style.removeProperty("--marginalia-margin-width");
+    document.body.style.removeProperty("--marginalia-highlight-color");
+    document.body.style.removeProperty("--marginalia-highlight-opacity");
+    delete document.body.dataset.marginaliaForceWordBreaks;
   }
 
-  async updateSettings(changes: Partial<SidenSettings>): Promise<void> {
+  async updateSettings(changes: Partial<MarginaliaSettings>): Promise<void> {
     this.settings = { ...this.settings, ...changes };
     await this.saveData(this.settings);
     this.applyCssSettings();
     this.refresh();
   }
 
-  async openSidebar(): Promise<SidenSidebarView | null> {
+  async openSidebar(): Promise<MarginaliaSidebarView | null> {
     let leaf: WorkspaceLeaf | null | undefined =
-      this.app.workspace.getLeavesOfType(SIDEN_VIEW_TYPE)[0];
+      this.app.workspace.getLeavesOfType(MARGINALIA_VIEW_TYPE)[0];
     if (!leaf) {
       leaf = this.app.workspace.getRightLeaf(false);
-      await leaf?.setViewState({ type: SIDEN_VIEW_TYPE, active: true });
+      await leaf?.setViewState({ type: MARGINALIA_VIEW_TYPE, active: true });
     }
     if (!leaf) return null;
     await this.app.workspace.revealLeaf(leaf);
     this.refresh();
-    return leaf.view instanceof SidenSidebarView ? leaf.view : null;
+    return leaf.view instanceof MarginaliaSidebarView ? leaf.view : null;
   }
 
   areMarginsSuppressed(): boolean {
-    return this.app.workspace.getLeavesOfType(SIDEN_VIEW_TYPE).some((leaf) => {
+    return this.app.workspace.getLeavesOfType(MARGINALIA_VIEW_TYPE).some((leaf) => {
       const element = leaf.view.containerEl;
       return element.isConnected && element.getClientRects().length > 0;
     });
@@ -239,8 +239,8 @@ export default class SidenPlugin extends Plugin {
 
   refresh(): void {
     this.editorRevision += 1;
-    for (const leaf of this.app.workspace.getLeavesOfType(SIDEN_VIEW_TYPE)) {
-      if (leaf.view instanceof SidenSidebarView) leaf.view.refresh();
+    for (const leaf of this.app.workspace.getLeavesOfType(MARGINALIA_VIEW_TYPE)) {
+      if (leaf.view instanceof MarginaliaSidebarView) leaf.view.refresh();
     }
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (!(leaf.view instanceof MarkdownView)) return;
@@ -328,7 +328,7 @@ export default class SidenPlugin extends Plugin {
     );
     menu.addItem((item) =>
       item
-        .setTitle("Add Siden annotation")
+        .setTitle("Add Marginalia annotation")
         .setIcon("message-square-plus")
         .onClick(() => this.beginPdfAnnotation(captured))
     );
@@ -337,12 +337,12 @@ export default class SidenPlugin extends Plugin {
 
   private async rebuildAnnotationIndex(): Promise<void> {
     const shards = await rebuildIndex(this.app.vault.adapter, this.store.all());
-    new Notice(`Siden index rebuilt: ${shards} shard files in ${INDEX_DIRECTORY}.`);
+    new Notice(`Marginalia index rebuilt: ${shards} shard files in ${INDEX_DIRECTORY}.`);
   }
 
   private async exportAnnotations(): Promise<void> {
     const lines = [
-      "# Siden annotation export",
+      "# Marginalia annotation export",
       "",
       `Generated ${new Date().toISOString()}`,
       ""
@@ -369,7 +369,7 @@ export default class SidenPlugin extends Plugin {
       }
       lines.push("---", "");
     }
-    const directory = ".siden-plus/exports";
+    const directory = ".marginalia/exports";
     if (!(await this.app.vault.adapter.exists(directory))) {
       await this.app.vault.adapter.mkdir(directory);
     }
@@ -381,18 +381,18 @@ export default class SidenPlugin extends Plugin {
   }
 
   private async beginSidebarDraft(
-    input: Parameters<SidenSidebarView["beginCreate"]>[0]
+    input: Parameters<MarginaliaSidebarView["beginCreate"]>[0]
   ): Promise<void> {
     const sidebar = await this.openSidebar();
     if (!sidebar) {
-      new Notice("Siden could not open its annotation sidebar.");
+      new Notice("Marginalia could not open its annotation sidebar.");
       return;
     }
     sidebar.beginCreate(input);
   }
 
   private async reconcileFile(file: TFile): Promise<void> {
-    if (file.path.startsWith(".siden-plus/")) return;
+    if (file.path.startsWith(".marginalia/")) return;
     await this.store.reconcileMarkdownSource(
       file.path,
       await this.app.vault.cachedRead(file)
@@ -401,22 +401,22 @@ export default class SidenPlugin extends Plugin {
 
   private applyCssSettings(): void {
     document.body.style.setProperty(
-      "--siden-margin-width",
+      "--marginalia-margin-width",
       `${this.settings.marginWidth}px`
     );
     document.body.style.setProperty(
-      "--siden-highlight-color",
+      "--marginalia-highlight-color",
       this.settings.highlightColor
     );
     document.body.style.setProperty(
-      "--siden-highlight-opacity",
+      "--marginalia-highlight-opacity",
       String(this.settings.highlightOpacity)
     );
-    document.body.dataset.sidenMarginSide = this.settings.marginSide;
-    document.body.dataset.sidenNarrowThreshold = String(
+    document.body.dataset.marginaliaMarginSide = this.settings.marginSide;
+    document.body.dataset.marginaliaNarrowThreshold = String(
       this.settings.narrowPaneThreshold
     );
-    document.body.dataset.sidenForceWordBreaks = String(
+    document.body.dataset.marginaliaForceWordBreaks = String(
       this.settings.forceLongWordBreaks
     );
   }
