@@ -14,7 +14,7 @@ import {
   MarkStyle,
   NewAnnotation
 } from "../domain/annotation";
-import { MARK_COLORS } from "../domain/marks";
+import { MARK_COLORS, resolveMarkColor, resolveMarkStyle } from "../domain/marks";
 import { ConfirmModal } from "./confirm-modal";
 
 export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
@@ -54,23 +54,22 @@ function submitHint(shortcut: "enter" | "mod-enter"): string {
     : "Ctrl+Enter saves";
 }
 
-function formatReplyTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const time = date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-  if (date.toDateString() === new Date().toDateString()) return time;
-  return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
-}
-
 const MARK_STYLE_LABELS: Record<MarkStyle, string> = {
   highlight: "Highlight",
   underline: "Underline",
   wavy: "Wavy",
   strikethrough: "Strike",
   bold: "Bold"
+};
+
+/** Human-readable swatch names for tooltips/AT (the hex codes are not). */
+const MARK_COLOR_LABELS: Record<string, string> = {
+  "#ffd54f": "Yellow",
+  "#ffab91": "Orange",
+  "#a5d6a7": "Green",
+  "#90caf9": "Blue",
+  "#ce93d8": "Purple",
+  "#ef9a9a": "Red"
 };
 
 export class MarginaliaSidebarView extends ItemView {
@@ -90,6 +89,12 @@ export class MarginaliaSidebarView extends ItemView {
   /** Per-card collapse overrides on top of the global toggle. */
   private readonly collapseOverrides = new Map<string, boolean>();
   private listEl: HTMLElement | null = null;
+  /** Currently open Obsidian menu + the control that owns it, so a
+   *  second click on the same control toggles it closed. */
+  private openMenuInstance: Menu | null = null;
+  private openMenuOwner: HTMLElement | null = null;
+  private lastMenuCloseAt = 0;
+  private lastMenuOwner: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MarginaliaPlugin) {
     super(leaf);
@@ -127,7 +132,7 @@ export class MarginaliaSidebarView extends ItemView {
   setActiveAnnotation(id: string | null): void {
     this.activeId = id;
     this.containerEl
-      .querySelectorAll(".marginalia-bona-card.is-active")
+      .querySelectorAll(".marginalia-card.is-active")
       .forEach((element) => element.removeClass("is-active"));
     if (id) {
       const card = this.containerEl.querySelector(`[data-marginalia-id="${id}"]`);
@@ -182,10 +187,13 @@ export class MarginaliaSidebarView extends ItemView {
     this.listEl = list;
     const annotations = this.visibleAnnotations();
     if (annotations.length === 0) {
-      list.createDiv({
-        cls: "marginalia-empty",
-        text: "No annotations match the current view."
-      });
+      let message = "No annotations match the current filters.";
+      if (this.viewScope === "current") {
+        message = this.app.workspace.getActiveFile()
+          ? "No annotations in this file yet.\nSelect text, then right-click → Add annotation."
+          : "Open a note to see its annotations.";
+      }
+      list.createDiv({ cls: "marginalia-empty", text: message });
       return;
     }
     for (const annotation of annotations) this.renderCard(list, annotation);
@@ -234,6 +242,11 @@ export class MarginaliaSidebarView extends ItemView {
       cls: "mod-cta",
       text: "Save"
     });
+    // Empty drafts cannot save: disabled state beats a silent no-op.
+    save.disabled = !textarea.value.trim();
+    textarea.addEventListener("input", () => {
+      save.disabled = !textarea.value.trim();
+    });
     save.addEventListener("click", () => void this.saveDraft());
   }
 
@@ -258,7 +271,12 @@ export class MarginaliaSidebarView extends ItemView {
     const colors = picker.createDiv({ cls: "marginalia-draft-colors" });
     const auto = colors.createEl("button", {
       text: "Auto",
-      attr: { type: "button", "aria-label": "Default color", "aria-pressed": String(draft.color === null) }
+      attr: {
+        type: "button",
+        "aria-label": "Auto (default color)",
+        title: "Use the default color from settings",
+        "aria-pressed": String(draft.color === null)
+      }
     });
     auto.className = draft.color === null ? "is-selected" : "";
     auto.addEventListener("click", () => {
@@ -267,10 +285,12 @@ export class MarginaliaSidebarView extends ItemView {
       this.focusDraft(0);
     });
     for (const color of MARK_COLORS) {
+      const colorLabel = MARK_COLOR_LABELS[color] ?? color;
       const swatch = colors.createEl("button", {
         attr: {
           type: "button",
-          "aria-label": color,
+          "aria-label": colorLabel,
+          title: colorLabel,
           "aria-pressed": String(draft.color === color)
         }
       });
@@ -333,7 +353,7 @@ export class MarginaliaSidebarView extends ItemView {
     window.setTimeout(() => {
       const textarea =
         this.containerEl.querySelector<HTMLTextAreaElement>(
-          ".marginalia-bona-draft-textarea"
+          ".marginalia-draft-textarea"
         );
       if (textarea) {
         textarea.focus();
@@ -343,6 +363,21 @@ export class MarginaliaSidebarView extends ItemView {
   }
 
   private renderToolbar(root: HTMLElement): void {
+    // Search sits at the top, outside the re-rendered body: rebuilding it
+    // would abort an active IME composition (Chinese/Japanese input).
+    const search = root.createEl("input", {
+      cls: "marginalia-search",
+      type: "search",
+      placeholder: "Search annotations…",
+      attr: { "aria-label": "Search annotations" }
+    });
+    search.value = this.query;
+    search.addEventListener("input", () => {
+      this.query = search.value;
+      // Re-render only the body below so the search input itself survives.
+      this.renderBody();
+    });
+
     const toolbar = root.createDiv({ cls: "marginalia-toolbar" });
     const collapseButton = toolbar.createEl("button", {
       cls: "clickable-icon marginalia-collapse-toggle",
@@ -388,46 +423,78 @@ export class MarginaliaSidebarView extends ItemView {
     bottomButton.addEventListener("click", () =>
       this.listEl?.scrollTo({ top: this.listEl.scrollHeight, behavior: "smooth" })
     );
-    const scopeButton = toolbar.createEl("button", {
-      text: this.viewScope === "current" ? "Current file" : "Whole vault",
-      attr: { "aria-label": "Toggle annotation scope" }
-    });
-    scopeButton.addEventListener("click", () => {
-      this.viewScope = this.viewScope === "current" ? "vault" : "current";
-      scopeButton.textContent =
-        this.viewScope === "current" ? "Current file" : "Whole vault";
-      this.renderBody();
-    });
+    toolbar.createDiv({ cls: "marginalia-toolbar-spacer" });
+    this.renderDropdown(
+      toolbar,
+      "Status",
+      [
+        { value: "open", label: "Open" },
+        { value: "resolved", label: "Resolved" },
+        { value: "orphaned", label: "Orphaned" },
+        { value: "all", label: "All" }
+      ],
+      () => this.status,
+      (value) => {
+        this.status = value;
+        this.renderBody();
+      }
+    );
+    this.renderDropdown(
+      toolbar,
+      "Scope",
+      [
+        { value: "current", label: "Current file" },
+        { value: "vault", label: "Whole vault" }
+      ],
+      () => this.viewScope,
+      (value) => {
+        this.viewScope = value;
+        this.renderBody();
+      }
+    );
+  }
 
-    const filter = toolbar.createEl("select", {
-      attr: { "aria-label": "Filter annotation status" }
+  /** Dropdown-style toolbar button: "Name: option" + chevron, opens an
+   *  Obsidian menu with the active option checked. A native <select> and
+   *  a text-toggling button both read as dead controls — the chevron and
+   *  the visible alternatives make the choices discoverable. */
+  private renderDropdown<T extends string>(
+    toolbar: HTMLElement,
+    name: string,
+    options: ReadonlyArray<{ value: T; label: string }>,
+    get: () => T,
+    set: (value: T) => void
+  ): void {
+    const button = toolbar.createEl("button", {
+      cls: "marginalia-dropdown",
+      attr: { "aria-haspopup": "menu" }
     });
-    for (const [value, label] of [
-      ["open", "Open"],
-      ["resolved", "Resolved"],
-      ["orphaned", "Orphaned"],
-      ["all", "All"]
-    ] as const) {
-      filter.createEl("option", { value, text: label });
-    }
-    filter.value = this.status;
-    filter.addEventListener("change", () => {
-      this.status = filter.value as StatusFilter;
-      this.renderBody();
-    });
-
-    const search = root.createEl("input", {
-      cls: "marginalia-search",
-      type: "search",
-      placeholder: "Search annotations…",
-      attr: { "aria-label": "Search annotations" }
-    });
-    search.value = this.query;
-    search.addEventListener("input", () => {
-      this.query = search.value;
-      // Re-render only the body: rebuilding the search input itself would
-      // abort an active IME composition (Chinese/Japanese input).
-      this.renderBody();
+    const label = button.createSpan({ cls: "marginalia-dropdown-label" });
+    const iconEl = button.createSpan({ cls: "marginalia-dropdown-icon" });
+    setIcon(iconEl, "chevron-down");
+    const sync = () => {
+      const current = options.find((option) => option.value === get());
+      label.setText(`${name}: ${current?.label ?? ""}`);
+      button.setAttribute(
+        "aria-label",
+        `${name}: ${current?.label ?? ""} (choose from menu)`
+      );
+    };
+    sync();
+    button.addEventListener("click", (event) => {
+      const menu = new Menu();
+      for (const option of options) {
+        menu.addItem((item) =>
+          item
+            .setTitle(option.label)
+            .setChecked(option.value === get())
+            .onClick(() => {
+              if (option.value !== get()) set(option.value);
+              sync();
+            })
+        );
+      }
+      this.showMenu(menu, event, button);
     });
   }
 
@@ -476,19 +543,26 @@ export class MarginaliaSidebarView extends ItemView {
       cls: `marginalia-card marginalia-status-${annotation.status}${
         annotation.id === this.activeId ? " is-active" : ""
       }${collapsed ? " marginalia-card-collapsed" : ""}`,
-      attr: {
-        "data-marginalia-id": annotation.id,
-        tabindex: "0",
-        role: "button",
-        "aria-expanded": String(!collapsed),
-        "aria-label": `Open annotation in ${annotation.sourcePath}`
-      }
+      attr: { "data-marginalia-id": annotation.id }
     });
     card.style.setProperty(
       "--marginalia-card-color",
       annotation.color ?? this.plugin.settings.highlightColor
     );
     const header = card.createDiv({ cls: "marginalia-card-header" });
+    const cardCollapseButton = header.createEl("button", {
+      cls: "clickable-icon marginalia-card-collapse",
+      attr: {
+        "aria-label": collapsed ? "Expand card" : "Collapse card",
+        "aria-expanded": String(!collapsed)
+      }
+    });
+    setIcon(cardCollapseButton, collapsed ? "chevron-right" : "chevron-down");
+    cardCollapseButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.collapseOverrides.set(annotation.id, !collapsed);
+      this.renderBody();
+    });
     header.createSpan({
       cls: "marginalia-card-source",
       text: annotation.sourcePath.split("/").pop() ?? annotation.sourcePath
@@ -499,20 +573,40 @@ export class MarginaliaSidebarView extends ItemView {
         text: `${annotation.replies.length}`
       });
     }
-    header.createSpan({
-      cls: "marginalia-card-status",
-      text: annotation.status
+    // Resolved state is conveyed by the resolve/reopen button itself plus
+    // the dimmed card style; orphaned has no button, so label it inline.
+    if (annotation.status === "orphaned") {
+      header.createSpan({
+        cls: "marginalia-card-status",
+        text: "orphaned"
+      });
+    }
+
+    // Top-right keeps only state-related and overflow actions; frequent
+    // navigation/edit live in the card footer next to Reply.
+    const actions = header.createDiv({ cls: "marginalia-card-actions" });
+    const resolveButton = actions.createEl("button", {
+      cls: "clickable-icon marginalia-card-resolve",
+      attr: {
+        "aria-label":
+          annotation.status === "resolved"
+            ? "Reopen annotation"
+            : "Resolve annotation"
+      }
     });
-    const menuButton = header.createEl("button", {
-      cls: "clickable-icon",
-      attr: { "aria-label": "Annotation actions" }
-    });
-    setIcon(menuButton, "ellipsis");
-    menuButton.addEventListener("click", (event) => {
+    setIcon(
+      resolveButton,
+      annotation.status === "resolved" ? "rotate-ccw" : "check"
+    );
+    resolveButton.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.openMenu(event, annotation);
+      if (annotation.status === "resolved") {
+        void this.plugin.store.reopen(annotation.id);
+      } else {
+        void this.plugin.store.resolve(annotation.id);
+      }
     });
-    const copyButton = header.createEl("button", {
+    const copyButton = actions.createEl("button", {
       cls: "clickable-icon marginalia-card-copy",
       attr: { "aria-label": "Copy comment" }
     });
@@ -521,25 +615,31 @@ export class MarginaliaSidebarView extends ItemView {
       event.stopPropagation();
       void this.copyText(annotation.body, "Comment copied.");
     });
-    const cardCollapseButton = header.createEl("button", {
-      cls: "clickable-icon marginalia-card-collapse",
-      attr: {
-        "aria-label": collapsed ? "Expand card" : "Collapse card",
-        "aria-pressed": String(collapsed)
-      }
+    const menuButton = actions.createEl("button", {
+      cls: "clickable-icon",
+      attr: { "aria-label": "More actions" }
     });
-    setIcon(cardCollapseButton, collapsed ? "chevron-right" : "chevron-down");
-    cardCollapseButton.addEventListener("click", (event) => {
+    setIcon(menuButton, "ellipsis");
+    menuButton.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.collapseOverrides.set(annotation.id, !collapsed);
-      this.renderBody();
+      this.openMenu(event, annotation, menuButton);
     });
 
     if (annotation.anchor.kind !== "document" && !collapsed) {
-      card.createEl("blockquote", {
-        cls: "marginalia-card-quote",
-        text: annotation.anchor.quote.exact
+      // The quote preview wears the same decoration as the in-text mark:
+      // the card hints at highlight/underline/wavy/… at a glance.
+      const markStyle = resolveMarkStyle(
+        annotation,
+        this.plugin.settings.defaultMarkStyle
+      );
+      const quote = card.createEl("blockquote", {
+        cls: `marginalia-card-quote marginalia-mark-${markStyle}`
       });
+      quote.style.setProperty(
+        "--marginalia-mark-color",
+        resolveMarkColor(annotation, this.plugin.settings.highlightColor)
+      );
+      quote.setText(annotation.anchor.quote.exact);
     }
     if (!collapsed) {
       const body = card.createDiv({ cls: "marginalia-card-body markdown-rendered" });
@@ -553,23 +653,68 @@ export class MarginaliaSidebarView extends ItemView {
       for (const reply of annotation.replies) {
         this.renderReply(card, annotation, reply);
       }
-      this.renderReplyComposer(card, annotation);
+      if (this.replyFor === annotation.id) {
+        this.renderReplyComposer(card, annotation);
+      }
+      this.renderCardFooter(card, annotation);
     } else {
+      // Collapsed rows have no footer: clicking anywhere expands them.
+      card.addEventListener("click", () => {
+        this.collapseOverrides.set(annotation.id, false);
+        this.renderBody();
+      });
       const summary = card.createDiv({ cls: "marginalia-card-summary" });
       summary.textContent = annotation.body.split("\n")[0];
     }
+  }
 
-    const activate = () => void this.plugin.navigateToAnnotation(annotation);
-    card.addEventListener("click", activate);
-    card.addEventListener("keydown", (event) => {
-      // Inner form controls (reply composer) must keep Enter/Space for text
-      // input; only act when the card itself has focus.
-      if (event.target !== card) return;
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        activate();
-      }
+  /** Bottom row: Reply on the left, Edit and Jump on the right. */
+  private renderCardFooter(card: HTMLElement, annotation: Annotation): void {
+    const footer = card.createDiv({ cls: "marginalia-card-footer" });
+    const replyButton = footer.createEl("button", {
+      cls: "marginalia-footer-action",
+      attr: { type: "button", "aria-label": "Reply to annotation" }
     });
+    setIcon(replyButton, "reply");
+    replyButton.createSpan({ text: "Reply" });
+    replyButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.replyFor = annotation.id;
+      this.renderBody();
+    });
+    footer.createDiv({ cls: "marginalia-card-footer-spacer" });
+    const editButton = footer.createEl("button", {
+      cls: "marginalia-footer-action",
+      attr: { type: "button", "aria-label": "Edit annotation" }
+    });
+    setIcon(editButton, "pencil");
+    editButton.createSpan({ text: "Edit" });
+    editButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.beginEdit(annotation);
+    });
+    const jumpButton = footer.createEl("button", {
+      cls: "marginalia-footer-action",
+      attr: { type: "button", "aria-label": "Jump to annotated text" }
+    });
+    setIcon(jumpButton, "external-link");
+    jumpButton.createSpan({ text: "Jump" });
+    jumpButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.plugin.navigateToAnnotation(annotation);
+    });
+  }
+
+  private beginEdit(annotation: Annotation): void {
+    this.draft = {
+      mode: "edit",
+      annotation,
+      body: annotation.body,
+      markStyle: annotation.markStyle ?? this.plugin.settings.defaultMarkStyle,
+      color: annotation.color ?? null
+    };
+    this.render();
+    this.focusDraft();
   }
 
   private renderReply(
@@ -579,10 +724,6 @@ export class MarginaliaSidebarView extends ItemView {
   ): void {
     const container = card.createDiv({ cls: "marginalia-reply" });
     const meta = container.createDiv({ cls: "marginalia-reply-meta" });
-    meta.createSpan({
-      cls: "marginalia-reply-time",
-      text: formatReplyTime(reply.createdAt)
-    });
     const copyReply = meta.createEl("button", {
       cls: "clickable-icon marginalia-reply-copy",
       attr: { "aria-label": "Copy reply" }
@@ -620,61 +761,53 @@ export class MarginaliaSidebarView extends ItemView {
     card: HTMLElement,
     annotation: Annotation
   ): void {
-    if (this.replyFor === annotation.id) {
-      const composer = card.createDiv({ cls: "marginalia-reply-composer" });
-      const textarea = composer.createEl("textarea", {
-        cls: "marginalia-reply-textarea",
-        attr: {
-          "aria-label": "Reply text",
-          placeholder: `Reply… (${submitHint(
-            this.plugin.settings.submitShortcut
-          )})`
-        }
-      });
-      textarea.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          this.replyFor = null;
-          this.renderBody();
-          return;
-        }
-        if (
-          shouldSubmit(event, this.plugin.settings.submitShortcut)
-        ) {
-          event.preventDefault();
-          void this.sendReply(annotation.id, textarea.value);
-        }
-      });
-      const actions = composer.createDiv({ cls: "marginalia-draft-actions" });
-      const cancel = actions.createEl("button", { text: "Cancel" });
-      cancel.addEventListener("click", (event) => {
-        event.stopPropagation();
+    if (this.replyFor !== annotation.id) return;
+    const composer = card.createDiv({ cls: "marginalia-reply-composer" });
+    const textarea = composer.createEl("textarea", {
+      cls: "marginalia-reply-textarea",
+      attr: {
+        "aria-label": "Reply text",
+        placeholder: `Reply… (${submitHint(
+          this.plugin.settings.submitShortcut
+        )})`
+      }
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
         this.replyFor = null;
         this.renderBody();
-      });
-      const send = actions.createEl("button", {
-        cls: "mod-cta",
-        text: "Reply"
-      });
-      send.addEventListener("click", (event) => {
-        event.stopPropagation();
+        return;
+      }
+      if (shouldSubmit(event, this.plugin.settings.submitShortcut)) {
+        event.preventDefault();
         void this.sendReply(annotation.id, textarea.value);
-      });
-      composer.addEventListener("click", (event) =>
-        event.stopPropagation()
-      );
-      window.setTimeout(() => textarea.focus());
-      return;
-    }
-    const replyButton = card.createEl("button", {
-      cls: "marginalia-reply-button",
-      text: "Reply",
-      attr: { type: "button" }
+      }
     });
-    replyButton.addEventListener("click", (event) => {
+    const actions = composer.createDiv({ cls: "marginalia-draft-actions" });
+    const cancel = actions.createEl("button", { text: "Cancel" });
+    cancel.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.replyFor = annotation.id;
+      this.replyFor = null;
       this.renderBody();
+    });
+    const send = actions.createEl("button", {
+      cls: "mod-cta",
+      text: "Reply"
+    });
+    send.disabled = !textarea.value.trim();
+    textarea.addEventListener("input", () => {
+      send.disabled = !textarea.value.trim();
+    });
+    send.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.sendReply(annotation.id, textarea.value);
+    });
+    composer.addEventListener("click", (event) => event.stopPropagation());
+    window.setTimeout(() => {
+      // Long cards: make sure the composer is actually on screen.
+      composer.scrollIntoView({ block: "nearest" });
+      textarea.focus();
     });
   }
 
@@ -717,7 +850,43 @@ export class MarginaliaSidebarView extends ItemView {
     return lines.join("\n");
   }
 
-  private openMenu(event: MouseEvent, annotation: Annotation): void {
+  /** Show an Obsidian menu with toggle semantics: clicking the same
+   *  control again closes it. Obsidian's own outside-click dismissal
+   *  races with the control's click handler (the dismissal may land on
+   *  mousedown, before the click that re-opens), so both orders are
+   *  handled: an open instance is closed, and a just-closed menu from
+   *  the same owner is not immediately re-opened. */
+  private showMenu(menu: Menu, event: MouseEvent, owner: HTMLElement): void {
+    if (this.openMenuInstance) {
+      const sameOwner = this.openMenuOwner === owner;
+      this.openMenuInstance.close();
+      this.openMenuInstance = null;
+      this.openMenuOwner = null;
+      if (sameOwner) return;
+    } else if (
+      this.lastMenuOwner === owner &&
+      Date.now() - this.lastMenuCloseAt < 250
+    ) {
+      return;
+    }
+    menu.onHide(() => {
+      if (this.openMenuInstance === menu) {
+        this.openMenuInstance = null;
+        this.openMenuOwner = null;
+      }
+      this.lastMenuCloseAt = Date.now();
+      this.lastMenuOwner = owner;
+    });
+    this.openMenuInstance = menu;
+    this.openMenuOwner = owner;
+    menu.showAtMouseEvent(event);
+  }
+
+  private openMenu(
+    event: MouseEvent,
+    annotation: Annotation,
+    owner: HTMLElement
+  ): void {
     const menu = new Menu();
     menu.addItem((item) =>
       item
@@ -755,35 +924,7 @@ export class MarginaliaSidebarView extends ItemView {
     }
     menu.addSeparator();
     menu.addItem((item) =>
-      item.setTitle("Edit").setIcon("pencil").onClick(() => {
-        this.draft = {
-          mode: "edit",
-          annotation,
-          body: annotation.body,
-          markStyle:
-            annotation.markStyle ?? this.plugin.settings.defaultMarkStyle,
-          color: annotation.color ?? null
-        };
-        this.render();
-        this.focusDraft();
-      })
-    );
-    menu.addItem((item) =>
-      item
-        .setTitle(annotation.status === "resolved" ? "Reopen" : "Resolve")
-        .setIcon(annotation.status === "resolved" ? "rotate-ccw" : "check")
-        .onClick(async () => {
-          if (annotation.status === "resolved") {
-            await this.plugin.store.reopen(annotation.id);
-          } else {
-            await this.plugin.store.resolve(annotation.id);
-          }
-        })
-    );
-    menu.addSeparator();
-    menu.addItem((item) =>
-      item
-        .setTitle("Delete")
+      item.setTitle("Delete").setIcon("trash-2")
         .setIcon("trash-2")
         .setWarning(true)
         .onClick(() => {
@@ -799,6 +940,6 @@ export class MarginaliaSidebarView extends ItemView {
           ).open();
         })
     );
-    menu.showAtMouseEvent(event);
+    this.showMenu(menu, event, owner);
   }
 }

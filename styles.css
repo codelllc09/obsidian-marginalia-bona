@@ -20,6 +20,7 @@
 .marginalia-toolbar {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--size-4-2);
   max-width: 100%;
   min-width: 0;
@@ -30,9 +31,33 @@
   width: auto;
 }
 
+/* Pushes the scope/filter controls to the trailing edge. */
+.marginalia-toolbar-spacer {
+  flex: 1 1 var(--size-4-4);
+}
+
 .marginalia-toolbar > button:not(.clickable-icon) {
-  flex: 1;
+  flex: 0 0 auto;
   width: auto;
+}
+
+.marginalia-dropdown {
+  align-items: center;
+  display: inline-flex;
+  flex-direction: row;
+  gap: var(--size-4-1);
+  max-width: 100%;
+}
+
+.marginalia-dropdown svg {
+  height: 12px;
+  width: 12px;
+}
+
+.marginalia-dropdown-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .marginalia-toolbar select {
@@ -74,6 +99,7 @@
   color: var(--text-muted);
   padding: var(--size-4-4);
   text-align: center;
+  white-space: pre-line;
 }
 
 .marginalia-card {
@@ -83,7 +109,6 @@
   border-radius: var(--radius-m);
   box-sizing: border-box;
   contain: inline-size;
-  cursor: pointer;
   /* Keep cards at natural height inside the fixed-height list: overflow
      must become a scrollbar, never squeezed one-line strips. */
   flex-shrink: 0;
@@ -91,11 +116,11 @@
   min-width: 0;
   overflow-x: hidden;
   padding: var(--size-4-3);
+  transition: background-color 120ms ease, border-color 120ms ease;
   width: 100%;
 }
 
 .marginalia-card:hover,
-.marginalia-card:focus-visible,
 .marginalia-card.is-active {
   background: var(--background-secondary-alt);
   border-color: var(--interactive-accent);
@@ -148,36 +173,31 @@
 }
 
 /* Word/WPS-style thread: replies are indented under the root note with a
-   hairline separator; the timestamp sits as a tiny hint in the top-right. */
+   hairline separator; time + actions sit on their own right-aligned line
+   (normal flow — an overlay strip here used to mask the reply text). */
 .marginalia-reply {
   border-top: 1px solid var(--background-modifier-border);
   margin-left: var(--size-4-2);
   margin-top: var(--size-4-2);
   padding: var(--size-4-1) 0 0 var(--size-4-2);
-  position: relative;
 }
 
 .marginalia-reply-meta {
   align-items: center;
-  background: var(--background-secondary);
   display: flex;
   gap: var(--size-4-1);
-  height: 14px;
-  position: absolute;
-  right: 0;
-  top: 0;
+  justify-content: flex-end;
+  min-height: 18px;
 }
 
-.marginalia-reply-time {
-  color: var(--text-faint);
-  font-size: min(var(--font-ui-smallest), 0.6rem);
-  letter-spacing: 0.02em;
-  opacity: 0;
-  transition: opacity 120ms ease;
+.marginalia-reply-meta .clickable-icon {
+  height: 18px;
+  width: 18px;
 }
 
-.marginalia-reply:hover .marginalia-reply-time {
-  opacity: 0.9;
+.marginalia-reply-meta .clickable-icon svg {
+  height: 12px;
+  width: 12px;
 }
 
 .marginalia-reply-body {
@@ -186,16 +206,37 @@
   padding-right: 0.5rem;
 }
 
+/* Card actions: jump and the overflow menu stay visible, secondary
+   actions fade in on hover. Opacity (not display) keeps the header
+   layout jitter-free while the mouse crosses the card. */
+.marginalia-card-actions {
+  align-items: center;
+  display: flex;
+  gap: var(--size-4-1);
+}
+
+.marginalia-card-actions .clickable-icon {
+  height: 22px;
+  width: 22px;
+}
+
+.marginalia-card-resolve,
 .marginalia-card-copy {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
+.marginalia-card:hover .marginalia-card-resolve,
 .marginalia-card:hover .marginalia-card-copy,
+.marginalia-card-resolve:focus-visible,
 .marginalia-card-copy:focus-visible {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.marginalia-card-header .marginalia-card-collapse svg {
+.marginalia-card-header .marginalia-card-collapse svg,
+.marginalia-card-actions .clickable-icon svg {
   height: 14px;
   width: 14px;
 }
@@ -207,6 +248,7 @@
 }
 
 .marginalia-card.marginalia-card-collapsed {
+  cursor: pointer;
   padding-block: var(--size-4-1);
 }
 
@@ -234,21 +276,46 @@
 
 .marginalia-reply-remove,
 .marginalia-reply-copy {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
 .marginalia-reply:hover .marginalia-reply-remove,
 .marginalia-reply:hover .marginalia-reply-copy,
 .marginalia-reply-remove:focus-visible,
 .marginalia-reply-copy:focus-visible {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.marginalia-reply-button {
-  align-self: flex-start;
-  font-size: var(--font-ui-smaller);
+/* Bottom card row: Reply on the left, Edit + Jump on the right. */
+.marginalia-card-footer {
+  align-items: center;
+  display: flex;
+  gap: var(--size-4-1);
   margin-top: var(--size-4-2);
-  padding: 2px 10px;
+}
+
+.marginalia-card-footer-spacer {
+  flex: 1;
+}
+
+/* Icon+label footer actions: small, but clearly clickable (plain tiny
+   icons read as decoration). */
+.marginalia-footer-action {
+  align-items: center;
+  box-shadow: none;
+  display: inline-flex;
+  flex-direction: row;
+  font-size: var(--font-ui-smaller);
+  gap: var(--size-4-1);
+  padding: 2px 8px;
+}
+
+.marginalia-footer-action svg {
+  height: 12px;
+  width: 12px;
 }
 
 .marginalia-reply-composer {
@@ -310,18 +377,34 @@
 }
 
 .marginalia-card-quote {
+  border-inline-start: 2px solid
+    color-mix(
+      in srgb,
+      var(--marginalia-card-color, var(--interactive-accent)) 55%,
+      transparent
+    );
   box-sizing: border-box;
   color: var(--text-muted);
   display: -webkit-box;
   font-size: var(--font-ui-small);
+  margin: 0 0 var(--size-4-2);
   max-width: 100%;
   min-width: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow-x: hidden;
   overflow: hidden;
+  padding-inline-start: var(--size-4-2);
   white-space: normal;
   width: 100%;
+}
+
+/* Comment text is selectable: text cursor there, pointer only on the card
+   chrome. Navigation still works on plain clicks (guarded in TS). */
+.marginalia-card-body,
+.marginalia-card-quote,
+.marginalia-reply-body {
+  cursor: text;
 }
 
 .marginalia-card-body,
@@ -408,52 +491,109 @@
 }
 
 .marginalia-highlight {
-  border-radius: 2px;
+  border-radius: 0.15em;
   cursor: pointer;
 }
 
 /* Per-annotation marks. --marginalia-mark-color/--marginalia-mark-opacity are set
-   inline per mark; unset values fall back to the global defaults. */
+   inline per mark; unset values fall back to the global defaults.
+
+   Design intent: these are reviewer's pen strokes, not theme formatting —
+   they must never be mistaken for Obsidian's native ==highlight== (flat
+   sharp block) or **bold** (plain dark weight). */
 .marginalia-mark-highlight {
-  background: color-mix(
-    in srgb,
-    var(--marginalia-mark-color, var(--marginalia-highlight-color))
-      calc(var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity)) * 100%),
-    transparent
-  );
+  background:
+    linear-gradient(
+        to top,
+        color-mix(
+          in srgb,
+          var(--marginalia-mark-color, var(--marginalia-highlight-color))
+            calc(var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity)) * 150%),
+          transparent
+        ),
+        transparent 60%
+      )
+      no-repeat 100% 100% / 100% 42%,
+    color-mix(
+      in srgb,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color))
+        calc(var(--marginalia-mark-opacity, var(--marginalia-highlight-opacity)) * 100%),
+      transparent
+    );
+  /* Marker stroke: thicker than the glyphs, rounded ends on every wrapped
+     line; the negative margin keeps the line layout untouched. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  border-radius: 0.2em;
+  margin: -0.12em -0.18em;
+  padding: 0.12em 0.18em;
 }
 
 .marginalia-mark-underline,
-.marginalia-mark-wavy,
-.marginalia-mark-strikethrough,
-.marginalia-mark-bold {
+.marginalia-mark-strikethrough {
   background: color-mix(
     in srgb,
-    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 12%,
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 10%,
     transparent
   );
   text-decoration-color: var(--marginalia-mark-color, var(--marginalia-highlight-color));
-  text-decoration-thickness: 2px;
   text-decoration-skip-ink: none;
 }
 
 .marginalia-mark-underline {
   text-decoration-line: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 0.11em;
+  text-underline-offset: 0.16em;
 }
 
 .marginalia-mark-wavy {
-  text-decoration-line: underline wavy;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  /* Hand-rolled zigzag instead of `underline wavy`: Chromium scales the
+     native wave's amplitude with stroke width, and in Obsidian's editor
+     it collapses to an invisible faint line at body sizes. Background
+     gradients render everywhere and take the color from CSS vars. */
+  background-color: color-mix(
+    in srgb,
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 10%,
+    transparent
+  );
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 0 62%,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color)) 62% 88%,
+      transparent 88%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 0 62%,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color)) 62% 88%,
+      transparent 88%
+    );
+  background-size: 0.5em 0.32em;
+  background-position: 0 100%;
+  background-repeat: repeat-x;
 }
 
 .marginalia-mark-strikethrough {
   text-decoration-line: line-through;
+  text-decoration-thickness: 0.13em;
 }
 
+/* Bold reads as a colored pen pressed hard: text tinted toward the mark
+   color with a hairline same-color ink swell — not plain dark bold. */
 .marginalia-mark-bold {
+  color: color-mix(
+    in srgb,
+    var(--marginalia-mark-color, var(--marginalia-highlight-color)) 60%,
+    var(--text-normal)
+  );
   font-weight: var(--font-bold, 700);
+  text-shadow: 0 0 0.04em
+    color-mix(
+      in srgb,
+      var(--marginalia-mark-color, var(--marginalia-highlight-color)) 60%,
+      transparent
+    );
 }
 
 .marginalia-margin-card {
@@ -634,5 +774,16 @@
 
   .marginalia-card {
     min-height: 44px;
+  }
+}
+
+/* Touch devices have no hover: keep reveal-by-hover actions discoverable. */
+@media (hover: none) {
+  .marginalia-card-resolve,
+  .marginalia-card-copy,
+  .marginalia-reply-copy,
+  .marginalia-reply-remove {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
