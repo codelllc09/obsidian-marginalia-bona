@@ -41,6 +41,25 @@
   width: auto;
 }
 
+.marginalia-dropdown {
+  align-items: center;
+  display: inline-flex;
+  flex-direction: row;
+  gap: var(--size-4-1);
+  max-width: 100%;
+}
+
+.marginalia-dropdown svg {
+  height: 12px;
+  width: 12px;
+}
+
+.marginalia-dropdown-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .marginalia-toolbar select {
   flex: 0 0 auto;
   width: auto;

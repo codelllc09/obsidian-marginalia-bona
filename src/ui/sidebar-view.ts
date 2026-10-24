@@ -418,34 +418,77 @@ export class MarginaliaSidebarView extends ItemView {
       this.listEl?.scrollTo({ top: this.listEl.scrollHeight, behavior: "smooth" })
     );
     toolbar.createDiv({ cls: "marginalia-toolbar-spacer" });
-    const scopeButton = toolbar.createEl("button", {
-      text: this.viewScope === "current" ? "Current file" : "Whole vault",
-      attr: {
-        "aria-label": "Show annotations for the current file or the whole vault"
+    this.renderDropdown(
+      toolbar,
+      "Status",
+      [
+        { value: "open", label: "Open" },
+        { value: "resolved", label: "Resolved" },
+        { value: "orphaned", label: "Orphaned" },
+        { value: "all", label: "All" }
+      ],
+      () => this.status,
+      (value) => {
+        this.status = value;
+        this.renderBody();
       }
-    });
-    scopeButton.addEventListener("click", () => {
-      this.viewScope = this.viewScope === "current" ? "vault" : "current";
-      scopeButton.textContent =
-        this.viewScope === "current" ? "Current file" : "Whole vault";
-      this.renderBody();
-    });
+    );
+    this.renderDropdown(
+      toolbar,
+      "Scope",
+      [
+        { value: "current", label: "Current file" },
+        { value: "vault", label: "Whole vault" }
+      ],
+      () => this.viewScope,
+      (value) => {
+        this.viewScope = value;
+        this.renderBody();
+      }
+    );
+  }
 
-    const filter = toolbar.createEl("select", {
-      attr: { "aria-label": "Filter by status" }
+  /** Dropdown-style toolbar button: "Name: option" + chevron, opens an
+   *  Obsidian menu with the active option checked. A native <select> and
+   *  a text-toggling button both read as dead controls — the chevron and
+   *  the visible alternatives make the choices discoverable. */
+  private renderDropdown<T extends string>(
+    toolbar: HTMLElement,
+    name: string,
+    options: ReadonlyArray<{ value: T; label: string }>,
+    get: () => T,
+    set: (value: T) => void
+  ): void {
+    const button = toolbar.createEl("button", {
+      cls: "marginalia-dropdown",
+      attr: { "aria-haspopup": "menu" }
     });
-    for (const [value, label] of [
-      ["open", "Open"],
-      ["resolved", "Resolved"],
-      ["orphaned", "Orphaned"],
-      ["all", "All"]
-    ] as const) {
-      filter.createEl("option", { value, text: label });
-    }
-    filter.value = this.status;
-    filter.addEventListener("change", () => {
-      this.status = filter.value as StatusFilter;
-      this.renderBody();
+    const label = button.createSpan({ cls: "marginalia-dropdown-label" });
+    const iconEl = button.createSpan({ cls: "marginalia-dropdown-icon" });
+    setIcon(iconEl, "chevron-down");
+    const sync = () => {
+      const current = options.find((option) => option.value === get());
+      label.setText(`${name}: ${current?.label ?? ""}`);
+      button.setAttribute(
+        "aria-label",
+        `${name}: ${current?.label ?? ""} (choose from menu)`
+      );
+    };
+    sync();
+    button.addEventListener("click", (event) => {
+      const menu = new Menu();
+      for (const option of options) {
+        menu.addItem((item) =>
+          item
+            .setTitle(option.label)
+            .setChecked(option.value === get())
+            .onClick(() => {
+              if (option.value !== get()) set(option.value);
+              sync();
+            })
+        );
+      }
+      menu.showAtMouseEvent(event);
     });
   }
 
