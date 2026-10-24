@@ -93,6 +93,10 @@ export class SidenSidebarView extends ItemView {
   }
 
   refresh(): void {
+    // Never rebuild the DOM while the user is composing: external events
+    // (vault modify, active-leaf-change) fire constantly and would destroy
+    // the draft/reply textarea together with focus and IME state.
+    if (this.draft || this.replyFor) return;
     if (this.containerEl.isConnected) this.render();
   }
 
@@ -139,6 +143,11 @@ export class SidenSidebarView extends ItemView {
   private renderBody(): void {
     const root = this.bodyEl;
     if (!root) return;
+    const active = document.activeElement;
+    const wasDraftTextarea =
+      active instanceof HTMLTextAreaElement &&
+      active.classList.contains("siden-draft-textarea");
+    const caret = wasDraftTextarea ? active.selectionStart : null;
     root.empty();
     if (this.draft) this.renderDraft(root);
     const list = root.createDiv({ cls: "siden-list" });
@@ -151,6 +160,7 @@ export class SidenSidebarView extends ItemView {
       return;
     }
     for (const annotation of annotations) this.renderCard(list, annotation);
+    if (wasDraftTextarea) this.focusDraft(caret ?? 0);
   }
 
   private renderDraft(root: HTMLElement): void {
