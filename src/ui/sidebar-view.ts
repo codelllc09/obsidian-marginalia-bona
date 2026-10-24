@@ -583,6 +583,15 @@ export class SidenSidebarView extends ItemView {
       cls: "siden-reply-time",
       text: formatReplyTime(reply.createdAt)
     });
+    const copyReply = meta.createEl("button", {
+      cls: "clickable-icon siden-reply-copy",
+      attr: { "aria-label": "Copy reply" }
+    });
+    setIcon(copyReply, "copy");
+    copyReply.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.copyText(reply.body, "Reply copied.");
+    });
     const remove = meta.createEl("button", {
       cls: "clickable-icon siden-reply-remove",
       attr: { "aria-label": "Delete reply" }

@@ -232,12 +232,15 @@
   margin-bottom: 0;
 }
 
-.siden-reply-remove {
+.siden-reply-remove,
+.siden-reply-copy {
   display: none;
 }
 
 .siden-reply:hover .siden-reply-remove,
-.siden-reply-remove:focus-visible {
+.siden-reply:hover .siden-reply-copy,
+.siden-reply-remove:focus-visible,
+.siden-reply-copy:focus-visible {
   display: inline-flex;
 }
 
