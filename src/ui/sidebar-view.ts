@@ -634,11 +634,12 @@ export class MarginaliaSidebarView extends ItemView {
       const drift = anchorDrift(annotation);
       if (drift) {
         const driftEl = card.createDiv({ cls: "marginalia-card-drift" });
-        driftEl.createSpan({
+        const head = driftEl.createDiv({ cls: "marginalia-card-drift-head" });
+        head.createSpan({
           cls: "marginalia-card-drift-chip",
           text: "text changed"
         });
-        const accept = driftEl.createEl("button", {
+        const accept = head.createEl("button", {
           cls: "clickable-icon marginalia-card-drift-accept",
           attr: {
             "aria-label": "Keep the current text (clear drift)",

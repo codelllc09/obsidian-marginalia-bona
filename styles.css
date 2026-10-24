@@ -800,32 +800,51 @@
 }
 
 /* Drift: the anchored passage was edited after the annotation was made.
-   Chip + struck-through original; the quote below shows the live text. */
+   Badge row (chip + accept button), then the struck-through original;
+   the quote below shows the live text. */
 .marginalia-card-drift {
-  align-items: center;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--size-4-1);
   margin: 0 0 var(--size-4-2);
 }
 
+.marginalia-card-drift-head {
+  align-items: center;
+  display: inline-flex;
+}
+
 .marginalia-card-drift-chip {
-  background: color-mix(in srgb, var(--color-yellow) 22%, transparent);
-  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-yellow) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-yellow) 50%, transparent);
+  border-radius: 999px 0 0 999px;
+  border-right: none;
   color: var(--text-normal);
-  flex: 0 0 auto;
   font-size: var(--font-ui-smallest);
-  padding: 1px 8px;
+  padding: 3px 8px;
 }
 
 .marginalia-card-drift-accept {
-  height: 16px;
-  width: 16px;
+  align-items: center;
+  background: color-mix(in srgb, var(--color-yellow) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-yellow) 50%, transparent);
+  border-radius: 0 999px 999px 0;
+  color: var(--text-normal);
+  cursor: pointer;
+  display: inline-flex;
+  height: 21px;
+  justify-content: center;
+  transition: background 120ms ease;
+  width: 22px;
+}
+
+.marginalia-card-drift-accept:hover {
+  background: var(--color-yellow);
 }
 
 .marginalia-card-drift-accept svg {
-  height: 10px;
-  width: 10px;
+  height: 12px;
+  width: 12px;
 }
 
 .marginalia-card-drift-original {
