@@ -18,6 +18,8 @@ export interface MarginaliaSettings {
   defaultMarkStyle: MarkStyle;
   /** Shortcut that saves a draft / sends a reply from a sidebar textarea. */
   submitShortcut: "enter" | "mod-enter";
+  /** Author name recorded on annotations and replies created in this vault. */
+  userName: string;
   forceLongWordBreaks: boolean;
 }
 
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   highlightOpacity: 0.35,
   defaultMarkStyle: "highlight",
   submitShortcut: "enter",
+  userName: "user",
   forceLongWordBreaks: true
 };
 
@@ -139,6 +142,19 @@ export class MarginaliaSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.defaultMarkStyle)
           .onChange((value) =>
             this.plugin.updateSettings({ defaultMarkStyle: value as MarkStyle })
+          )
+      );
+
+    new Setting(containerEl)
+      .setName("Your name")
+      .setDesc(
+        "Author name recorded on annotations and replies you create. AI agents use their own names (Pi, Codex, …)."
+      )
+      .addText((text) =>
+        text
+          .setValue(this.plugin.settings.userName)
+          .onChange((value) =>
+            this.plugin.updateSettings({ userName: value.trim() || "user" })
           )
       );
 

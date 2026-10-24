@@ -28,6 +28,8 @@ export interface AnnotationReply {
   id: string;
   createdAt: string;
   body: string;
+  /** Who wrote this reply (user name or agent name, e.g. "Pi"). */
+  author?: string;
 }
 
 export interface TextQuote {
@@ -90,6 +92,8 @@ export interface Annotation {
   markStyle?: MarkStyle;
   /** Discussion thread; replies stay in the same file as the root note. */
   replies: AnnotationReply[];
+  /** Who wrote the root comment (user name or agent name). */
+  author?: string;
 }
 
 export type NewAnnotation = Omit<
@@ -152,6 +156,12 @@ export function assertAnnotation(value: unknown): asserts value is Annotation {
   if (markStyle !== undefined && !isMarkStyle(markStyle)) {
     throw new Error(`Annotation mark style is invalid: ${String(markStyle)}`);
   }
+  if (
+    annotation.author !== undefined &&
+    typeof annotation.author !== "string"
+  ) {
+    throw new Error("Annotation author must be a string when present.");
+  }
   if (annotation.replies === undefined) {
     throw new Error("Annotation replies are required (use an empty array).");
   }
@@ -167,6 +177,9 @@ export function assertAnnotation(value: unknown): asserts value is Annotation {
       typeof reply.body !== "string"
     ) {
       throw new Error("Annotation reply is malformed.");
+    }
+    if (reply.author !== undefined && typeof reply.author !== "string") {
+      throw new Error("Annotation reply author must be a string when present.");
     }
   }
 }

@@ -22,6 +22,8 @@ export interface AnnotationIndexEntry {
   type: SourceType;
   color?: string;
   markStyle?: MarkStyle;
+  /** Root comment author (user or agent name), when known. */
+  author?: string;
   /** 0-based start line for Markdown, page for PDF, -1 for document anchors. */
   line: number;
   /** First 120 characters of the anchored quote. */
@@ -77,6 +79,7 @@ export function entryFor(annotation: Annotation): AnnotationIndexEntry {
     type: annotation.sourceType,
     ...(annotation.color ? { color: annotation.color } : {}),
     ...(annotation.markStyle ? { markStyle: annotation.markStyle } : {}),
+    ...(annotation.author ? { author: annotation.author } : {}),
     line,
     quote,
     replies: annotation.replies.length,

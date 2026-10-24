@@ -23,10 +23,11 @@ export const DEFAULT_TRASH_DIRECTORY = ".marginalia-bona/trash";
 /** Pre-rename data roots, migrated wholesale on first load. */
 const LEGACY_DATA_ROOTS = [".siden-plus", ".marginalia"];
 
-function newReply(body: string): AnnotationReply {
+function newReply(body: string, author?: string): AnnotationReply {
   return {
     id: crypto.randomUUID().slice(0, 8),
     createdAt: new Date().toISOString(),
+    ...(author ? { author } : {}),
     body: body.trim()
   };
 }
@@ -191,7 +192,7 @@ export class AnnotationStore {
     changes: Partial<
       Pick<
         Annotation,
-        "body" | "anchor" | "status" | "color" | "markStyle" | "replies"
+        "body" | "anchor" | "status" | "color" | "markStyle" | "replies" | "author"
       >
     >
   ): Promise<Annotation> {
@@ -208,11 +209,11 @@ export class AnnotationStore {
     return updated;
   }
 
-  async addReply(id: string, body: string): Promise<Annotation> {
+  async addReply(id: string, body: string, author?: string): Promise<Annotation> {
     if (!body.trim()) throw new Error("Reply body must not be empty.");
     const current = this.require(id);
     return this.update(id, {
-      replies: [...current.replies, newReply(body)]
+      replies: [...current.replies, newReply(body, author)]
     });
   }
 

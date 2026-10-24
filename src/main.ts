@@ -13,6 +13,7 @@ import {
   MarkdownAnchor
 } from "./domain/annotation";
 import { createMarkdownExtension } from "./editor/markdown-extension";
+import { getExportFormat } from "./export";
 import { PdfAdapter } from "./pdf/pdf-adapter";
 import {
   processReadingView,
@@ -104,9 +105,19 @@ export default class MarginaliaPlugin extends Plugin {
       callback: () => void this.rebuildAnnotationIndex()
     });
     this.addCommand({
+      id: "export-note-annotations",
+      name: "Export this note's annotations to Markdown",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (!checking) void this.exportActiveNoteAnnotations();
+        return true;
+      }
+    });
+    this.addCommand({
       id: "export-annotations",
       name: "Export all annotations to Markdown",
-      callback: () => void this.exportAnnotations()
+      callback: () => void this.exportAllAnnotations()
     });
 
     this.registerEvent(
@@ -340,44 +351,68 @@ export default class MarginaliaPlugin extends Plugin {
     new Notice(`Marginalia Bona index rebuilt: ${shards} shard files in ${INDEX_DIRECTORY}.`);
   }
 
-  private async exportAnnotations(): Promise<void> {
-    const lines = [
-      "# Marginalia Bona annotation export",
-      "",
-      `Generated ${new Date().toISOString()}`,
-      ""
-    ];
-    for (const annotation of this.store.all()) {
-      lines.push(
-        `## ${annotation.sourcePath}`,
-        "",
-        `- Status: ${annotation.status}`,
-        `- Type: ${annotation.sourceType}`,
-        ...(annotation.color ? [`- Color: ${annotation.color}`] : []),
-        ...(annotation.markStyle
-          ? [`- Mark style: ${annotation.markStyle}`]
-          : []),
-        `- ID: \`${annotation.id}\``,
-        ""
-      );
-      if (annotation.anchor.kind !== "document") {
-        lines.push("> " + annotation.anchor.quote.exact.replaceAll("\n", "\n> "), "");
-      }
-      lines.push(annotation.body, "");
-      for (const reply of annotation.replies) {
-        lines.push(`> **Reply** (${reply.createdAt})`, "", reply.body, "");
-      }
-      lines.push("---", "");
+  /** Per-note digest written next to the note; re-export replaces it. */
+  private async exportActiveNoteAnnotations(): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    if (!file) return;
+    const format = getExportFormat("markdown");
+    if (!format) return;
+    const annotations = this.store.forSource(file.path);
+    if (annotations.length === 0) {
+      new Notice("This note has no annotations to export.");
+      return;
     }
-    const directory = ".marginalia-bona/exports";
-    if (!(await this.app.vault.adapter.exists(directory))) {
-      await this.app.vault.adapter.mkdir(directory);
-    }
+    const base = file.name.replace(/\.md$/i, "");
+    const folder = file.parent?.path ?? "";
     const path = normalizePath(
-      `${directory}/annotations-${new Date().toISOString().replaceAll(/[:.]/g, "-")}.md`
+      folder && folder !== "/" ? `${folder}/${base} – Comments.md` : `${base} – Comments.md`
     );
-    await this.app.vault.adapter.write(path, lines.join("\n"));
+    const content = format.render(annotations, {
+      sourcePath: file.path,
+      exportedAt: new Date().toISOString()
+    });
+    await this.writeExportFile(path, content);
     new Notice(`Annotations exported to ${path}`);
+  }
+
+  /** Vault-wide digest grouped by source note, in the data directory. */
+  private async exportAllAnnotations(): Promise<void> {
+    const format = getExportFormat("markdown");
+    if (!format) return;
+    const bySource = new Map<string, Annotation[]>();
+    for (const annotation of this.store.all()) {
+      const list = bySource.get(annotation.sourcePath) ?? [];
+      list.push(annotation);
+      bySource.set(annotation.sourcePath, list);
+    }
+    if (bySource.size === 0) {
+      new Notice("There are no annotations to export.");
+      return;
+    }
+    const exportedAt = new Date().toISOString();
+    const sections = [...bySource.entries()].map(([sourcePath, list]) =>
+      format.render(list, { sourcePath, exportedAt })
+    );
+    const content = `# Marginalia Bona — annotation export\n\n${sections.join("\n\n---\n\n")}`;
+    const path = normalizePath(
+      `.marginalia-bona/exports/annotations-${exportedAt.replaceAll(/[:.]/g, "-")}.md`
+    );
+    await this.writeExportFile(path, content);
+    new Notice(`Annotations exported to ${path}`);
+  }
+
+  private async writeExportFile(path: string, content: string): Promise<void> {
+    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+      await this.app.vault.createFolder(folder);
+    }
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) {
+      await this.app.vault.process(existing, () => content);
+    } else {
+      await this.app.vault.create(path, content);
+    }
+    await this.app.workspace.openLinkText(path, "", false);
   }
 
   private async beginSidebarDraft(
