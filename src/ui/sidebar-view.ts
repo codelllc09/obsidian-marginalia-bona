@@ -796,48 +796,48 @@ export class MarginaliaSidebarView extends ItemView {
     });
   }
 
-  /** Solid inward/outward triangle pair for the image toggle: filled shapes
-   *  read at thumbnail sizes where thin lucide strokes disappear. */
-  /** Solid inward/outward triangle pair for the image toggle: filled shapes
-   *  read at thumbnail sizes where thin lucide strokes disappear. */
-  private setTriangleIcon(
-    button: HTMLElement,
-    direction: "collapse" | "expand"
-  ): void {
-    button.empty();
-    const namespace = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(namespace, "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.addClass("marginalia-tri-icon");
-    // collapse = both triangles point inward (▶◀); expand = outward (◀▶).
-    const left = document.createElementNS(namespace, "path");
-    const right = document.createElementNS(namespace, "path");
-    left.setAttribute(
-      "d",
-      direction === "collapse" ? "M4 6 L12 12 L4 18 Z" : "M10 6 L2 12 L10 18 Z"
-    );
-    right.setAttribute(
-      "d",
-      direction === "collapse"
-        ? "M20 6 L12 12 L20 18 Z"
-        : "M14 6 L22 12 L14 18 Z"
-    );
-    for (const path of [left, right]) {
-      path.setAttribute("fill", "currentColor");
-      svg.appendChild(path);
-    }
-    button.appendChild(svg);
-  }
 
   /** Wrap pasted images: expanded by default (fit to card width), the
    *  toggle collapses them to thumbnails, clicking a thumbnail opens the
    *  full-size lightbox. State is per annotation, session-scoped. */
+  /** Chip that collapses/expands a card's images: text beats icons at
+   *  this size - every icon variant (chevrons, triangles) was ambiguous. */
+  private renderImageChip(
+    container: HTMLElement,
+    annotation: Annotation,
+    collapsed: boolean
+  ): HTMLElement {
+    const row = container.createDiv({ cls: "marginalia-img-chip-row" });
+    const button = row.createEl("button", {
+      cls: "marginalia-img-chip",
+      attr: {
+        "aria-label": collapsed ? "Show images" : "Hide images",
+        title: collapsed ? "Show images" : "Hide images"
+      }
+    });
+    const icon = button.createSpan({ cls: "marginalia-img-chip-icon" });
+    setIcon(icon, collapsed ? "chevron-down" : "chevron-up");
+    button.createSpan({
+      cls: "marginalia-img-chip-label",
+      text: collapsed ? "Show images" : "Hide images"
+    });
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.imageCollapsed.set(annotation.id, !collapsed);
+      this.renderBody();
+    });
+    return row;
+  }
+
   private enhanceImages(container: HTMLElement, annotation: Annotation): void {
     const images = Array.from(container.querySelectorAll("img"));
     if (images.length === 0) return;
     const collapsed = this.imageCollapsed.get(annotation.id) ?? false;
     container.toggleClass("marginalia-imgs-collapsed", collapsed);
     if (!container.isConnected) return;
+
+    const chipRow = this.renderImageChip(container, annotation, collapsed);
+    container.insertBefore(chipRow, container.firstChild);
 
     for (const img of images) {
       const frame = createSpan({ cls: "marginalia-img-frame" });
@@ -846,22 +846,6 @@ export class MarginaliaSidebarView extends ItemView {
       frame.addEventListener("click", (event) => {
         event.stopPropagation();
         this.openLightbox(img.src);
-      });
-      const toggle = frame.createEl("button", {
-        cls: "clickable-icon marginalia-img-toggle",
-        attr: {
-          "aria-label": collapsed ? "Expand images" : "Collapse images",
-          title: collapsed ? "Expand images" : "Collapse images"
-        }
-      });
-      this.setTriangleIcon(toggle, collapsed ? "expand" : "collapse");
-      toggle.addEventListener("click", (event) => {
-        event.stopPropagation();
-        this.imageCollapsed.set(
-          annotation.id,
-          !(this.imageCollapsed.get(annotation.id) ?? false)
-        );
-        this.renderBody();
       });
     }
   }
