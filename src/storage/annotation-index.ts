@@ -5,6 +5,7 @@ import {
   MarkStyle,
   SourceType
 } from "../domain/annotation";
+import { ANNOTATIONS_DIRECTORY, ensureDirectoryPath, threadPathFor } from "./annotation-paths";
 
 export const INDEX_DIRECTORY = ".siden-plus/index";
 
@@ -40,17 +41,22 @@ export interface VaultAdapter {
   remove(path: string): Promise<void>;
 }
 
-/** Encode a vault path into a readable, flat shard file name. */
+/**
+ * Shard path mirroring the source note inside the index directory:
+ * `index/Daily/2026-10-24.md.jsonl`.
+ */
 export function shardNameFor(sourcePath: string): string {
   const encoded = normalizePath(sourcePath)
     .split("/")
     .map((segment) =>
-      segment.replaceAll(/[%\r\n]/g, (char) =>
-        encodeURIComponent(char)
-      )
+      segment.replaceAll(/[%\r\n]/g, (char) => encodeURIComponent(char))
     )
-    .join("__");
+    .join("/");
   return `${encoded}.jsonl`;
+}
+
+export function shardPathFor(sourcePath: string): string {
+  return normalizePath(`${INDEX_DIRECTORY}/${shardNameFor(sourcePath)}`);
 }
 
 export function entryFor(annotation: Annotation): AnnotationIndexEntry {
@@ -74,19 +80,9 @@ export function entryFor(annotation: Annotation): AnnotationIndexEntry {
     line,
     quote,
     replies: annotation.replies.length,
-    path: `.siden-plus/annotations/${annotation.id}.md`,
+    path: threadPathFor(ANNOTATIONS_DIRECTORY, annotation),
     updated: annotation.updatedAt
   };
-}
-
-function shardPathFor(sourcePath: string): string {
-  return normalizePath(`${INDEX_DIRECTORY}/${shardNameFor(sourcePath)}`);
-}
-
-async function ensureIndexDirectory(adapter: VaultAdapter): Promise<void> {
-  if (!(await adapter.exists(INDEX_DIRECTORY))) {
-    await adapter.mkdir(INDEX_DIRECTORY);
-  }
 }
 
 /** Rewrite the shard for one source document from the given annotations. */
@@ -95,7 +91,6 @@ export async function writeShard(
   sourcePath: string,
   annotations: Annotation[]
 ): Promise<void> {
-  await ensureIndexDirectory(adapter);
   const path = shardPathFor(sourcePath);
   const entries = annotations
     .filter((annotation) => annotation.sourcePath === normalizePath(sourcePath))
@@ -105,8 +100,26 @@ export async function writeShard(
     if (await adapter.exists(path)) await adapter.remove(path);
     return;
   }
-  // Write-then-replace keeps a crashed update from corrupting the shard.
-  await adapter.write(path, `${entries.join("\n")}\n`);
+  const parent = path.slice(0, path.lastIndexOf("/"));
+  const content = `${entries.join("\n")}\n`;
+  if (await adapter.exists(path)) {
+    const existing = await adapter.read(path).catch(() => null);
+    if (existing === content) return; // no churn for unchanged shards
+  }
+  await ensureDirectoryPath(adapter, parent);
+  await adapter.write(path, content);
+}
+
+async function listJsonlRecursive(
+  adapter: VaultAdapter,
+  directory: string
+): Promise<string[]> {
+  const listing = await adapter.list(directory);
+  const files = listing.files.filter((file) => file.endsWith(".jsonl"));
+  const nested = await Promise.all(
+    listing.folders.map((folder) => listJsonlRecursive(adapter, folder))
+  );
+  return [...files, ...nested.flat()];
 }
 
 /**
@@ -117,7 +130,9 @@ export async function rebuildIndex(
   adapter: VaultAdapter,
   annotations: Annotation[]
 ): Promise<number> {
-  await ensureIndexDirectory(adapter);
+  if (!(await adapter.exists(INDEX_DIRECTORY))) {
+    await ensureDirectoryPath(adapter, INDEX_DIRECTORY);
+  }
   const bySource = new Map<string, Annotation[]>();
   for (const annotation of annotations) {
     const list = bySource.get(annotation.sourcePath) ?? [];
@@ -131,9 +146,8 @@ export async function rebuildIndex(
     [...bySource.keys()].map((sourcePath) => shardPathFor(sourcePath))
   );
   let removed = 0;
-  const listing = await adapter.list(INDEX_DIRECTORY);
-  for (const file of listing.files) {
-    if (file.endsWith(".jsonl") && !keep.has(normalizePath(file))) {
+  for (const file of await listJsonlRecursive(adapter, INDEX_DIRECTORY)) {
+    if (!keep.has(normalizePath(file))) {
       await adapter.remove(file);
       removed += 1;
     }

@@ -5,45 +5,12 @@ import {
   entryFor,
   rebuildIndex,
   shardNameFor,
+  shardPathFor,
   writeShard
 } from "../src/storage/annotation-index";
 import { Annotation } from "../src/domain/annotation";
-
-class MemoryAdapter {
-  files = new Map<string, string>();
-  directories = new Set<string>();
-
-  async exists(path: string): Promise<boolean> {
-    return this.files.has(path) || this.directories.has(path);
-  }
-
-  async mkdir(path: string): Promise<void> {
-    this.directories.add(path);
-  }
-
-  async list(path: string): Promise<{ files: string[]; folders: string[] }> {
-    return {
-      files: [...this.files.keys()].filter((file) =>
-        file.startsWith(`${path}/`)
-      ),
-      folders: []
-    };
-  }
-
-  async read(path: string): Promise<string> {
-    const value = this.files.get(path);
-    if (value === undefined) throw new Error("Missing file");
-    return value;
-  }
-
-  async write(path: string, value: string): Promise<void> {
-    this.files.set(path, value);
-  }
-
-  async remove(path: string): Promise<void> {
-    this.files.delete(path);
-  }
-}
+import { threadPathFor } from "../src/storage/annotation-paths";
+import { MemoryAdapter } from "./memory-adapter";
 
 function annotation(overrides: Partial<Annotation> = {}): Annotation {
   return {
@@ -79,11 +46,14 @@ describe("annotation index", () => {
     adapter = new MemoryAdapter();
   });
 
-  it("encodes readable shard names", () => {
+  it("mirrors source paths in shard names", () => {
     expect(shardNameFor("Daily/2026-10-24.md")).toBe(
-      "Daily__2026-10-24.md.jsonl"
+      "Daily/2026-10-24.md.jsonl"
     );
     expect(shardNameFor("A 100% done.pdf")).toBe("A 100%25 done.pdf.jsonl");
+    expect(shardPathFor("Notes/Test.md")).toBe(
+      ".siden-plus/index/Notes/Test.md.jsonl"
+    );
   });
 
   it("builds one line per annotation with location metadata", () => {
@@ -100,7 +70,7 @@ describe("annotation index", () => {
       line: 4,
       quote: "beta",
       replies: 1,
-      path: ".siden-plus/annotations/abc.md"
+      path: threadPathFor(".siden-plus/annotations", annotation({ id: "abc" }))
     });
   });
 
@@ -119,7 +89,7 @@ describe("annotation index", () => {
       }
     });
     await writeShard(adapter, "Notes/Test.md", [annotation(), later]);
-    const path = `${INDEX_DIRECTORY}/Notes__Test.md.jsonl`;
+    const path = `${INDEX_DIRECTORY}/Notes/Test.md.jsonl`;
     const lines = (adapter.files.get(path) ?? "").trim().split("\n");
     expect(lines).toHaveLength(2);
     expect((JSON.parse(lines[0]) as AnnotationIndexEntry).line).toBe(1);
@@ -129,13 +99,17 @@ describe("annotation index", () => {
     expect(adapter.files.has(path)).toBe(false);
   });
 
-  it("rebuilds shards and removes stale files", async () => {
+  it("rebuilds shards and removes stale files in nested folders", async () => {
     await writeShard(adapter, "Notes/Gone.md", [annotation()]);
+    adapter.files.set(".siden-plus/index/Old/Deep/stale.md.jsonl", "{}\n");
     await rebuildIndex(adapter, [annotation()]);
-    expect(adapter.files.has(`${INDEX_DIRECTORY}/Notes__Gone.md.jsonl`)).toBe(
+    expect(adapter.files.has(`${INDEX_DIRECTORY}/Notes/Gone.md.jsonl`)).toBe(
       false
     );
-    expect(adapter.files.has(`${INDEX_DIRECTORY}/Notes__Test.md.jsonl`)).toBe(
+    expect(
+      adapter.files.has(".siden-plus/index/Old/Deep/stale.md.jsonl")
+    ).toBe(false);
+    expect(adapter.files.has(`${INDEX_DIRECTORY}/Notes/Test.md.jsonl`)).toBe(
       true
     );
   });
