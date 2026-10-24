@@ -3,6 +3,33 @@ export const ANNOTATION_SCHEMA_VERSION = 1 as const;
 export type AnnotationStatus = "open" | "resolved" | "orphaned";
 export type SourceType = "markdown" | "pdf";
 
+/** How a single annotation marks its anchored text. */
+export type MarkStyle =
+  | "highlight"
+  | "underline"
+  | "wavy"
+  | "strikethrough"
+  | "bold";
+
+export const MARK_STYLES: readonly MarkStyle[] = [
+  "highlight",
+  "underline",
+  "wavy",
+  "strikethrough",
+  "bold"
+] as const;
+
+export function isMarkStyle(value: unknown): value is MarkStyle {
+  return typeof value === "string" && (MARK_STYLES as readonly string[]).includes(value);
+}
+
+/** One reply inside an annotation's discussion thread. */
+export interface AnnotationReply {
+  id: string;
+  createdAt: string;
+  body: string;
+}
+
 export interface TextQuote {
   exact: string;
   prefix?: string;
@@ -57,14 +84,21 @@ export interface Annotation {
   updatedAt: string;
   body: string;
   anchor: AnnotationAnchor;
+  /** Per-annotation color (hex). Falls back to the default highlight color. */
+  color?: string;
+  /** Per-annotation mark style. Falls back to the default mark style. */
+  markStyle?: MarkStyle;
+  /** Discussion thread; replies stay in the same file as the root note. */
+  replies: AnnotationReply[];
 }
 
 export type NewAnnotation = Omit<
   Annotation,
-  "schemaVersion" | "id" | "createdAt" | "updatedAt"
+  "schemaVersion" | "id" | "createdAt" | "updatedAt" | "replies"
 > & {
   id?: string;
   createdAt?: string;
+  replies?: AnnotationReply[];
 };
 
 export function assertAnnotation(value: unknown): asserts value is Annotation {
@@ -109,5 +143,30 @@ export function assertAnnotation(value: unknown): asserts value is Annotation {
   }
   if (annotation.sourceType === "pdf" && annotation.anchor.kind === "markdown") {
     throw new Error("A PDF source cannot use a Markdown anchor.");
+  }
+  const color = annotation.color;
+  if (color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+    throw new Error(`Annotation color is invalid: ${color}`);
+  }
+  const markStyle = annotation.markStyle;
+  if (markStyle !== undefined && !isMarkStyle(markStyle)) {
+    throw new Error(`Annotation mark style is invalid: ${String(markStyle)}`);
+  }
+  if (annotation.replies === undefined) {
+    throw new Error("Annotation replies are required (use an empty array).");
+  }
+  if (!Array.isArray(annotation.replies)) {
+    throw new Error("Annotation replies must be an array.");
+  }
+  for (const reply of annotation.replies) {
+    if (
+      !reply ||
+      typeof reply !== "object" ||
+      typeof reply.id !== "string" ||
+      typeof reply.createdAt !== "string" ||
+      typeof reply.body !== "string"
+    ) {
+      throw new Error("Annotation reply is malformed.");
+    }
   }
 }

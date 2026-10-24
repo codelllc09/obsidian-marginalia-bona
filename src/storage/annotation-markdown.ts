@@ -1,13 +1,16 @@
 import {
   Annotation,
   AnnotationAnchor,
+  AnnotationReply,
   AnnotationStatus,
   SourceType,
-  assertAnnotation
+  assertAnnotation,
+  isMarkStyle
 } from "../domain/annotation";
 
 const ANCHOR_START = "<!-- siden:anchor -->";
 const ANCHOR_END = "<!-- /siden:anchor -->";
+const REPLIES_HEADING = "## Replies";
 
 function scalar(value: string | number): string {
   return typeof value === "number" ? String(value) : JSON.stringify(value);
@@ -71,16 +74,23 @@ export function serializeAnnotation(annotation: Annotation): string {
     `source: ${scalar(annotation.sourcePath)}`,
     `source-type: ${scalar(annotation.sourceType)}`,
     `status: ${scalar(annotation.status)}`,
+    ...(annotation.color ? [`color: ${scalar(annotation.color)}`] : []),
+    ...(annotation.markStyle
+      ? [`mark-style: ${scalar(annotation.markStyle)}`]
+      : []),
     `created: ${scalar(annotation.createdAt)}`,
     `updated: ${scalar(annotation.updatedAt)}`,
     "---"
   ].join("\n");
 
+  const sections = [
+    `# Annotation\n\n${annotation.body.trimEnd()}`,
+    ...serializeReplies(annotation.replies)
+  ];
+
   return `${frontmatter}
 
-# Annotation
-
-${annotation.body.trimEnd()}
+${sections.join("\n\n")}
 
 ${ANCHOR_START}
 
@@ -92,6 +102,52 @@ ${JSON.stringify(annotation.anchor, null, 2)}
 
 ${ANCHOR_END}
 `;
+}
+
+/**
+ * Replies are inlined as Markdown so one file reads as one thread:
+ *
+ *   ## Replies
+ *
+ *   ### <reply-id> | <createdAt>
+ *
+ *   Reply body.
+ */
+function serializeReplies(replies: AnnotationReply[]): string[] {
+  if (replies.length === 0) return [];
+  const sections = replies.map(
+    (reply) => `### ${reply.id} | ${reply.createdAt}\n\n${reply.body.trimEnd()}`
+  );
+  return [`${REPLIES_HEADING}\n\n${sections.join("\n\n")}`];
+}
+
+function parseReplies(source: string): AnnotationReply[] {
+  for (const line of source.split("\n")) {
+    if (
+      line.startsWith("###") &&
+      !line.startsWith("### ") &&
+      !line.startsWith("####")
+    ) {
+      throw new Error(`Annotation reply heading is malformed: ${line.trim()}`);
+    }
+  }
+  const replies: AnnotationReply[] = [];
+  const blocks = source.split(/^### /m).slice(1);
+  for (const block of blocks) {
+    const newline = block.indexOf("\n");
+    const heading = (newline < 0 ? block : block.slice(0, newline)).trim();
+    const body = newline < 0 ? "" : block.slice(newline + 1).trim();
+    const [id, createdAt] = heading.split(" | ");
+    if (!id) {
+      throw new Error(`Annotation reply heading is malformed: ${heading}`);
+    }
+    replies.push({
+      id,
+      createdAt: createdAt ?? "",
+      body: body.trimEnd()
+    });
+  }
+  return replies;
 }
 
 export function parseAnnotation(source: string): Annotation {
@@ -121,16 +177,35 @@ export function parseAnnotation(source: string): Annotation {
     throw new Error("Annotation body heading is missing.");
   }
 
+  let bodySection = content.slice(heading.length).replace(/^\s*\n/, "");
+  let replies: AnnotationReply[] = [];
+  const repliesAt = bodySection.indexOf(`\n${REPLIES_HEADING}`);
+  if (repliesAt >= 0) {
+    const replySection = bodySection
+      .slice(repliesAt + `\n${REPLIES_HEADING}`.length)
+      .replace(/^\s*\n/, "");
+    replies = parseReplies(replySection);
+    bodySection = bodySection.slice(0, repliesAt);
+  }
+
   const annotation = {
     schemaVersion: Number(metadata["siden-schema"]),
     id: requiredString(metadata, "id"),
     sourcePath: requiredString(metadata, "source"),
     sourceType: requiredString(metadata, "source-type") as SourceType,
     status: requiredString(metadata, "status") as AnnotationStatus,
+    ...(typeof metadata["color"] === "string" && metadata["color"]
+      ? { color: metadata["color"] }
+      : {}),
+    ...(typeof metadata["mark-style"] === "string" &&
+    isMarkStyle(metadata["mark-style"])
+      ? { markStyle: metadata["mark-style"] }
+      : {}),
     createdAt: requiredString(metadata, "created"),
     updatedAt: requiredString(metadata, "updated"),
-    body: content.slice(heading.length).replace(/^\s*\n/, "").trimEnd(),
-    anchor
+    body: bodySection.trimEnd(),
+    anchor,
+    replies
   };
 
   assertAnnotation(annotation);
