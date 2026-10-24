@@ -4,17 +4,48 @@ import { Annotation } from "../domain/annotation";
 /** Root folder holding one Markdown file per discussion thread. */
 export const ANNOTATIONS_DIRECTORY = ".siden-plus/annotations";
 
-/** Longest quote excerpt used inside a thread file name. */
-const FILENAME_QUOTE_LIMIT = 24;
+/**
+ * Longest quote excerpt used inside a thread file name, measured in
+ * terminal columns: CJK/fullwidth characters count as 2, others as 1.
+ * 16 columns ≈ 8 Chinese characters or 16 ASCII characters.
+ */
+const FILENAME_WIDTH_LIMIT = 16;
+
+function characterWidth(character: string): number {
+  const code = character.codePointAt(0) ?? 0;
+  const wide =
+    (code >= 0x1100 && code <= 0x115f) ||
+    (code >= 0x2e80 && code <= 0xa4cf) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe30 && code <= 0xfe4f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    (code >= 0x20000 && code <= 0x3fffd);
+  return wide ? 2 : 1;
+}
+
+function truncateByWidth(value: string, maxWidth: number): string {
+  let width = 0;
+  let result = "";
+  for (const character of value) {
+    const next = characterWidth(character);
+    if (width + next > maxWidth) break;
+    width += next;
+    result += character;
+  }
+  return result;
+}
 
 function sanitizeForFilename(value: string): string {
-  return value
+  const cleaned = value
     .replaceAll(/[\r\n\t]+/g, " ")
     .replaceAll(/[\\/:*?"<>|#%]+/g, " ")
     .replaceAll(/\s+/g, " ")
     .trim()
-    .replace(/^\.+/, "")
-    .slice(0, FILENAME_QUOTE_LIMIT)
+    .replace(/^\.+/, "");
+  return truncateByWidth(cleaned, FILENAME_WIDTH_LIMIT)
+    .replace(/[\s\p{P}\p{S}-]+$/u, "")
     .trim();
 }
 

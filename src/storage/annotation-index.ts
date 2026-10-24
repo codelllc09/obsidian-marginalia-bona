@@ -101,8 +101,13 @@ export async function writeShard(
     return;
   }
   const parent = path.slice(0, path.lastIndexOf("/"));
+  const content = `${entries.join("\n")}\n`;
+  if (await adapter.exists(path)) {
+    const existing = await adapter.read(path).catch(() => null);
+    if (existing === content) return; // no churn for unchanged shards
+  }
   await ensureDirectoryPath(adapter, parent);
-  await adapter.write(path, `${entries.join("\n")}\n`);
+  await adapter.write(path, content);
 }
 
 async function listJsonlRecursive(
@@ -125,6 +130,9 @@ export async function rebuildIndex(
   adapter: VaultAdapter,
   annotations: Annotation[]
 ): Promise<number> {
+  if (!(await adapter.exists(INDEX_DIRECTORY))) {
+    await ensureDirectoryPath(adapter, INDEX_DIRECTORY);
+  }
   const bySource = new Map<string, Annotation[]>();
   for (const annotation of annotations) {
     const list = bySource.get(annotation.sourcePath) ?? [];

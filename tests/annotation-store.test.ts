@@ -154,6 +154,69 @@ describe("AnnotationStore", () => {
     ).toBe(false);
   });
 
+  it("caps file names at 16 display columns and drops trailing punctuation", async () => {
+    const annotation = await store.create({
+      sourcePath: "Notes/长文.md",
+      sourceType: "markdown",
+      status: "open",
+      body: "Comment",
+      anchor: {
+        kind: "markdown",
+        startOffset: 0,
+        endOffset: 20,
+        startLine: 0,
+        startCharacter: 0,
+        endLine: 0,
+        endCharacter: 20,
+        quote: { exact: "一二三四五六七八九十十一十二十三十四；" }
+      }
+    });
+    const path = threadPathFor(".siden-plus/annotations", annotation);
+    expect(path).toBe(
+      `.siden-plus/annotations/Notes/长文.md/一二三四五六七八-${annotation.id
+        .replace(/-/g, "")
+        .slice(0, 8)}.md`
+    );
+    expect(adapter.files.has(path)).toBe(true);
+  });
+
+  it("re-mints stale file names and stale shards on the next load", async () => {
+    const annotation = await store.create({
+      sourcePath: "Notes/Test.md",
+      sourceType: "markdown",
+      status: "open",
+      body: "Comment",
+      anchor: {
+        kind: "markdown",
+        startOffset: 0,
+        endOffset: 4,
+        startLine: 0,
+        startCharacter: 0,
+        endLine: 0,
+        endCharacter: 4,
+        quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
+      }
+    });
+    const current = threadPathFor(".siden-plus/annotations", annotation);
+    const staleName = current.replace(
+      /beta-\w{8}\.md$/,
+      "一二三四五六七八九十十一十二十三十四-beta.md"
+    );
+    await adapter.rename(current, staleName);
+    adapter.files.set(".siden-plus/index/Notes__Test.md.jsonl", "{}\n");
+
+    const fresh = new AnnotationStore({ vault: { adapter } } as never);
+    await fresh.load();
+    expect(adapter.files.has(staleName)).toBe(false);
+    expect(adapter.files.has(current)).toBe(true);
+    expect(adapter.files.has(".siden-plus/index/Notes__Test.md.jsonl")).toBe(
+      false
+    );
+    expect(adapter.files.has(".siden-plus/index/Notes/Test.md.jsonl")).toBe(
+      true
+    );
+  });
+
   it("recovers a moved unique passage", async () => {
     const annotation = await store.create({
       sourcePath: "Notes/Test.md",

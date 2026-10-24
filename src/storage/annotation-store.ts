@@ -16,7 +16,7 @@ import {
   ensureDirectoryPath,
   threadPathFor
 } from "./annotation-paths";
-import { shardPathFor, writeShard } from "./annotation-index";
+import { shardPathFor, rebuildIndex, writeShard } from "./annotation-index";
 
 export const DEFAULT_ANNOTATION_DIRECTORY = ANNOTATIONS_DIRECTORY;
 export const DEFAULT_TRASH_DIRECTORY = ".siden-plus/trash";
@@ -54,13 +54,19 @@ export class AnnotationStore {
     this.diagnostics = [];
     await this.ensureDirectory();
     await this.loadDirectory(this.directory);
+    // Self-heal shards: rewrites changed ones, removes stale ones (including
+    // pre-mirror flat names). Unchanged shards are not rewritten.
+    try {
+      await rebuildIndex(this.app.vault.adapter, this.all());
+    } catch (error) {
+      console.warn("Siden index rebuild failed", error);
+    }
     this.onChange();
   }
 
   /** Load one directory level, recursing into mirrored source folders. */
   private async loadDirectory(directory: string): Promise<void> {
     const listing = await this.app.vault.adapter.list(directory);
-    const isRoot = normalizePath(directory) === normalizePath(this.directory);
     for (const path of listing.files.filter((file) => file.endsWith(".md"))) {
       try {
         const annotation = parseAnnotation(
@@ -75,9 +81,7 @@ export class AnnotationStore {
         }
         this.index(annotation);
         this.paths.set(annotation.id, path);
-        // Threads directly under the annotations root are the pre-mirror
-        // layout: move them into their per-document folder.
-        if (isRoot) await this.migrateLegacyFile(annotation, path);
+        await this.relocateThreadFile(annotation, path);
       } catch (error) {
         this.diagnostics.push({
           path,
@@ -90,7 +94,12 @@ export class AnnotationStore {
     }
   }
 
-  private async migrateLegacyFile(
+  /**
+   * Self-healing placement: move a thread file to the path derived from
+   * its frontmatter. Covers the pre-mirror flat layout, stale file names
+   * (quote drift since minting, format changes) and manual moves.
+   */
+  private async relocateThreadFile(
     annotation: Annotation,
     currentPath: string
   ): Promise<void> {
@@ -106,7 +115,7 @@ export class AnnotationStore {
     } catch (error) {
       this.diagnostics.push({
         path: currentPath,
-        message: `Migration to ${target} failed: ${
+        message: `Relocation to ${target} failed: ${
           error instanceof Error ? error.message : String(error)
         }`
       });
