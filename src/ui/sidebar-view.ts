@@ -89,6 +89,12 @@ export class MarginaliaSidebarView extends ItemView {
   /** Per-card collapse overrides on top of the global toggle. */
   private readonly collapseOverrides = new Map<string, boolean>();
   private listEl: HTMLElement | null = null;
+  /** Currently open Obsidian menu + the control that owns it, so a
+   *  second click on the same control toggles it closed. */
+  private openMenuInstance: Menu | null = null;
+  private openMenuOwner: HTMLElement | null = null;
+  private lastMenuCloseAt = 0;
+  private lastMenuOwner: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: MarginaliaPlugin) {
     super(leaf);
@@ -488,7 +494,7 @@ export class MarginaliaSidebarView extends ItemView {
             })
         );
       }
-      menu.showAtMouseEvent(event);
+      this.showMenu(menu, event, button);
     });
   }
 
@@ -616,7 +622,7 @@ export class MarginaliaSidebarView extends ItemView {
     setIcon(menuButton, "ellipsis");
     menuButton.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.openMenu(event, annotation);
+      this.openMenu(event, annotation, menuButton);
     });
 
     if (annotation.anchor.kind !== "document" && !collapsed) {
@@ -834,7 +840,43 @@ export class MarginaliaSidebarView extends ItemView {
     return lines.join("\n");
   }
 
-  private openMenu(event: MouseEvent, annotation: Annotation): void {
+  /** Show an Obsidian menu with toggle semantics: clicking the same
+   *  control again closes it. Obsidian's own outside-click dismissal
+   *  races with the control's click handler (the dismissal may land on
+   *  mousedown, before the click that re-opens), so both orders are
+   *  handled: an open instance is closed, and a just-closed menu from
+   *  the same owner is not immediately re-opened. */
+  private showMenu(menu: Menu, event: MouseEvent, owner: HTMLElement): void {
+    if (this.openMenuInstance) {
+      const sameOwner = this.openMenuOwner === owner;
+      this.openMenuInstance.close();
+      this.openMenuInstance = null;
+      this.openMenuOwner = null;
+      if (sameOwner) return;
+    } else if (
+      this.lastMenuOwner === owner &&
+      Date.now() - this.lastMenuCloseAt < 250
+    ) {
+      return;
+    }
+    menu.onHide(() => {
+      if (this.openMenuInstance === menu) {
+        this.openMenuInstance = null;
+        this.openMenuOwner = null;
+      }
+      this.lastMenuCloseAt = Date.now();
+      this.lastMenuOwner = owner;
+    });
+    this.openMenuInstance = menu;
+    this.openMenuOwner = owner;
+    menu.showAtMouseEvent(event);
+  }
+
+  private openMenu(
+    event: MouseEvent,
+    annotation: Annotation,
+    owner: HTMLElement
+  ): void {
     const menu = new Menu();
     menu.addItem((item) =>
       item
@@ -888,6 +930,6 @@ export class MarginaliaSidebarView extends ItemView {
           ).open();
         })
     );
-    menu.showAtMouseEvent(event);
+    this.showMenu(menu, event, owner);
   }
 }
