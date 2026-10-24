@@ -491,7 +491,7 @@
 }
 
 .marginalia-highlight {
-  border-radius: 2px;
+  border-radius: 0.15em;
   cursor: pointer;
 }
 
