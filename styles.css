@@ -549,8 +549,10 @@
 
 .marginalia-mark-wavy {
   text-decoration-line: underline wavy;
-  text-decoration-thickness: max(1px, 0.06em);
-  text-underline-offset: 0.2em;
+  /* Chromium scales the wave's amplitude with the stroke width: below
+     2px the "wave" flattens into a faint straight line. */
+  text-decoration-thickness: max(2px, 0.08em);
+  text-underline-offset: 0.22em;
 }
 
 .marginalia-mark-strikethrough {
