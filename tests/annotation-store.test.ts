@@ -69,7 +69,7 @@ describe("AnnotationStore", () => {
         quote: { exact: "beta", prefix: "alpha ", suffix: " gamma" }
       }
     });
-    const file = adapter.files.get(`.siden/annotations/${annotation.id}.md`);
+    const file = adapter.files.get(`.siden-plus/annotations/${annotation.id}.md`);
     expect(file).toContain("# Annotation\n\nReview this claim.");
     expect(file).toContain('"exact": "beta"');
   });
@@ -135,7 +135,7 @@ describe("AnnotationStore", () => {
     expect(store.get(annotation.id)).toBeUndefined();
     expect(
       [...adapter.files.keys()].some((path) =>
-        path.startsWith(`.siden/trash/${annotation.id}-`)
+        path.startsWith(`.siden-plus/trash/${annotation.id}-`)
       )
     ).toBe(true);
   });

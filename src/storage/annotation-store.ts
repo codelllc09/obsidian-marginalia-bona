@@ -10,8 +10,8 @@ import {
   serializeAnnotation
 } from "./annotation-markdown";
 
-export const DEFAULT_ANNOTATION_DIRECTORY = ".siden/annotations";
-export const DEFAULT_TRASH_DIRECTORY = ".siden/trash";
+export const DEFAULT_ANNOTATION_DIRECTORY = ".siden-plus/annotations";
+export const DEFAULT_TRASH_DIRECTORY = ".siden-plus/trash";
 
 export interface AnnotationDiagnostic {
   path: string;

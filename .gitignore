@@ -3,3 +3,6 @@ main.js
 *.map
 .DS_Store
 coverage/
+AGENTS.md
+AGENT.md
+.pi/

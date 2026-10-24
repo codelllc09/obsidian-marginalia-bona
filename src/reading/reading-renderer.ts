@@ -290,7 +290,7 @@ export function processReadingView(
   context: MarkdownPostProcessorContext,
   plugin: SidenPlugin
 ): void {
-  if (context.sourcePath.startsWith(".siden/")) return;
+  if (context.sourcePath.startsWith(".siden-plus/")) return;
   const annotations = plugin.store
     .forSource(context.sourcePath)
     .filter(

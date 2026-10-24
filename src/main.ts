@@ -350,7 +350,7 @@ export default class SidenPlugin extends Plugin {
       }
       lines.push(annotation.body, "", "---", "");
     }
-    const directory = ".siden/exports";
+    const directory = ".siden-plus/exports";
     if (!(await this.app.vault.adapter.exists(directory))) {
       await this.app.vault.adapter.mkdir(directory);
     }
@@ -373,7 +373,7 @@ export default class SidenPlugin extends Plugin {
   }
 
   private async reconcileFile(file: TFile): Promise<void> {
-    if (file.path.startsWith(".siden/")) return;
+    if (file.path.startsWith(".siden-plus/")) return;
     await this.store.reconcileMarkdownSource(
       file.path,
       await this.app.vault.cachedRead(file)

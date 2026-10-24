@@ -1,9 +1,9 @@
 {
-  "id": "siden",
-  "name": "Siden",
+  "id": "siden-plus",
+  "name": "Siden Plus",
   "version": "0.1.0",
   "minAppVersion": "1.7.2",
-  "description": "Annotate Markdown and PDF text with highlights, margin notes, and a review sidebar.",
+  "description": "Annotate Markdown and PDF with margin notes, reply threads and per-note styles. Fork of Siden (giuseqpe/siden).",
   "author": "Giuseppe",
   "authorUrl": "https://github.com/giuseqpe",
   "isDesktopOnly": false
