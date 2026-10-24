@@ -187,5 +187,17 @@ export class MarginaliaSettingTab extends PluginSettingTab {
             this.plugin.updateSettings({ forceLongWordBreaks: value })
           )
       );
+
+    new Setting(containerEl).setName("Commands").setHeading();
+    containerEl
+      .createEl("p", {
+        text: "Everything below is available from the command palette (Ctrl/Cmd+P). You can bind hotkeys in Settings → Hotkeys by searching “Marginalia”.",
+        cls: "setting-item-description"
+      })
+      .addClass("marginalia-command-hint");
+    const list = containerEl.createEl("ul", { cls: "marginalia-command-list" });
+    for (const name of this.plugin.commandNames()) {
+      list.createEl("li", { text: name });
+    }
   }
 }

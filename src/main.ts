@@ -1,4 +1,5 @@
 import {
+  Command,
   Editor,
   MarkdownView,
   Menu,
@@ -36,6 +37,20 @@ export default class MarginaliaPlugin extends Plugin {
   settings: MarginaliaSettings = DEFAULT_SETTINGS;
   editorRevision = 0;
   private pdfAdapter!: PdfAdapter;
+  /** Commands registered by this plugin, listed in the settings tab. */
+  private readonly pluginCommands: Command[] = [];
+
+  /** addCommand that remembers the command for the settings hint. */
+  private addPluginCommand(command: Command): Command {
+    const registered = this.addCommand(command);
+    this.pluginCommands.push(registered);
+    return registered;
+  }
+
+  /** Names of this plugin's commands, for the settings hint. */
+  commandNames(): string[] {
+    return this.pluginCommands.map((command) => command.name);
+  }
 
   async onload(): Promise<void> {
     const savedSettings: unknown = await this.loadData();
@@ -64,12 +79,12 @@ export default class MarginaliaPlugin extends Plugin {
       void this.openSidebar()
     );
 
-    this.addCommand({
+    this.addPluginCommand({
       id: "open-annotations",
       name: "Open annotations",
       callback: () => void this.openSidebar()
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "add-markdown-annotation",
       name: "Add annotation to selection",
       editorCheckCallback: (checking, editor, view) => {
@@ -84,12 +99,12 @@ export default class MarginaliaPlugin extends Plugin {
         return true;
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "add-note-annotation",
       name: "Add annotation to current document",
       callback: () => this.beginDocumentAnnotation()
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "add-pdf-annotation",
       name: "Add annotation to PDF selection",
       checkCallback: (checking) => {
@@ -99,12 +114,12 @@ export default class MarginaliaPlugin extends Plugin {
         return true;
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "rebuild-annotation-index",
       name: "Rebuild annotation index",
       callback: () => void this.rebuildAnnotationIndex()
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "export-note-annotations",
       name: "Export this note's annotations to Markdown",
       checkCallback: (checking) => {
@@ -114,7 +129,7 @@ export default class MarginaliaPlugin extends Plugin {
         return true;
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "export-annotations",
       name: "Export all annotations to Markdown",
       callback: () => void this.exportAllAnnotations()
@@ -412,7 +427,24 @@ export default class MarginaliaPlugin extends Plugin {
     } else {
       await this.app.vault.create(path, content);
     }
-    await this.app.workspace.openLinkText(path, "", false);
+    await this.openExport(path);
+  }
+
+  /** Open an exported digest in its own tab; reuse a tab already showing it. */
+  private async openExport(path: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return;
+    const alreadyOpen = this.app.workspace
+      .getLeavesOfType("markdown")
+      .find(
+        (leaf) =>
+          leaf.view instanceof MarkdownView && leaf.view.file?.path === path
+      );
+    const leaf = alreadyOpen ?? this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({
+      type: "markdown",
+      state: { file: path }
+    });
   }
 
   private async beginSidebarDraft(
