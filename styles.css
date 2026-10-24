@@ -18,15 +18,28 @@
 }
 
 .siden-toolbar {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  display: flex;
   gap: var(--size-4-2);
   max-width: 100%;
   min-width: 0;
 }
 
-.siden-toolbar button,
-.siden-toolbar select,
+.siden-toolbar .clickable-icon {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.siden-toolbar > button:not(.clickable-icon) {
+  flex: 1;
+  width: auto;
+}
+
+.siden-toolbar select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .siden-search {
   box-sizing: border-box;
   max-width: 100%;
@@ -135,7 +148,7 @@
 }
 
 /* Word/WPS-style thread: replies are indented under the root note with a
-   hairline separator; the timestamp stays small and unobtrusive. */
+   hairline separator; the timestamp sits as a tiny hint in the top-right. */
 .siden-reply {
   border-top: 1px solid var(--background-modifier-border);
   margin-left: var(--size-4-2);
@@ -144,33 +157,41 @@
   position: relative;
 }
 
-.siden-reply-header {
+.siden-reply-meta {
   align-items: center;
-  color: var(--text-faint);
   display: flex;
-  font-size: min(var(--font-ui-smallest), 0.7rem);
   gap: var(--size-4-1);
-  line-height: 1;
-  margin-bottom: var(--size-4-1);
-  opacity: 0.75;
-}
-
-.siden-reply-icon {
-  display: inline-flex;
-}
-
-.siden-reply-icon svg {
-  height: 10px;
-  width: 10px;
+  height: 14px;
+  position: absolute;
+  right: 0;
+  top: 0;
 }
 
 .siden-reply-time {
+  color: var(--text-faint);
+  font-size: min(var(--font-ui-smallest), 0.65rem);
   letter-spacing: 0.02em;
+  opacity: 0.8;
 }
 
 .siden-reply-body {
   color: var(--text-muted);
   font-size: var(--font-ui-small);
+  /* keep text clear of the corner timestamp */
+  padding-right: 2.75rem;
+}
+
+.siden-card.siden-card-collapsed {
+  padding-block: var(--size-4-1);
+}
+
+.siden-card-summary {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .siden-reply-body,
@@ -188,12 +209,10 @@
 
 .siden-reply-remove {
   display: none;
-  position: absolute;
-  right: 0;
-  top: -6px;
 }
 
-.siden-reply:hover .siden-reply-remove {
+.siden-reply:hover .siden-reply-remove,
+.siden-reply-remove:focus-visible {
   display: inline-flex;
 }
 

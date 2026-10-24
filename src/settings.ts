@@ -16,6 +16,8 @@ export interface SidenSettings {
   highlightOpacity: number;
   /** Default mark style for annotations created without an explicit style. */
   defaultMarkStyle: MarkStyle;
+  /** Shortcut that saves a draft / sends a reply from a sidebar textarea. */
+  submitShortcut: "enter" | "mod-enter";
   forceLongWordBreaks: boolean;
 }
 
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: SidenSettings = {
   highlightColor: "#ffd54f",
   highlightOpacity: 0.35,
   defaultMarkStyle: "highlight",
+  submitShortcut: "enter",
   forceLongWordBreaks: true
 };
 
@@ -136,6 +139,23 @@ export class SidenSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.defaultMarkStyle)
           .onChange((value) =>
             this.plugin.updateSettings({ defaultMarkStyle: value as MarkStyle })
+          )
+      );
+
+    new Setting(containerEl)
+      .setName("Submit shortcut")
+      .setDesc("Key that saves an annotation or sends a reply. Hold shift for a newline when using enter.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            enter: "Enter (Shift+Enter = newline)",
+            "mod-enter": "Ctrl/Cmd+Enter"
+          })
+          .setValue(this.plugin.settings.submitShortcut)
+          .onChange((value) =>
+            this.plugin.updateSettings({
+              submitShortcut: value as SidenSettings["submitShortcut"]
+            })
           )
       );
 

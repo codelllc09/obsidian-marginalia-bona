@@ -35,6 +35,25 @@ function isComposing(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;
 }
 
+/** Sidemark-style submit rule: with "enter" a bare Enter submits and
+ *  Shift+Enter makes a newline; with "mod-enter" only Ctrl/Cmd+Enter does.
+ *  IME composition never submits (Chromium reports key "Process"). */
+function shouldSubmit(
+  event: KeyboardEvent,
+  shortcut: "enter" | "mod-enter"
+): boolean {
+  if (isComposing(event) || event.key !== "Enter") return false;
+  return shortcut === "enter"
+    ? !event.shiftKey && !event.metaKey && !event.ctrlKey
+    : event.metaKey || event.ctrlKey;
+}
+
+function submitHint(shortcut: "enter" | "mod-enter"): string {
+  return shortcut === "enter"
+    ? "Enter saves, Shift+Enter = newline"
+    : "Ctrl+Enter saves";
+}
+
 function formatReplyTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
@@ -66,6 +85,8 @@ export class SidenSidebarView extends ItemView {
   /** Annotation id whose reply box is expanded. */
   private replyFor: string | null = null;
   private bodyEl: HTMLElement | null = null;
+  /** When true, cards render as compact header-only rows. */
+  private collapsed = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: SidenPlugin) {
     super(leaf);
@@ -175,7 +196,9 @@ export class SidenSidebarView extends ItemView {
       cls: "siden-draft-textarea",
       attr: {
         "aria-label": "Annotation text",
-        placeholder: "Write a Markdown comment… (Ctrl+Enter saves)"
+        placeholder: `Write a Markdown comment… (${submitHint(
+          this.plugin.settings.submitShortcut
+        )})`
       }
     });
     textarea.value = draft.body;
@@ -183,13 +206,16 @@ export class SidenSidebarView extends ItemView {
       if (this.draft) this.draft.body = textarea.value;
     });
     textarea.addEventListener("keydown", (event) => {
-      if (isComposing(event)) return;
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        void this.saveDraft();
-      } else if (event.key === "Escape") {
+      if (event.key === "Escape") {
         event.preventDefault();
         this.cancelDraft();
+        return;
+      }
+      if (
+        shouldSubmit(event, this.plugin.settings.submitShortcut)
+      ) {
+        event.preventDefault();
+        void this.saveDraft();
       }
     });
     this.renderStylePicker(form, draft);
@@ -310,12 +336,43 @@ export class SidenSidebarView extends ItemView {
 
   private renderToolbar(root: HTMLElement): void {
     const toolbar = root.createDiv({ cls: "siden-toolbar" });
+    const collapseButton = toolbar.createEl("button", {
+      cls: "clickable-icon siden-collapse-toggle",
+      attr: {
+        "aria-label": this.collapsed
+          ? "Expand all annotation cards"
+          : "Collapse all annotation cards",
+        "aria-pressed": String(this.collapsed)
+      }
+    });
+    setIcon(
+      collapseButton,
+      this.collapsed ? "chevrons-up-down" : "chevrons-down-up"
+    );
+    collapseButton.addEventListener("click", () => {
+      this.collapsed = !this.collapsed;
+      // Update the toolbar button in place; only the list below re-renders.
+      collapseButton.setAttribute("aria-pressed", String(this.collapsed));
+      collapseButton.setAttribute(
+        "aria-label",
+        this.collapsed
+          ? "Expand all annotation cards"
+          : "Collapse all annotation cards"
+      );
+      setIcon(
+        collapseButton,
+        this.collapsed ? "chevrons-up-down" : "chevrons-down-up"
+      );
+      this.renderBody();
+    });
     const scopeButton = toolbar.createEl("button", {
       text: this.viewScope === "current" ? "Current file" : "Whole vault",
       attr: { "aria-label": "Toggle annotation scope" }
     });
     scopeButton.addEventListener("click", () => {
       this.viewScope = this.viewScope === "current" ? "vault" : "current";
+      scopeButton.textContent =
+        this.viewScope === "current" ? "Current file" : "Whole vault";
       this.renderBody();
     });
 
@@ -394,7 +451,7 @@ export class SidenSidebarView extends ItemView {
     const card = parent.createDiv({
       cls: `siden-card siden-status-${annotation.status}${
         annotation.id === this.activeId ? " is-active" : ""
-      }`,
+      }${this.collapsed ? " siden-card-collapsed" : ""}`,
       attr: {
         "data-siden-id": annotation.id,
         tabindex: "0",
@@ -431,24 +488,29 @@ export class SidenSidebarView extends ItemView {
       this.openMenu(event, annotation);
     });
 
-    if (annotation.anchor.kind !== "document") {
+    if (annotation.anchor.kind !== "document" && !this.collapsed) {
       card.createEl("blockquote", {
         cls: "siden-card-quote",
         text: annotation.anchor.quote.exact
       });
     }
-    const body = card.createDiv({ cls: "siden-card-body markdown-rendered" });
-    void MarkdownRenderer.render(
-      this.app,
-      annotation.body,
-      body,
-      annotation.sourcePath,
-      this
-    );
-    for (const reply of annotation.replies) {
-      this.renderReply(card, annotation, reply);
+    if (!this.collapsed) {
+      const body = card.createDiv({ cls: "siden-card-body markdown-rendered" });
+      void MarkdownRenderer.render(
+        this.app,
+        annotation.body,
+        body,
+        annotation.sourcePath,
+        this
+      );
+      for (const reply of annotation.replies) {
+        this.renderReply(card, annotation, reply);
+      }
+      this.renderReplyComposer(card, annotation);
+    } else {
+      const summary = card.createDiv({ cls: "siden-card-summary" });
+      summary.textContent = annotation.body.split("\n")[0];
     }
-    this.renderReplyComposer(card, annotation);
 
     const activate = () => void this.plugin.navigateToAnnotation(annotation);
     card.addEventListener("click", activate);
@@ -469,12 +531,21 @@ export class SidenSidebarView extends ItemView {
     reply: AnnotationReply
   ): void {
     const container = card.createDiv({ cls: "siden-reply" });
-    const header = container.createDiv({ cls: "siden-reply-header" });
-    const icon = header.createSpan({ cls: "siden-reply-icon" });
-    setIcon(icon, "corner-down-right");
-    header.createSpan({
+    const meta = container.createDiv({ cls: "siden-reply-meta" });
+    meta.createSpan({
       cls: "siden-reply-time",
       text: formatReplyTime(reply.createdAt)
+    });
+    const remove = meta.createEl("button", {
+      cls: "clickable-icon siden-reply-remove",
+      attr: { "aria-label": "Delete reply" }
+    });
+    setIcon(remove, "x");
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.plugin.store
+        .deleteReply(annotation.id, reply.id)
+        .then(() => this.plugin.refresh());
     });
     const bodyEl = container.createDiv({
       cls: "siden-reply-body markdown-rendered"
@@ -486,17 +557,6 @@ export class SidenSidebarView extends ItemView {
       annotation.sourcePath,
       this
     );
-    const remove = container.createEl("button", {
-      cls: "clickable-icon siden-reply-remove",
-      attr: { "aria-label": "Delete reply" }
-    });
-    setIcon(remove, "x");
-    remove.addEventListener("click", (event) => {
-      event.stopPropagation();
-      void this.plugin.store
-        .deleteReply(annotation.id, reply.id)
-        .then(() => this.plugin.refresh());
-    });
     container.addEventListener("click", (event) => event.stopPropagation());
   }
 
@@ -510,18 +570,23 @@ export class SidenSidebarView extends ItemView {
         cls: "siden-reply-textarea",
         attr: {
           "aria-label": "Reply text",
-          placeholder: "Reply… (Ctrl+Enter sends)"
+          placeholder: `Reply… (${submitHint(
+            this.plugin.settings.submitShortcut
+          )})`
         }
       });
       textarea.addEventListener("keydown", (event) => {
-        if (isComposing(event)) return;
-        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-          event.preventDefault();
-          void this.sendReply(annotation.id, textarea.value);
-        } else if (event.key === "Escape") {
+        if (event.key === "Escape") {
           event.preventDefault();
           this.replyFor = null;
           this.renderBody();
+          return;
+        }
+        if (
+          shouldSubmit(event, this.plugin.settings.submitShortcut)
+        ) {
+          event.preventDefault();
+          void this.sendReply(annotation.id, textarea.value);
         }
       });
       const actions = composer.createDiv({ cls: "siden-draft-actions" });
