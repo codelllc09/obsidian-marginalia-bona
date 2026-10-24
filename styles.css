@@ -206,7 +206,6 @@
   width: 22px;
 }
 
-.marginalia-card-edit,
 .marginalia-card-resolve,
 .marginalia-card-copy {
   opacity: 0;
@@ -214,10 +213,8 @@
   transition: opacity 120ms ease;
 }
 
-.marginalia-card:hover .marginalia-card-edit,
 .marginalia-card:hover .marginalia-card-resolve,
 .marginalia-card:hover .marginalia-card-copy,
-.marginalia-card-edit:focus-visible,
 .marginalia-card-resolve:focus-visible,
 .marginalia-card-copy:focus-visible {
   opacity: 1;
@@ -225,7 +222,8 @@
 }
 
 .marginalia-card-header .marginalia-card-collapse svg,
-.marginalia-card-actions .clickable-icon svg {
+.marginalia-card-actions .clickable-icon svg,
+.marginalia-card-footer .clickable-icon svg {
   height: 14px;
   width: 14px;
 }
@@ -237,6 +235,7 @@
 }
 
 .marginalia-card.marginalia-card-collapsed {
+  cursor: pointer;
   padding-block: var(--size-4-1);
 }
 
@@ -277,10 +276,25 @@
   pointer-events: auto;
 }
 
-.marginalia-reply-button {
-  align-self: flex-start;
-  font-size: var(--font-ui-smaller);
+/* Bottom card row: Reply on the left, Edit + Jump on the right. */
+.marginalia-card-footer {
+  align-items: center;
+  display: flex;
+  gap: var(--size-4-1);
   margin-top: var(--size-4-2);
+}
+
+.marginalia-card-footer-spacer {
+  flex: 1;
+}
+
+.marginalia-card-footer .clickable-icon {
+  height: 22px;
+  width: 22px;
+}
+
+.marginalia-reply-button {
+  font-size: var(--font-ui-smaller);
   padding: 2px 10px;
 }
 
@@ -688,7 +702,6 @@
 
 /* Touch devices have no hover: keep reveal-by-hover actions discoverable. */
 @media (hover: none) {
-  .marginalia-card-edit,
   .marginalia-card-resolve,
   .marginalia-card-copy,
   .marginalia-reply-copy,

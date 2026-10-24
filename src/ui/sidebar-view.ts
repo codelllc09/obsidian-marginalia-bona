@@ -544,29 +544,9 @@ export class MarginaliaSidebarView extends ItemView {
       });
     }
 
-    // Card actions, most frequent first. Jump is the explicit way to go
-    // to the annotated passage (card clicks never navigate); edit and
-    // resolve get one-click buttons instead of a menu detour. The
-    // destructive delete stays inside the menu.
+    // Top-right keeps only state-related and overflow actions; frequent
+    // navigation/edit live in the card footer next to Reply.
     const actions = header.createDiv({ cls: "marginalia-card-actions" });
-    const jumpButton = actions.createEl("button", {
-      cls: "clickable-icon marginalia-card-jump",
-      attr: { "aria-label": "Jump to annotated text" }
-    });
-    setIcon(jumpButton, "external-link");
-    jumpButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      void this.plugin.navigateToAnnotation(annotation);
-    });
-    const editButton = actions.createEl("button", {
-      cls: "clickable-icon marginalia-card-edit",
-      attr: { "aria-label": "Edit annotation" }
-    });
-    setIcon(editButton, "pencil");
-    editButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      this.beginEdit(annotation);
-    });
     const resolveButton = actions.createEl("button", {
       cls: "clickable-icon marginalia-card-resolve",
       attr: {
@@ -625,11 +605,53 @@ export class MarginaliaSidebarView extends ItemView {
       for (const reply of annotation.replies) {
         this.renderReply(card, annotation, reply);
       }
-      this.renderReplyComposer(card, annotation);
+      if (this.replyFor === annotation.id) {
+        this.renderReplyComposer(card, annotation);
+      }
+      this.renderCardFooter(card, annotation);
     } else {
+      // Collapsed rows have no footer: clicking anywhere expands them.
+      card.addEventListener("click", () => {
+        this.collapseOverrides.set(annotation.id, false);
+        this.renderBody();
+      });
       const summary = card.createDiv({ cls: "marginalia-card-summary" });
       summary.textContent = annotation.body.split("\n")[0];
     }
+  }
+
+  /** Bottom row: Reply on the left, Edit and Jump on the right. */
+  private renderCardFooter(card: HTMLElement, annotation: Annotation): void {
+    const footer = card.createDiv({ cls: "marginalia-card-footer" });
+    const replyButton = footer.createEl("button", {
+      cls: "marginalia-reply-button",
+      text: "Reply",
+      attr: { type: "button" }
+    });
+    replyButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.replyFor = annotation.id;
+      this.renderBody();
+    });
+    footer.createDiv({ cls: "marginalia-card-footer-spacer" });
+    const editButton = footer.createEl("button", {
+      cls: "clickable-icon marginalia-card-edit",
+      attr: { "aria-label": "Edit annotation" }
+    });
+    setIcon(editButton, "pencil");
+    editButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.beginEdit(annotation);
+    });
+    const jumpButton = footer.createEl("button", {
+      cls: "clickable-icon marginalia-card-jump",
+      attr: { "aria-label": "Jump to annotated text" }
+    });
+    setIcon(jumpButton, "external-link");
+    jumpButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.plugin.navigateToAnnotation(annotation);
+    });
   }
 
   private beginEdit(annotation: Annotation): void {
@@ -692,69 +714,53 @@ export class MarginaliaSidebarView extends ItemView {
     card: HTMLElement,
     annotation: Annotation
   ): void {
-    if (this.replyFor === annotation.id) {
-      const composer = card.createDiv({ cls: "marginalia-reply-composer" });
-      const textarea = composer.createEl("textarea", {
-        cls: "marginalia-reply-textarea",
-        attr: {
-          "aria-label": "Reply text",
-          placeholder: `Reply… (${submitHint(
-            this.plugin.settings.submitShortcut
-          )})`
-        }
-      });
-      textarea.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          this.replyFor = null;
-          this.renderBody();
-          return;
-        }
-        if (
-          shouldSubmit(event, this.plugin.settings.submitShortcut)
-        ) {
-          event.preventDefault();
-          void this.sendReply(annotation.id, textarea.value);
-        }
-      });
-      const actions = composer.createDiv({ cls: "marginalia-draft-actions" });
-      const cancel = actions.createEl("button", { text: "Cancel" });
-      cancel.addEventListener("click", (event) => {
-        event.stopPropagation();
+    if (this.replyFor !== annotation.id) return;
+    const composer = card.createDiv({ cls: "marginalia-reply-composer" });
+    const textarea = composer.createEl("textarea", {
+      cls: "marginalia-reply-textarea",
+      attr: {
+        "aria-label": "Reply text",
+        placeholder: `Reply… (${submitHint(
+          this.plugin.settings.submitShortcut
+        )})`
+      }
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
         this.replyFor = null;
         this.renderBody();
-      });
-      const send = actions.createEl("button", {
-        cls: "mod-cta",
-        text: "Reply"
-      });
-      send.disabled = !textarea.value.trim();
-      textarea.addEventListener("input", () => {
-        send.disabled = !textarea.value.trim();
-      });
-      send.addEventListener("click", (event) => {
-        event.stopPropagation();
+        return;
+      }
+      if (shouldSubmit(event, this.plugin.settings.submitShortcut)) {
+        event.preventDefault();
         void this.sendReply(annotation.id, textarea.value);
-      });
-      composer.addEventListener("click", (event) =>
-        event.stopPropagation()
-      );
-      window.setTimeout(() => {
-        // Long cards: make sure the composer is actually on screen.
-        composer.scrollIntoView({ block: "nearest" });
-        textarea.focus();
-      });
-      return;
-    }
-    const replyButton = card.createEl("button", {
-      cls: "marginalia-reply-button",
-      text: "Reply",
-      attr: { type: "button" }
+      }
     });
-    replyButton.addEventListener("click", (event) => {
+    const actions = composer.createDiv({ cls: "marginalia-draft-actions" });
+    const cancel = actions.createEl("button", { text: "Cancel" });
+    cancel.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.replyFor = annotation.id;
+      this.replyFor = null;
       this.renderBody();
+    });
+    const send = actions.createEl("button", {
+      cls: "mod-cta",
+      text: "Reply"
+    });
+    send.disabled = !textarea.value.trim();
+    textarea.addEventListener("input", () => {
+      send.disabled = !textarea.value.trim();
+    });
+    send.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.sendReply(annotation.id, textarea.value);
+    });
+    composer.addEventListener("click", (event) => event.stopPropagation());
+    window.setTimeout(() => {
+      // Long cards: make sure the composer is actually on screen.
+      composer.scrollIntoView({ block: "nearest" });
+      textarea.focus();
     });
   }
 
