@@ -186,6 +186,15 @@
   padding-right: 0.5rem;
 }
 
+.siden-card-copy {
+  display: none;
+}
+
+.siden-card:hover .siden-card-copy,
+.siden-card-copy:focus-visible {
+  display: inline-flex;
+}
+
 .siden-card-header .siden-card-collapse svg {
   height: 14px;
   width: 14px;

@@ -512,6 +512,15 @@ export class SidenSidebarView extends ItemView {
       event.stopPropagation();
       this.openMenu(event, annotation);
     });
+    const copyButton = header.createEl("button", {
+      cls: "clickable-icon siden-card-copy",
+      attr: { "aria-label": "Copy comment" }
+    });
+    setIcon(copyButton, "copy");
+    copyButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.copyText(annotation.body, "Comment copied.");
+    });
     const cardCollapseButton = header.createEl("button", {
       cls: "clickable-icon siden-card-collapse",
       attr: {
@@ -674,8 +683,68 @@ export class SidenSidebarView extends ItemView {
     this.plugin.refresh();
   }
 
+  private async copyText(text: string, notice: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      new Notice(notice);
+    } catch {
+      new Notice("Could not access the clipboard.");
+    }
+  }
+
+  /** Quote + root comment + replies, ready to paste into a chat or doc. */
+  private threadAsText(annotation: Annotation): string {
+    const lines: string[] = [];
+    if (annotation.anchor.kind !== "document") {
+      lines.push(
+        `> ${annotation.anchor.quote.exact.replaceAll("\n", "\n> ")}`,
+        ""
+      );
+    }
+    lines.push(annotation.body);
+    for (const reply of annotation.replies) {
+      lines.push("", `» ${reply.body.replaceAll("\n", "\n  ")}`);
+    }
+    return lines.join("\n");
+  }
+
   private openMenu(event: MouseEvent, annotation: Annotation): void {
     const menu = new Menu();
+    menu.addItem((item) =>
+      item
+        .setTitle("Copy comment")
+        .setIcon("copy")
+        .onClick(() =>
+          void this.copyText(annotation.body, "Comment copied.")
+        )
+    );
+    menu.addItem((item) =>
+      item
+        .setTitle("Copy thread")
+        .setIcon("messages-square")
+        .onClick(() =>
+          void this.copyText(
+            this.threadAsText(annotation),
+            "Thread copied."
+          )
+        )
+    );
+    if (annotation.anchor.kind !== "document") {
+      menu.addItem((item) =>
+        item
+          .setTitle("Copy quote")
+          .setIcon("quote")
+          .onClick(() =>
+            void this.copyText(
+              annotation.anchor.kind === "document"
+                ? ""
+                : annotation.anchor.quote.exact,
+              "Quote copied."
+            )
+          )
+      );
+    }
+    menu.addSeparator();
     menu.addItem((item) =>
       item.setTitle("Edit").setIcon("pencil").onClick(() => {
         this.draft = {
