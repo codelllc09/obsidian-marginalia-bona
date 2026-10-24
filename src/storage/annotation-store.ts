@@ -10,7 +10,16 @@ import {
   parseAnnotation,
   serializeAnnotation
 } from "./annotation-markdown";
-import { INDEX_DIRECTORY, shardNameFor, writeShard } from "./annotation-index";
+import {
+  ANNOTATIONS_DIRECTORY,
+  annotationFolderFor,
+  ensureDirectoryPath,
+  threadPathFor
+} from "./annotation-paths";
+import { shardPathFor, writeShard } from "./annotation-index";
+
+export const DEFAULT_ANNOTATION_DIRECTORY = ANNOTATIONS_DIRECTORY;
+export const DEFAULT_TRASH_DIRECTORY = ".siden-plus/trash";
 
 function newReply(body: string): AnnotationReply {
   return {
@@ -20,9 +29,6 @@ function newReply(body: string): AnnotationReply {
   };
 }
 
-export const DEFAULT_ANNOTATION_DIRECTORY = ".siden-plus/annotations";
-export const DEFAULT_TRASH_DIRECTORY = ".siden-plus/trash";
-
 export interface AnnotationDiagnostic {
   path: string;
   message: string;
@@ -31,6 +37,8 @@ export interface AnnotationDiagnostic {
 export class AnnotationStore {
   private readonly byId = new Map<string, Annotation>();
   private readonly idsBySource = new Map<string, Set<string>>();
+  /** Current on-disk path of each thread file (file names are minted once). */
+  private readonly paths = new Map<string, string>();
   private diagnostics: AnnotationDiagnostic[] = [];
 
   constructor(
@@ -42,10 +50,17 @@ export class AnnotationStore {
   async load(): Promise<void> {
     this.byId.clear();
     this.idsBySource.clear();
+    this.paths.clear();
     this.diagnostics = [];
     await this.ensureDirectory();
+    await this.loadDirectory(this.directory);
+    this.onChange();
+  }
 
-    const listing = await this.app.vault.adapter.list(this.directory);
+  /** Load one directory level, recursing into mirrored source folders. */
+  private async loadDirectory(directory: string): Promise<void> {
+    const listing = await this.app.vault.adapter.list(directory);
+    const isRoot = normalizePath(directory) === normalizePath(this.directory);
     for (const path of listing.files.filter((file) => file.endsWith(".md"))) {
       try {
         const annotation = parseAnnotation(
@@ -59,6 +74,10 @@ export class AnnotationStore {
           continue;
         }
         this.index(annotation);
+        this.paths.set(annotation.id, path);
+        // Threads directly under the annotations root are the pre-mirror
+        // layout: move them into their per-document folder.
+        if (isRoot) await this.migrateLegacyFile(annotation, path);
       } catch (error) {
         this.diagnostics.push({
           path,
@@ -66,7 +85,32 @@ export class AnnotationStore {
         });
       }
     }
-    this.onChange();
+    for (const folder of listing.folders) {
+      await this.loadDirectory(folder);
+    }
+  }
+
+  private async migrateLegacyFile(
+    annotation: Annotation,
+    currentPath: string
+  ): Promise<void> {
+    const target = threadPathFor(this.directory, annotation);
+    if (target === currentPath) return;
+    try {
+      await ensureDirectoryPath(
+        this.app.vault.adapter,
+        annotationFolderFor(this.directory, annotation.sourcePath)
+      );
+      await this.app.vault.adapter.rename(currentPath, target);
+      this.paths.set(annotation.id, target);
+    } catch (error) {
+      this.diagnostics.push({
+        path: currentPath,
+        message: `Migration to ${target} failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      });
+    }
   }
 
   all(): Annotation[] {
@@ -158,11 +202,19 @@ export class AnnotationStore {
 
   async delete(id: string): Promise<void> {
     const annotation = this.require(id);
-    await this.ensureDirectoryPath(DEFAULT_TRASH_DIRECTORY);
+    await ensureDirectoryPath(this.app.vault.adapter, DEFAULT_TRASH_DIRECTORY);
     const trashPath = normalizePath(
       `${DEFAULT_TRASH_DIRECTORY}/${annotation.id}-${Date.now()}.md`
     );
-    await this.app.vault.adapter.rename(this.pathFor(annotation.id), trashPath);
+    const currentPath = this.paths.get(annotation.id);
+    if (!currentPath) {
+      throw new Error(`Annotation ${id} has no file on disk.`);
+    }
+    await this.app.vault.adapter.rename(currentPath, trashPath);
+    this.paths.delete(annotation.id);
+    await this.removeEmptyFolders(
+      currentPath.slice(0, currentPath.lastIndexOf("/"))
+    );
     const sourcePath = annotation.sourcePath;
     this.unindex(annotation);
     await this.syncShard(sourcePath);
@@ -171,6 +223,7 @@ export class AnnotationStore {
 
   async renameSource(oldPath: string, newPath: string): Promise<void> {
     const annotations = this.forSource(oldPath);
+    const oldFolder = annotationFolderFor(this.directory, oldPath);
     for (const annotation of annotations) {
       this.unindex(annotation);
       const updated: Annotation = {
@@ -178,12 +231,13 @@ export class AnnotationStore {
         sourcePath: normalizePath(newPath),
         updatedAt: new Date().toISOString()
       };
-      await this.write(updated);
+      await this.write(updated, true);
       this.index(updated);
     }
     if (annotations.length > 0) {
       await this.syncShard(newPath);
       await this.removeShard(oldPath);
+      await this.removeEmptyFolders(oldFolder);
       this.onChange();
     }
   }
@@ -289,12 +343,38 @@ export class AnnotationStore {
     if (ids?.size === 0) this.idsBySource.delete(annotation.sourcePath);
   }
 
-  private async write(annotation: Annotation): Promise<void> {
+  private async write(
+    annotation: Annotation,
+    relocate = false
+  ): Promise<void> {
     await this.ensureDirectory();
-    await this.app.vault.adapter.write(
-      this.pathFor(annotation.id),
-      serializeAnnotation(annotation)
-    );
+    const known = this.paths.get(annotation.id);
+    const desired = relocate || !known ? threadPathFor(this.directory, annotation) : known;
+    const parent = desired.slice(0, desired.lastIndexOf("/"));
+    await ensureDirectoryPath(this.app.vault.adapter, parent);
+    await this.app.vault.adapter.write(desired, serializeAnnotation(annotation));
+    if (known && known !== desired) {
+      try {
+        await this.app.vault.adapter.remove(known);
+      } catch {
+        // Old copy already gone; the new file is authoritative.
+      }
+    }
+    this.paths.set(annotation.id, desired);
+  }
+
+  /** Best-effort cleanup of folders left empty by renames/migrations. */
+  private async removeEmptyFolders(folder: string): Promise<void> {
+    let current = normalizePath(folder);
+    const root = normalizePath(this.directory);
+    while (current.length > root.length) {
+      try {
+        await this.app.vault.adapter.rmdir?.(current, false);
+      } catch {
+        return; // not empty or unsupported: stop walking up
+      }
+      current = current.slice(0, current.lastIndexOf("/"));
+    }
   }
 
   /** Keep the per-document index shard in sync (best effort; rebuildable). */
@@ -311,32 +391,14 @@ export class AnnotationStore {
   }
 
   private async removeShard(sourcePath: string): Promise<void> {
-    const path = normalizePath(
-      `${INDEX_DIRECTORY}/${shardNameFor(sourcePath)}`
-    );
     try {
-      await this.app.vault.adapter.remove(path);
+      await this.app.vault.adapter.remove(shardPathFor(sourcePath));
     } catch {
       // Shard may not exist yet; the index is a rebuildable cache.
     }
   }
 
-  private pathFor(id: string): string {
-    return normalizePath(`${this.directory}/${id}.md`);
-  }
-
   private async ensureDirectory(): Promise<void> {
-    await this.ensureDirectoryPath(this.directory);
-  }
-
-  private async ensureDirectoryPath(directory: string): Promise<void> {
-    const segments = normalizePath(directory).split("/");
-    let current = "";
-    for (const segment of segments) {
-      current = current ? `${current}/${segment}` : segment;
-      if (!(await this.app.vault.adapter.exists(current))) {
-        await this.app.vault.adapter.mkdir(current);
-      }
-    }
+    await ensureDirectoryPath(this.app.vault.adapter, this.directory);
   }
 }
