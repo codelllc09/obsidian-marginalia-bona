@@ -217,6 +217,13 @@ export class AnnotationStore {
     });
   }
 
+  /** Attach a (typically orphaned) annotation to a newly selected passage:
+   *  replaces the whole anchor and clears the orphaned status. The thread
+   *  (body + replies) is untouched. */
+  async reanchor(id: string, anchor: Annotation["anchor"]): Promise<Annotation> {
+    return this.update(id, { anchor, status: "open" });
+  }
+
   async deleteReply(id: string, replyId: string): Promise<Annotation> {
     const current = this.require(id);
     return this.update(id, {

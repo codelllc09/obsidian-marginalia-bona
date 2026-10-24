@@ -622,8 +622,15 @@ export class MarginaliaSidebarView extends ItemView {
       });
     }
     // Resolved state is conveyed by the resolve/reopen button itself plus
-    // the dimmed card style; orphaned has no button, so label it inline.
-    if (annotation.status === "orphaned") {
+    // the dimmed card style; orphaned and re-anchoring states have no
+    // dedicated control, so they are labelled inline.
+    const reanchoring = this.plugin.pendingReanchorId() === annotation.id;
+    if (reanchoring) {
+      header.createSpan({
+        cls: "marginalia-card-status",
+        text: "re-anchoring..."
+      });
+    } else if (annotation.status === "orphaned") {
       header.createSpan({
         cls: "marginalia-card-status",
         text: "orphaned"
@@ -774,6 +781,28 @@ export class MarginaliaSidebarView extends ItemView {
       this.renderBody();
     });
     footer.createDiv({ cls: "marginalia-card-footer-spacer" });
+    if (annotation.status === "orphaned") {
+      // Nothing to jump to: the passage is gone. Re-anchor replaces Jump
+      // while orphaned - it is the whole reason the card is stuck.
+      const pending = this.plugin.pendingReanchorId() === annotation.id;
+      const reanchorButton = footer.createEl("button", {
+        cls: "marginalia-footer-action" + (pending ? " marginalia-footer-action-active" : ""),
+        attr: {
+          type: "button",
+          "aria-label": pending ? "Cancel re-anchoring" : "Re-anchor to a new passage"
+        }
+      });
+      setIcon(reanchorButton, "anchor");
+      reanchorButton.createSpan({ text: pending ? "Cancel" : "Re-anchor" });
+      reanchorButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (pending) {
+          this.plugin.cancelReanchor();
+        } else {
+          this.plugin.startReanchor(annotation.id);
+        }
+      });
+    }
     const editButton = footer.createEl("button", {
       cls: "marginalia-footer-action",
       attr: { type: "button", "aria-label": "Edit annotation" }
@@ -784,22 +813,21 @@ export class MarginaliaSidebarView extends ItemView {
       event.stopPropagation();
       this.beginEdit(annotation);
     });
-    const jumpButton = footer.createEl("button", {
-      cls: "marginalia-footer-action",
-      attr: { type: "button", "aria-label": "Jump to annotated text" }
-    });
-    setIcon(jumpButton, "external-link");
-    jumpButton.createSpan({ text: "Jump" });
-    jumpButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      void this.plugin.navigateToAnnotation(annotation);
-    });
+    if (annotation.status !== "orphaned") {
+      const jumpButton = footer.createEl("button", {
+        cls: "marginalia-footer-action",
+        attr: { type: "button", "aria-label": "Jump to annotated text" }
+      });
+      setIcon(jumpButton, "external-link");
+      jumpButton.createSpan({ text: "Jump" });
+      jumpButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void this.plugin.navigateToAnnotation(annotation);
+      });
+    }
   }
 
 
-  /** Wrap pasted images: expanded by default (fit to card width), the
-   *  toggle collapses them to thumbnails, clicking a thumbnail opens the
-   *  full-size lightbox. State is per annotation, session-scoped. */
   /** Chip that collapses/expands a card's images: text beats icons at
    *  this size - every icon variant (chevrons, triangles) was ambiguous. */
   private renderImageChip(

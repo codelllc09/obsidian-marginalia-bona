@@ -966,3 +966,9 @@
 .marginalia-dropdown-icon svg {
   stroke-width: 2.5;
 }
+
+/* Re-anchor pending state on orphaned cards. */
+.marginalia-footer-action-active {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+}
