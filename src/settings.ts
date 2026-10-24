@@ -23,6 +23,9 @@ export interface MarginaliaSettings {
   hoverPreview: HoverPreviewMode;
   /** Author name recorded on annotations and replies created in this vault. */
   userName: string;
+  /** Visible folder for images pasted into annotations. Must NOT be a dot
+   *  folder: Obsidian does not index hidden folders, so embeds would break. */
+  attachmentsFolder: string;
   forceLongWordBreaks: boolean;
 }
 
@@ -39,6 +42,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   submitShortcut: "enter",
   hoverPreview: "hover",
   userName: "user",
+  attachmentsFolder: "Marginalia attachments",
   forceLongWordBreaks: true
 };
 
@@ -177,6 +181,21 @@ export class MarginaliaSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.userName)
           .onChange((value) =>
             this.plugin.updateSettings({ userName: value.trim() || "user" })
+          )
+      );
+
+    new Setting(containerEl)
+      .setName("Attachments folder")
+      .setDesc(
+        "Vault folder for images pasted into annotations. Must be a normal (non-hidden) folder, or embeds will not render."
+      )
+      .addText((text) =>
+        text
+          .setValue(this.plugin.settings.attachmentsFolder)
+          .onChange((value) =>
+            this.plugin.updateSettings({
+              attachmentsFolder: value.trim() || "Marginalia attachments"
+            })
           )
       );
 

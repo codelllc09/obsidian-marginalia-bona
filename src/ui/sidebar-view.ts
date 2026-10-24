@@ -222,6 +222,9 @@ export class MarginaliaSidebarView extends ItemView {
     textarea.addEventListener("input", () => {
       if (this.draft) this.draft.body = textarea.value;
     });
+    textarea.addEventListener("paste", (event) =>
+      this.handleImagePaste(event, textarea)
+    );
     textarea.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -304,6 +307,40 @@ export class MarginaliaSidebarView extends ItemView {
         this.focusDraft(0);
       });
     }
+  }
+
+  /** Paste images into a draft/reply textarea: saved to the attachments
+   *  folder and inserted as wikilink embeds at the caret. */
+  private handleImagePaste(
+    event: ClipboardEvent,
+    textarea: HTMLTextAreaElement
+  ): void {
+    const images = Array.from(event.clipboardData?.files ?? []).filter((file) =>
+      file.type.startsWith("image/")
+    );
+    if (images.length === 0) return;
+    event.preventDefault();
+    const insertAt = textarea.selectionStart ?? textarea.value.length;
+    void (async () => {
+      let links = "";
+      for (const image of images) {
+        try {
+          links += `![[${await this.plugin.saveImageAttachment(image)}]]\n`;
+        } catch {
+          new Notice("Could not save the pasted image.");
+        }
+      }
+      if (!links) return;
+      const value = textarea.value;
+      textarea.value =
+        value.slice(0, insertAt) + links + value.slice(insertAt);
+      // Programmatic edits don't fire input; our draft/save-state listeners
+      // need the synthetic event to stay in sync.
+      textarea.dispatchEvent(new Event("input"));
+      const caret = insertAt + links.length;
+      textarea.setSelectionRange(caret, caret);
+      textarea.focus();
+    })();
   }
 
   private async saveDraft(): Promise<void> {
@@ -844,6 +881,9 @@ export class MarginaliaSidebarView extends ItemView {
     textarea.addEventListener("input", () => {
       send.disabled = !textarea.value.trim();
     });
+    textarea.addEventListener("paste", (event) =>
+      this.handleImagePaste(event, textarea)
+    );
     send.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.sendReply(annotation.id, textarea.value);

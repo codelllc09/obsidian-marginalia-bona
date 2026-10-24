@@ -9,6 +9,7 @@ import {
   WorkspaceLeaf,
   normalizePath
 } from "obsidian";
+import { attachmentPath } from "./attachments";
 import {
   Annotation,
   MarkdownAnchor
@@ -434,6 +435,23 @@ export default class MarginaliaPlugin extends Plugin {
   }
 
   /** Open an exported digest in its own tab; reuse a tab already showing it. */
+  /** Save a pasted image into the attachments folder; returns the vault
+   *  path for embedding as ![[path]]. */
+  async saveImageAttachment(image: File): Promise<string> {
+    const folder = normalizePath(this.settings.attachmentsFolder);
+    if (!this.app.vault.getAbstractFileByPath(folder)) {
+      await this.app.vault.createFolder(folder).catch(() => undefined);
+    }
+    const ext = image.name.includes(".")
+      ? image.name.split(".").pop() ?? "png"
+      : "png";
+    const path = attachmentPath(folder, ext, new Date(), (candidate) =>
+      Boolean(this.app.vault.getAbstractFileByPath(candidate))
+    );
+    await this.app.vault.createBinary(path, await image.arrayBuffer());
+    return path;
+  }
+
   private async openExport(path: string): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
