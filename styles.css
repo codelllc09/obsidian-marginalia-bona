@@ -154,24 +154,31 @@
 }
 
 /* Word/WPS-style thread: replies are indented under the root note with a
-   hairline separator; the timestamp sits as a tiny hint in the top-right. */
+   hairline separator; time + actions sit on their own right-aligned line
+   (normal flow — an overlay strip here used to mask the reply text). */
 .marginalia-reply {
   border-top: 1px solid var(--background-modifier-border);
   margin-left: var(--size-4-2);
   margin-top: var(--size-4-2);
   padding: var(--size-4-1) 0 0 var(--size-4-2);
-  position: relative;
 }
 
 .marginalia-reply-meta {
   align-items: center;
-  background: var(--background-secondary);
   display: flex;
   gap: var(--size-4-1);
-  height: 14px;
-  position: absolute;
-  right: 0;
-  top: 0;
+  justify-content: flex-end;
+  min-height: 18px;
+}
+
+.marginalia-reply-meta .clickable-icon {
+  height: 18px;
+  width: 18px;
+}
+
+.marginalia-reply-meta .clickable-icon svg {
+  height: 12px;
+  width: 12px;
 }
 
 .marginalia-reply-time {
@@ -222,8 +229,7 @@
 }
 
 .marginalia-card-header .marginalia-card-collapse svg,
-.marginalia-card-actions .clickable-icon svg,
-.marginalia-card-footer .clickable-icon svg {
+.marginalia-card-actions .clickable-icon svg {
   height: 14px;
   width: 14px;
 }
@@ -288,9 +294,21 @@
   flex: 1;
 }
 
-.marginalia-card-footer .clickable-icon {
-  height: 22px;
-  width: 22px;
+/* Icon+label footer actions: small, but clearly clickable (plain tiny
+   icons read as decoration). */
+.marginalia-footer-action {
+  align-items: center;
+  box-shadow: none;
+  display: inline-flex;
+  flex-direction: row;
+  font-size: var(--font-ui-smaller);
+  gap: var(--size-4-1);
+  padding: 2px 8px;
+}
+
+.marginalia-footer-action svg {
+  height: 12px;
+  width: 12px;
 }
 
 .marginalia-reply-button {

@@ -635,19 +635,21 @@ export class MarginaliaSidebarView extends ItemView {
     });
     footer.createDiv({ cls: "marginalia-card-footer-spacer" });
     const editButton = footer.createEl("button", {
-      cls: "clickable-icon marginalia-card-edit",
-      attr: { "aria-label": "Edit annotation" }
+      cls: "marginalia-footer-action",
+      attr: { type: "button", "aria-label": "Edit annotation" }
     });
     setIcon(editButton, "pencil");
+    editButton.createSpan({ text: "Edit" });
     editButton.addEventListener("click", (event) => {
       event.stopPropagation();
       this.beginEdit(annotation);
     });
     const jumpButton = footer.createEl("button", {
-      cls: "clickable-icon marginalia-card-jump",
-      attr: { "aria-label": "Jump to annotated text" }
+      cls: "marginalia-footer-action",
+      attr: { type: "button", "aria-label": "Jump to annotated text" }
     });
     setIcon(jumpButton, "external-link");
+    jumpButton.createSpan({ text: "Jump" });
     jumpButton.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.plugin.navigateToAnnotation(annotation);
