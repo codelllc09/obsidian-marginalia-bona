@@ -15,6 +15,7 @@ import {
 } from "./domain/annotation";
 import { createMarkdownExtension } from "./editor/markdown-extension";
 import { getExportFormat } from "./export";
+import { registerHoverPreview } from "./hover/hover-preview";
 import { PdfAdapter } from "./pdf/pdf-adapter";
 import {
   processReadingView,
@@ -71,6 +72,7 @@ export default class MarginaliaPlugin extends Plugin {
       (leaf) => new MarginaliaSidebarView(leaf, this)
     );
     this.registerEditorExtension(createMarkdownExtension(this));
+    registerHoverPreview(this);
     this.registerMarkdownPostProcessor((element, context) =>
       processReadingView(element, context, this)
     );
