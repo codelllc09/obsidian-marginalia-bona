@@ -2,36 +2,26 @@
 
 English | [简体中文](README.zh-CN.md)
 
-Marginalia Bona is a fork of [Siden](https://github.com/giuseqpe/siden) by
-Giuseppe (MIT), with per-annotation styling, reply threads, and an
-agent-friendly index. All credit for the original design and implementation
-belongs to the upstream author.
+Marginalia Bona is a fork of [Siden](https://github.com/giuseqpe/siden) with
+per-annotation styling, reply threads, and an agent-friendly index.
 
-Marginalia Bona adds annotations to Markdown notes and PDFs in Obsidian.
+Marginalia Bona adds annotations to Markdown notes in Obsidian.
 
 Select a passage, write a Markdown comment in the sidebar, and return to it
 later. Markdown annotations can also appear beside the text as margin cards.
-Annotations are plain Markdown files inside your vault, so other tools —
-including AI agents — can read and write them directly.
+Annotations are plain Markdown files inside your vault, and other tools —
+AI agents included — can read and write them directly.
 
 ## Features
 
-Inherited from Siden:
-
-- Annotate selected Markdown and PDF text
+- Annotate selected Markdown text
 - Review, search, edit, resolve, reopen, and delete annotations in one sidebar
 - Highlight annotated passages
 - Show responsive margin cards in Live Preview and Reading View
 - Navigate between sidebar comments and their source passages
-- Keep source notes and PDFs unchanged
+- Keep source notes unchanged
 - Store annotations as human-readable Markdown
-- Recover Markdown anchors after edits when they can be identified safely
-
-PDF annotations use sidebar comments and highlights only. Margin cards are
-available for Markdown notes.
-
-Added by the fork:
-
+- Recover anchors after edits when they can be identified safely
 - Per-annotation color and mark style (highlight, underline, wavy,
   strikethrough, bold)
 - Reply threads inside one annotation file
@@ -75,15 +65,8 @@ The data directory `.marginalia-bona/` is separate from upstream Siden's
 4. To reply to an annotation, open it in the sidebar and write below the
    thread.
 
-When a drifted thread is re-anchored from the sidebar, select its new
-location, right-click and choose **Re-anchor annotation here**.
-
-### Annotate a PDF
-
-1. Select text in Obsidian's PDF viewer.
-2. Right-click and choose **Add annotation**, or run
-   **Marginalia Bona: Add annotation to PDF selection**.
-3. Write and save the comment in the sidebar.
+When a thread needs re-anchoring, start the flow from the sidebar, select its
+new location, right-click and choose **Re-anchor annotation here**.
 
 ### Add a document comment
 
@@ -104,8 +87,7 @@ update.
 
 Deleting an annotation moves it to the recycle bin instead of erasing it.
 The bin has no sidebar view yet; agents list and restore deleted threads
-through the MCP tools or REST endpoints. Entries are purged after 30
-days.
+through the MCP tools or REST endpoints. Entries are purged after 30 days.
 
 ### Export
 
@@ -229,7 +211,7 @@ reading every file. Run **Marginalia Bona: Rebuild annotation index** to
 regenerate it.
 
 Deleting an annotation moves it to `.marginalia-bona/trash/` for 30 days.
-Source Markdown and PDF files are never modified.
+Source notes are never modified.
 
 ## Privacy and permissions
 
@@ -237,18 +219,12 @@ Source Markdown and PDF files are never modified.
 - Annotation data stays inside the vault in `.marginalia-bona/`.
 - The agent bridge talks to the Local REST API plugin on your machine only;
   it adds no listeners of its own.
-- PDF selection and highlight positioning integrate with Obsidian's internal
-  PDF viewer DOM because the public plugin API does not expose those
-  features. An Obsidian update can therefore require a compatibility update.
 
 ## Limitations
 
-- PDF annotations are sidebar comments and highlights only; no margin cards.
 - The recycle bin has no sidebar view yet; agents reach it over MCP or REST.
 - A quote that appears more than once in a note is never anchored on a guess:
   the caller must say which occurrence it means.
-- PDF selection and highlight positioning depend on Obsidian's internal PDF
-  viewer DOM and may need a compatibility update after Obsidian upgrades.
 
 ## Development
 
@@ -266,22 +242,8 @@ storage or anchoring are expected to come with tests; the suite covers the
 query engine, thread format round-trips, trash consistency, and the API
 protocol.
 
-## Releasing
-
-1. Run `npm version patch`, `npm version minor`, or `npm version major`.
-2. Push the commit and its numeric tag, for example `0.2.0` (without a `v`
-   prefix).
-3. GitHub Actions validates the tag, lints, tests, and builds the plugin,
-   then creates a draft release containing `main.js`, `manifest.json`, and
-   `styles.css`.
-4. Review and publish the draft release.
-
-The version in `package.json`, `manifest.json`, the Git tag, and the GitHub
-release must match exactly.
-
 ## Credits and license
 
-- [Siden](https://github.com/giuseqpe/siden) by Giuseppe — the original
-  plugin, MIT. Marginalia Bona keeps the upstream attribution.
-- Ideas were also drawn from other annotation plugins; no GPL code was used.
+- [Siden](https://github.com/giuseqpe/siden) by Giuseppe, MIT. Marginalia
+  Bona keeps the upstream attribution.
 - Marginalia Bona is released under the MIT license.
