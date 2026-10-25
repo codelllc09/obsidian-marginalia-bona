@@ -15,6 +15,7 @@ const ERROR_CODES = {
   unknownAnnotation: 40401,
   notANote: 40402,
   unknownPassage: 40403,
+  unknownReply: 40404,
   ambiguousQuote: 40902,
   expectedMismatch: 40903
 } as const;
@@ -292,5 +293,108 @@ export class AnnotationsApi {
       await this.plugin.store.delete(id);
     }
     return { status: 200, body: { deleted: true } };
+  }
+
+  /** Attach an existing annotation to a new passage: the agent-side fix
+   *  for drift and orphans. Same quote rules as create. */
+  async reanchor(
+    notePath: string,
+    id: string,
+    bodyRaw: VaultRouteContext["body"]
+  ): Promise<RouteResult> {
+    const file = this.noteFile(notePath);
+    if (!file) {
+      return err(404, ERROR_CODES.notANote, `No Markdown note at ${notePath}`);
+    }
+    const annotation = this.plugin.store.get(id);
+    if (!annotation || annotation.sourcePath !== notePath) {
+      return err(404, ERROR_CODES.unknownAnnotation, `No annotation ${id}`);
+    }
+    const body = asRecord(bodyRaw);
+    const quote = stringField(body, "quote");
+    if (!quote.trim()) {
+      return err(400, ERROR_CODES.invalidBody, "quote is required");
+    }
+    if (typeof body.expected_quote === "string") {
+      const current =
+        annotation.anchor.kind === "document"
+          ? undefined
+          : annotation.anchor.quote.exact;
+      if (current !== body.expected_quote) {
+        return err(
+          409,
+          ERROR_CODES.expectedMismatch,
+          "anchor moved since you read it (expected_quote mismatch)"
+        );
+      }
+    }
+    const occurrence =
+      typeof body.occurrence === "number" ? Math.floor(body.occurrence) : undefined;
+    const noteText = await this.plugin.app.vault.cachedRead(file);
+    const found = findPassage(noteText, quote, occurrence);
+    if (found.kind === "missing") {
+      return err(404, ERROR_CODES.unknownPassage, "quote not found in the note");
+    }
+    if (found.kind === "ambiguous") {
+      return err(
+        409,
+        ERROR_CODES.ambiguousQuote,
+        `quote matches ${found.matches} passages; pass occurrence (1..${found.matches}) to disambiguate`
+      );
+    }
+    const anchor = buildAnchor(noteText, quote, found.startOffset);
+    const updated = await this.plugin.store.reanchor(id, anchor);
+    return { status: 200, body: this.threadPayload(updated) };
+  }
+
+  async updateReply(
+    notePath: string,
+    id: string,
+    replyId: string,
+    bodyRaw: VaultRouteContext["body"]
+  ): Promise<RouteResult> {
+    const annotation = this.plugin.store.get(id);
+    if (!annotation || annotation.sourcePath !== notePath) {
+      return err(404, ERROR_CODES.unknownAnnotation, `No annotation ${id}`);
+    }
+    if (!annotation.replies.some((reply) => reply.id === replyId)) {
+      return err(404, ERROR_CODES.unknownReply, `No reply ${replyId} on ${id}`);
+    }
+    const body = asRecord(bodyRaw);
+    const text = stringField(body, "text");
+    if (!text.trim()) {
+      return err(400, ERROR_CODES.invalidBody, "text is required");
+    }
+    const author =
+      typeof body.author === "string" && body.author.trim()
+        ? body.author
+        : undefined;
+    const replies = annotation.replies.map((reply) =>
+      reply.id === replyId
+        ? {
+            ...reply,
+            body: text,
+            ...(author !== undefined ? { author } : {})
+          }
+        : reply
+    );
+    const updated = await this.plugin.store.update(id, { replies });
+    return { status: 200, body: this.threadPayload(updated) };
+  }
+
+  async removeReply(
+    notePath: string,
+    id: string,
+    replyId: string
+  ): Promise<RouteResult> {
+    const annotation = this.plugin.store.get(id);
+    if (!annotation || annotation.sourcePath !== notePath) {
+      return err(404, ERROR_CODES.unknownAnnotation, `No annotation ${id}`);
+    }
+    if (!annotation.replies.some((reply) => reply.id === replyId)) {
+      return err(404, ERROR_CODES.unknownReply, `No reply ${replyId} on ${id}`);
+    }
+    const updated = await this.plugin.store.deleteReply(id, replyId);
+    return { status: 200, body: this.threadPayload(updated) };
   }
 }

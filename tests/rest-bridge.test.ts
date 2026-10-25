@@ -186,9 +186,12 @@ describe("annotations MCP tools", () => {
         "marginalia_add_reply",
         "marginalia_create_annotation",
         "marginalia_delete_annotation",
+        "marginalia_delete_reply",
         "marginalia_get_annotation",
         "marginalia_list_annotations",
-        "marginalia_update_annotation"
+        "marginalia_reanchor",
+        "marginalia_update_annotation",
+        "marginalia_update_reply"
       ]
     );
 
@@ -334,7 +337,7 @@ describe("agent channel toggles", () => {
     });
     bridge.connect();
     expect(spy.subresourceNames).toEqual(["annotations"]);
-    expect(spy.routes).toHaveLength(6);
+    expect(spy.routes).toHaveLength(9);
     expect(spy.mcpTools).toEqual([]);
     bridge.disconnect();
   });
@@ -347,7 +350,7 @@ describe("agent channel toggles", () => {
     bridge.connect();
     expect(spy.subresourceNames).toEqual([]);
     expect(spy.routes).toEqual([]);
-    expect(spy.mcpTools).toHaveLength(6);
+    expect(spy.mcpTools).toHaveLength(9);
     bridge.disconnect();
     expect(spy.unregisterCount).toBe(1);
   });
@@ -358,8 +361,8 @@ describe("agent channel toggles", () => {
       agentRestEnabled: true
     });
     bridge.connect();
-    expect(spy.routes).toHaveLength(6);
-    expect(spy.mcpTools).toHaveLength(6);
+    expect(spy.routes).toHaveLength(9);
+    expect(spy.mcpTools).toHaveLength(9);
     bridge.disconnect();
   });
 });
@@ -447,5 +450,132 @@ describe("per-annotation styling and author filters", () => {
     ) as { color: string; markStyle: string };
     expect(created.color).toBe("#00bcd4");
     expect(created.markStyle).toBe("bold");
+  });
+});
+
+describe("reply editing and reanchoring", () => {
+  it("reanchors an annotation to a new passage and clears drift", async () => {
+    const { api } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "Will move.",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    const result = await api.reanchor(NOTE, created.body.id, {
+      quote: "Second line"
+    });
+    expect(result.status).toBe(200);
+    const body = result.body as {
+      status: string;
+      drifted: boolean;
+      anchor: { line: number; quote: { exact: string } };
+    };
+    expect(body.anchor.quote.exact).toBe("Second line");
+    expect(body.anchor.line).toBe(2);
+    expect(body.drifted).toBe(false);
+    expect(body.status).toBe("open");
+  });
+
+  it("applies the same quote rules as create to reanchor", async () => {
+    const { api } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "x",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    expect((await api.reanchor(NOTE, created.body.id, { quote: "nope" })).status).toBe(404);
+    const ambiguous = await api.reanchor(NOTE, created.body.id, {
+      quote: "quick brown fox"
+    });
+    expect(ambiguous.status).toBe(409);
+    const disambiguated = await api.reanchor(NOTE, created.body.id, {
+      quote: "quick brown fox",
+      occurrence: 2
+    });
+    expect(disambiguated.status).toBe(200);
+  });
+
+  it("guards reanchor with expected_quote", async () => {
+    const { api } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "x",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string; anchor: { quote: { exact: string } } } };
+    const mismatch = await api.reanchor(NOTE, created.body.id, {
+      quote: "Second line",
+      expected_quote: "something else"
+    });
+    expect(mismatch.status).toBe(409);
+    const ok = await api.reanchor(NOTE, created.body.id, {
+      quote: "Second line",
+      expected_quote: created.body.anchor.quote.exact
+    });
+    expect(ok.status).toBe(200);
+  });
+
+  it("edits and deletes replies with 404 for unknown reply ids", async () => {
+    const { api } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "Root.",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    const replied = (await api.addReply(NOTE, created.body.id, {
+      text: "First.",
+      author: "Pi"
+    })) as { status: number; body: { replies: Array<{ id: string }> } };
+    const replyId = replied.body.replies[0].id;
+
+    const edited = await api.updateReply(NOTE, created.body.id, replyId, {
+      text: "Edited.",
+      author: "Codex"
+    });
+    let body = edited.body as { replies: Array<{ body: string; author: string }> };
+    expect(body.replies[0].body).toBe("Edited.");
+    expect(body.replies[0].author).toBe("Codex");
+    expect(
+      (await api.updateReply(NOTE, created.body.id, "nope", { text: "x" })).status
+    ).toBe(404);
+
+    const removed = await api.removeReply(NOTE, created.body.id, replyId);
+    const remaining = removed.body as { replies: unknown[] };
+    expect(remaining.replies).toHaveLength(0);
+    expect((await api.removeReply(NOTE, created.body.id, replyId)).status).toBe(404);
+  });
+
+  it("exposes reanchor and reply editing through MCP tools", async () => {
+    const { api } = makeApi();
+    const { host, tools } = makeHost();
+    registerMcpTools(host as never, api);
+    const created = JSON.parse(
+      (await tools.get("marginalia_create_annotation")!.callback({
+        source: NOTE,
+        text: "Root.",
+        quote: "lazy dog"
+      })) as string
+    ) as { id: string };
+    const reply = JSON.parse(
+      (await tools.get("marginalia_add_reply")!.callback({
+        source: NOTE, id: created.id, text: "First.", author: "Pi"
+      })) as string
+    ) as { replies: Array<{ id: string }> };
+
+    const reanchored = JSON.parse(
+      (await tools.get("marginalia_reanchor")!.callback({
+        source: NOTE, id: created.id, quote: "Second line"
+      })) as string
+    ) as { anchor: { quote: { exact: string } } };
+    expect(reanchored.anchor.quote.exact).toBe("Second line");
+
+    const edited = JSON.parse(
+      (await tools.get("marginalia_update_reply")!.callback({
+        source: NOTE, id: created.id, replyId: reply.replies[0].id, text: "Edited."
+      })) as string
+    ) as { replies: Array<{ body: string }> };
+    expect(edited.replies[0].body).toBe("Edited.");
+
+    const afterDelete = JSON.parse(
+      (await tools.get("marginalia_delete_reply")!.callback({
+        source: NOTE, id: created.id, replyId: reply.replies[0].id
+      })) as string
+    ) as { replies: unknown[] };
+    expect(afterDelete.replies).toHaveLength(0);
   });
 });

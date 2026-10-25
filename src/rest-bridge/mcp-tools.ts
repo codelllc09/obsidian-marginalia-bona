@@ -167,6 +167,87 @@ export function registerMcpTools(
   );
 
   add(
+    "marginalia_reanchor",
+    "Re-anchor an annotation to a new passage - the agent-side fix for " +
+      "drifted or orphaned annotations after the note was edited. Same quote " +
+      "rules as create: exact match, occurrence disambiguates. Clears the " +
+      "orphaned status and the drift flag.",
+    {
+      ...SOURCE_SHAPE,
+      id: z.string().describe("Annotation id"),
+      quote: z
+        .string()
+        .describe("New exact passage to attach the annotation to"),
+      occurrence: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("1-based index of the match when the quote is ambiguous"),
+      expected_quote: z
+        .string()
+        .optional()
+        .describe(
+          "Currently anchored quote you last read; reanchor fails if it changed since"
+        )
+    },
+    async (args) =>
+      render(
+        await api.reanchor(String(args.source), String(args.id), {
+          quote: String(args.quote),
+          occurrence:
+            typeof args.occurrence === "number" ? args.occurrence : undefined,
+          expected_quote:
+            typeof args.expected_quote === "string"
+              ? args.expected_quote
+              : undefined
+        })
+      )
+  );
+
+  add(
+    "marginalia_update_reply",
+    "Edit one reply's text (and optionally its author) inside an annotation thread.",
+    {
+      ...SOURCE_SHAPE,
+      id: z.string().describe("Annotation id"),
+      replyId: z.string().describe("Reply id"),
+      text: z.string().describe("New reply text"),
+      author: z.string().optional().describe("New reply author")
+    },
+    async (args) =>
+      render(
+        await api.updateReply(
+          String(args.source),
+          String(args.id),
+          String(args.replyId),
+          {
+            text: String(args.text),
+            author: typeof args.author === "string" ? args.author : undefined
+          }
+        )
+      )
+  );
+
+  add(
+    "marginalia_delete_reply",
+    "Delete one reply from an annotation thread.",
+    {
+      ...SOURCE_SHAPE,
+      id: z.string().describe("Annotation id"),
+      replyId: z.string().describe("Reply id")
+    },
+    async (args) =>
+      render(
+        await api.removeReply(
+          String(args.source),
+          String(args.id),
+          String(args.replyId)
+        )
+      )
+  );
+
+  add(
     "marginalia_delete_annotation",
     "Delete an annotation thread permanently.",
     { ...SOURCE_SHAPE, id: z.string().describe("Annotation id") },

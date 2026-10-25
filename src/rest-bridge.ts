@@ -67,6 +67,20 @@ export class RestBridge {
       router.post("/:id/replies", route((req) =>
         api.addReply(req.vaultFile.path, req.params.id, req.body)
       ));
+      router.patch("/:id/replies/:replyId", route((req) =>
+        api.updateReply(
+          req.vaultFile.path,
+          req.params.id,
+          req.params.replyId,
+          req.body
+        )
+      ));
+      router.delete("/:id/replies/:replyId", route((req) =>
+        api.removeReply(req.vaultFile.path, req.params.id, req.params.replyId)
+      ));
+      router.post("/:id/reanchor", route((req) =>
+        api.reanchor(req.vaultFile.path, req.params.id, req.body)
+      ));
     }
     // Best-effort: hosts without an MCP server simply skip this, and a
     // failed registration never takes the REST sub-resource down.
