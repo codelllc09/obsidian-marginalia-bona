@@ -197,7 +197,7 @@ export class AnnotationStore {
     changes: Partial<
       Pick<
         Annotation,
-        "body" | "anchor" | "status" | "color" | "markStyle" | "replies" | "author"
+        "body" | "anchor" | "status" | "color" | "markStyle" | "replies" | "author" | "readAt"
       >
     >
   ): Promise<Annotation> {

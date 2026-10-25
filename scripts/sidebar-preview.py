@@ -31,7 +31,7 @@ def toolbar():
             "  </div>")
 
 
-def card(drift, collapsed, resolved, orphan, replies):
+def card(drift, collapsed, resolved, orphan, replies, unread=False):
     status = "orphaned" if orphan else ("resolved" if resolved else "open")
     status_span = '<span class="marginalia-card-status">orphaned</span>' if orphan else ''
     drift_html = ''
@@ -61,14 +61,16 @@ def card(drift, collapsed, resolved, orphan, replies):
               '<button class="marginalia-footer-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/><path d="m21 17-3-3 3-3"/></svg><span>Reply</span></button>'
               '<div class="marginalia-card-footer-spacer"></div>'
               '<button class="marginalia-footer-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg><span>Edit</span></button>'
-              '<button class="marginalia-footer-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg><span>Jump</span></button>'
-              '</div>')
+              + ('<button class="marginalia-footer-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>Read</span></button>' if unread else '')
+              + '<button class="marginalia-footer-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg><span>Jump</span></button>'
+              + '</div>')
     is_active = ' is-active' if (resolved and drift) else ''
     card_html = ('\n    <div class="marginalia-card marginalia-status-' + status + is_active + '">\n'
                  '      <div class="marginalia-card-header">\n'
                  '        <button class="clickable-icon marginalia-card-collapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>\n'
                  '        <span class="marginalia-card-source">2026-10-24.md</span>\n'
-                 '        <span class="marginalia-card-replies-badge">' + str(replies) + '</span>\n'
+                 + ('        <span class="marginalia-card-unread" title="Unread annotation"></span>\n' if unread else '')
+                 + '        <span class="marginalia-card-replies-badge">' + str(replies) + '</span>\n'
                  '        ' + status_span + '\n'
                  '        <div class="marginalia-card-actions">\n'
                  '          <button class="clickable-icon marginalia-card-resolve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></button>\n'
@@ -112,7 +114,7 @@ def page(dark):
             + '<div class="marginalia-sidebar">' + toolbar()
             + '\n<div class="marginalia-body"><div class="marginalia-list">\n'
             + card(True, False, False, False, 2)
-            + card(False, True, False, False, 0)
+            + card(False, True, False, False, 0, unread=True)
             + card(False, False, True, False, 1)
             + card(False, False, False, True, 0)
             + '\n</div></div></div>\n</body></html>')

@@ -22,8 +22,9 @@ export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
 
 type Scope = "current" | "vault";
 /** "drifted" is a pseudo-filter: it selects annotations whose anchored
- *  passage changed after creation (anchorDrift), regardless of status. */
-type StatusFilter = "open" | "resolved" | "orphaned" | "drifted" | "all";
+ *  passage changed after creation (anchorDrift), regardless of status.
+ *  "unread" selects annotations without a read timestamp. */
+type StatusFilter = "open" | "resolved" | "orphaned" | "drifted" | "unread" | "all";
 
 interface DraftState {
   body: string;
@@ -479,6 +480,7 @@ export class MarginaliaSidebarView extends ItemView {
       "Status",
       [
         { value: "open", label: "Open" },
+        { value: "unread", label: "Unread" },
         { value: "drifted", label: "Drifted" },
         { value: "resolved", label: "Resolved" },
         { value: "orphaned", label: "Orphaned" },
@@ -558,6 +560,8 @@ export class MarginaliaSidebarView extends ItemView {
     if (this.status === "drifted") {
       // Review view: passages whose text changed after annotating.
       annotations = annotations.filter((item) => anchorDrift(item) !== null);
+    } else if (this.status === "unread") {
+      annotations = annotations.filter((item) => item.readAt === undefined);
     } else if (this.status !== "all") {
       annotations = annotations.filter((item) => item.status === this.status);
     }
@@ -621,6 +625,13 @@ export class MarginaliaSidebarView extends ItemView {
       cls: "marginalia-card-source",
       text: annotation.sourcePath.split("/").pop() ?? annotation.sourcePath
     });
+    // Unread dot: readAt is only ever written by an explicit mark-read.
+    if (annotation.readAt === undefined) {
+      header.createSpan({
+        cls: "marginalia-card-unread",
+        attr: { "aria-label": "Unread annotation" }
+      });
+    }
     if (annotation.replies.length > 0) {
       header.createSpan({
         cls: "marginalia-card-replies-badge",
@@ -818,6 +829,21 @@ export class MarginaliaSidebarView extends ItemView {
     editButton.addEventListener("click", (event) => {
       event.stopPropagation();
       this.beginEdit(annotation);
+    });
+    const readButton = footer.createEl("button", {
+      cls: "marginalia-footer-action",
+      attr: {
+        type: "button",
+        "aria-label": annotation.readAt ? "Mark unread" : "Mark read"
+      }
+    });
+    setIcon(readButton, annotation.readAt ? "eye-off" : "eye");
+    readButton.createSpan({ text: annotation.readAt ? "Unread" : "Read" });
+    readButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.plugin.store.update(annotation.id, {
+        readAt: annotation.readAt ? undefined : new Date().toISOString()
+      });
     });
     if (annotation.status !== "orphaned") {
       const jumpButton = footer.createEl("button", {

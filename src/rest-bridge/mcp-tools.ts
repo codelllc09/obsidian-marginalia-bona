@@ -49,6 +49,7 @@ export function registerMcpTools(
     const q: Record<string, string> = {};
     if (typeof args.status === "string") q.status = args.status;
     if (typeof args.author === "string") q.author = args.author;
+    if (typeof args.read === "boolean") q.read = String(args.read);
     return q;
   };
 
@@ -64,7 +65,11 @@ export function registerMcpTools(
       author: z
         .string()
         .optional()
-        .describe("Filter by author, e.g. Pi or user")
+        .describe("Filter by author, e.g. Pi or user"),
+      read: z
+        .boolean()
+        .optional()
+        .describe("Filter: true = read only, false = unread only")
     },
     async (args) =>
       render(api.list(String(args.source), query(args)))
@@ -147,6 +152,10 @@ export function registerMcpTools(
         .enum(["open", "resolved"])
         .optional()
         .describe("Resolution state"),
+      read: z
+        .boolean()
+        .optional()
+        .describe("true marks read (records a timestamp); false marks unread"),
       color: COLOR_PARAM,
       style: STYLE_PARAM
     },
@@ -160,6 +169,7 @@ export function registerMcpTools(
       }
       if (args.status === "resolved") body.resolved = true;
       else if (args.status === "open") body.resolved = false;
+      if (typeof args.read === "boolean") body.read = args.read;
       if (typeof args.color === "string") body.color = args.color;
       if (typeof args.style === "string") body.style = args.style;
       return render(await api.patch(String(args.source), String(args.id), body));

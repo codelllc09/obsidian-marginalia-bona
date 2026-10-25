@@ -97,6 +97,9 @@ export interface Annotation {
   replies: AnnotationReply[];
   /** Who wrote the root comment (user name or agent name). */
   author?: string;
+  /** When the user marked the annotation read (absent = unread). Never
+   *  set automatically - only explicit user or agent action writes it. */
+  readAt?: string;
 }
 
 export type NewAnnotation = Omit<
