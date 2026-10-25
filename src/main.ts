@@ -254,6 +254,11 @@ export default class MarginaliaPlugin extends Plugin {
       }
     });
     this.addPluginCommand({
+      id: "toggle-margin-cards",
+      name: "Toggle margin cards",
+      callback: () => void this.toggleMarginCards()
+    });
+    this.addPluginCommand({
       id: "copy-diagnostics",
       name: "Copy diagnostics report",
       callback: () => void this.copyDiagnostics()
@@ -684,6 +689,15 @@ export default class MarginaliaPlugin extends Plugin {
       reading: describeReadingMargins(this),
       storeIssues
     };
+  }
+
+  /** Flip margin cards on/off. Highlights and the hover preview stay. */
+  async toggleMarginCards(): Promise<void> {
+    const showMargins = !this.settings.showMargins;
+    await this.updateSettings({ showMargins });
+    new Notice(
+      showMargins ? "Margin cards on" : "Margin cards off (hover still works)"
+    );
   }
 
   /** Entry point for the Settings tab button. */

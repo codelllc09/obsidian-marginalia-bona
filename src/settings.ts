@@ -76,8 +76,10 @@ export class MarginaliaSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Show Markdown margins")
-      .setDesc("Display annotation cards beside Markdown in live preview and reading view.")
+      .setName("Margin cards")
+      .setDesc(
+        "Show annotation cards in the empty space beside the text. Turn this off to keep only the highlights and the hover preview (or the sidebar). There is also a “Toggle margin cards” command for a hotkey."
+      )
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.showMargins)
