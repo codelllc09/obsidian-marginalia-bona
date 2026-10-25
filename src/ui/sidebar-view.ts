@@ -20,7 +20,23 @@ import { ConfirmModal } from "./confirm-modal";
 
 export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
 
+
 type Scope = "current" | "vault";
+
+/** Compact "when" for reply headers: time alone for today, date otherwise.
+ *  Falls back to the raw string when the timestamp is unparseable. */
+function formatReplyTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  return sameDay
+    ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 /** "drifted" is a pseudo-filter: it selects annotations whose anchored
  *  passage changed after creation (anchorDrift), regardless of status.
  *  "unread" selects annotations without a read timestamp. */
@@ -85,6 +101,10 @@ export class MarginaliaSidebarView extends ItemView {
   private query = "";
   private sortMode: SortMode = "source";
   private activeId: string | null = null;
+  private flashTimer: number | null = null;
+  /** A jump that has not landed yet: later re-renders must re-apply it,
+   *  otherwise an event-driven rebuild resets scroll and loses the pulse. */
+  private pendingJump: { id: string; until: number } | null = null;
   private draft:
     | ({ mode: "create"; input: NewAnnotation } & DraftState)
     | ({ mode: "edit"; annotation: Annotation } & DraftState)
@@ -103,6 +123,8 @@ export class MarginaliaSidebarView extends ItemView {
   /** Currently open Obsidian menu + the control that owns it, so a
    *  second click on the same control toggles it closed. */
   private openMenuInstance: Menu | null = null;
+  /** Closes the currently open filter popover, if any (one at a time). */
+  private openFilterClose: (() => void) | null = null;
   private openMenuOwner: HTMLElement | null = null;
   private lastMenuCloseAt = 0;
   private lastMenuOwner: HTMLElement | null = null;
@@ -146,11 +168,64 @@ export class MarginaliaSidebarView extends ItemView {
     this.containerEl
       .querySelectorAll(".marginalia-card.is-active")
       .forEach((element) => element.removeClass("is-active"));
-    if (id) {
-      const card = this.containerEl.querySelector(`[data-marginalia-id="${id}"]`);
-      card?.addClass("is-active");
-      card?.scrollIntoView({ block: "nearest" });
+    if (!id) return;
+    const annotation = this.plugin.store.get(id);
+    if (annotation) {
+      // A jump must land on readable content: expand the card, and widen
+      // filters that would hide the target entirely (a resolved annotation
+      // under the Open filter, a query that excludes it, another note).
+      this.collapseOverrides.set(id, false);
+      const hidden = !this.visibleAnnotations().some((item) => item.id === id);
+      if (hidden) {
+        this.status = "all";
+        this.query = "";
+        if (annotation.sourcePath !== this.app.workspace.getActiveFile()?.path) {
+          this.viewScope = "vault";
+        }
+        this.render();
+      }
     }
+    // Remember the jump for a moment: a rebuild triggered by any external
+    // event (file open, refresh) would otherwise wipe the scroll and pulse.
+    this.pendingJump = { id, until: Date.now() + 1500 };
+    this.applyJump(id, true);
+  }
+
+  /** Land a jump: mark, centre when off-screen, and pulse the card.
+   *  Re-applied after each rebuild while the jump window lasts; rebuilds
+   *  reset the scroll position, so they land instantly instead of
+   *  animating from wherever the rebuild left the list. */
+  private applyJump(id: string, smooth = false): void {
+    const card = this.containerEl.querySelector(
+      `[data-marginalia-id="${id}"]`
+    );
+    if (!(card instanceof HTMLElement)) return;
+    card.addClass("is-active");
+    // Only move the list when the card is not already fully visible, and
+    // then centre it: landing at the very top or bottom edge is what made
+    // jumps feel like nothing happened.
+    const scroller = this.listEl;
+    if (scroller) {
+      const cardRect = card.getBoundingClientRect();
+      const viewRect = scroller.getBoundingClientRect();
+      const fullyVisible =
+        cardRect.top >= viewRect.top && cardRect.bottom <= viewRect.bottom;
+      if (!fullyVisible) {
+        card.scrollIntoView({
+          block: "center",
+          behavior: smooth ? "smooth" : "auto"
+        });
+      }
+    }
+    // A short pulse tells the eye where the jump landed.
+    if (this.flashTimer !== null) window.clearTimeout(this.flashTimer);
+    card.removeClass("is-flashing");
+    // Restart the animation even when the same card is hit twice.
+    void card.offsetWidth;
+    card.addClass("is-flashing");
+    this.flashTimer = window.setTimeout(() => {
+      card.removeClass("is-flashing");
+    }, 1400);
   }
 
   beginCreate(input: NewAnnotation): void {
@@ -210,6 +285,14 @@ export class MarginaliaSidebarView extends ItemView {
     }
     for (const annotation of annotations) this.renderCard(list, annotation);
     if (wasDraftTextarea) this.focusDraft(caret ?? 0);
+    // A jump in flight survives rebuilds: land it on the fresh DOM.
+    if (this.pendingJump) {
+      if (Date.now() < this.pendingJump.until) {
+        this.applyJump(this.pendingJump.id);
+      } else {
+        this.pendingJump = null;
+      }
+    }
   }
 
   private renderDraft(root: HTMLElement): void {
@@ -478,9 +561,11 @@ export class MarginaliaSidebarView extends ItemView {
     bottomButton.addEventListener("click", () =>
       this.listEl?.scrollTo({ top: this.listEl.scrollHeight, behavior: "smooth" })
     );
-    toolbar.createDiv({ cls: "marginalia-toolbar-spacer" });
+    // Filters get their own row of three equal columns so the triggers keep
+    // a stable order and width no matter how many annotations are shown.
+    const filters = root.createDiv({ cls: "marginalia-filter-row" });
     this.renderDropdown(
-      toolbar,
+      filters,
       "Status",
       [
         { value: "open", label: "Open" },
@@ -497,7 +582,7 @@ export class MarginaliaSidebarView extends ItemView {
       }
     );
     this.renderDropdown(
-      toolbar,
+      filters,
       "Scope",
       [
         { value: "current", label: "Current file" },
@@ -510,7 +595,7 @@ export class MarginaliaSidebarView extends ItemView {
       }
     );
     this.renderDropdown(
-      toolbar,
+      filters,
       "Sort",
       [
         { value: "source", label: "Source order" },
@@ -526,47 +611,154 @@ export class MarginaliaSidebarView extends ItemView {
     );
   }
 
-  /** Dropdown-style toolbar button: "Name: option" + chevron, opens an
-   *  Obsidian menu with the active option checked. A native <select> and
-   *  a text-toggling button both read as dead controls — the chevron and
-   *  the visible alternatives make the choices discoverable. */
+  /** Dropdown-style filter trigger: "Name: option" + chevron, opening a
+   *  popover anchored under the trigger and exactly as wide as it. The list
+   *  opens as a plain stacked menu so every choice is visible at once;
+   *  Obsidian's context Menu follows the pointer instead, which reads as a
+   *  stray floating panel next to a rail of equal-width filters. */
   private renderDropdown<T extends string>(
-    toolbar: HTMLElement,
+    parent: HTMLElement,
     name: string,
     options: ReadonlyArray<{ value: T; label: string }>,
     get: () => T,
     set: (value: T) => void
   ): void {
-    const button = toolbar.createEl("button", {
+    const wrap = parent.createDiv({ cls: "marginalia-dropdown-wrap" });
+    const button = wrap.createEl("button", {
       cls: "marginalia-dropdown",
-      attr: { "aria-haspopup": "menu" }
+      attr: { "aria-haspopup": "menu", "aria-expanded": "false" }
     });
     const label = button.createSpan({ cls: "marginalia-dropdown-label" });
     const iconEl = button.createSpan({ cls: "marginalia-dropdown-icon" });
     setIcon(iconEl, "chevron-down");
+
+    const menu = wrap.createDiv({
+      cls: "marginalia-dropdown-menu",
+      attr: { role: "menu", "aria-label": name }
+    });
+    const items = options.map((option) => {
+      const item = menu.createEl("button", {
+        cls: "marginalia-dropdown-item",
+        attr: { role: "menuitemradio", tabindex: "-1" }
+      });
+      const check = item.createSpan({ cls: "marginalia-dropdown-check" });
+      setIcon(check, "check");
+      item.createSpan({ cls: "marginalia-dropdown-item-label" }).setText(
+        option.label
+      );
+      item.addEventListener("click", () => {
+        close(true);
+        if (option.value !== get()) set(option.value);
+        sync();
+      });
+      return item;
+    });
+
     const sync = () => {
       const current = options.find((option) => option.value === get());
-      label.setText(`${name}: ${current?.label ?? ""}`);
-      button.setAttribute(
-        "aria-label",
-        `${name}: ${current?.label ?? ""} (choose from menu)`
-      );
+      const text = `${name}: ${current?.label ?? ""}`;
+      label.setText(text);
+      button.setAttribute("aria-label", text);
+      button.title = text;
+      options.forEach((option, index) => {
+        const selected = option.value === get();
+        items[index].classList.toggle("is-selected", selected);
+        items[index].setAttribute("aria-checked", String(selected));
+      });
     };
-    sync();
-    button.addEventListener("click", (event) => {
-      const menu = new Menu();
-      for (const option of options) {
-        menu.addItem((item) =>
-          item
-            .setTitle(option.label)
-            .setChecked(option.value === get())
-            .onClick(() => {
-              if (option.value !== get()) set(option.value);
-              sync();
-            })
-        );
+
+    const isOpen = () => menu.classList.contains("is-open");
+
+    const focusItem = (index: number) => {
+      const clamped = (index + items.length) % items.length;
+      items[clamped].focus();
+    };
+
+    const onOutside = (event: PointerEvent) => {
+      if (!wrap.contains(event.target as Node)) close();
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      const focused = items.indexOf(document.activeElement as HTMLButtonElement);
+      switch (event.key) {
+        case "Escape":
+          event.preventDefault();
+          close(true);
+          return;
+        case "Tab":
+          close();
+          return;
+        case "ArrowDown":
+          event.preventDefault();
+          focusItem(focused < 0 ? 0 : focused + 1);
+          return;
+        case "ArrowUp":
+          event.preventDefault();
+          focusItem(focused < 0 ? items.length - 1 : focused - 1);
+          return;
+        case "Home":
+          event.preventDefault();
+          focusItem(0);
+          return;
+        case "End":
+          event.preventDefault();
+          focusItem(items.length - 1);
+          return;
+        default:
+          if (event.key === "Enter" || event.key === " ") {
+            // Enter/Space on a focused item is its click; on the trigger it
+            // opens the menu.
+            if (focused < 0) return;
+            event.preventDefault();
+            items[focused].click();
+          }
       }
-      this.showMenu(menu, event, button);
+    };
+
+    const open = () => {
+      // One popover at a time: closing through the stored handle also
+      // detaches the previous menu's document listeners.
+      this.openFilterClose?.();
+      this.openFilterClose = () => close();
+      menu.classList.remove("is-end");
+      menu.classList.add("is-open");
+      // Keep the grown popover inside the sidebar: cap its width at the
+      // view's, and flip to right-alignment when it would overflow.
+      const boundary = this.containerEl.getBoundingClientRect();
+      menu.style.maxWidth = `${Math.max(160, boundary.width - 8)}px`;
+      const wrapRect = wrap.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      if (wrapRect.left + menuRect.width > boundary.right - 4) {
+        menu.classList.add("is-end");
+      }
+      button.setAttribute("aria-expanded", "true");
+      document.addEventListener("pointerdown", onOutside, true);
+      document.addEventListener("keydown", onKeydown, true);
+      const selected = options.findIndex((option) => option.value === get());
+      const target = items[selected] ?? items[0];
+      target.focus();
+      target.scrollIntoView({ block: "nearest" });
+    };
+
+    const close = (focusTrigger = false) => {
+      if (!isOpen()) return;
+      menu.classList.remove("is-open");
+      button.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", onOutside, true);
+      document.removeEventListener("keydown", onKeydown, true);
+      if (this.openFilterClose) this.openFilterClose = null;
+      if (focusTrigger) button.focus();
+    };
+
+    sync();
+    button.addEventListener("click", () => {
+      if (isOpen()) close();
+      else open();
+    });
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (!isOpen()) open();
+      }
     });
   }
 
@@ -765,8 +957,11 @@ export class MarginaliaSidebarView extends ItemView {
         annotation.sourcePath,
         this
       ).then(() => this.enhanceImages(body, annotation));
-      for (const reply of annotation.replies) {
-        this.renderReply(card, annotation, reply);
+      if (annotation.replies.length > 0) {
+        const replies = card.createDiv({ cls: "marginalia-replies" });
+        for (const reply of annotation.replies) {
+          this.renderReply(replies, annotation, reply);
+        }
       }
       if (this.replyFor === annotation.id) {
         this.renderReplyComposer(card, annotation);
@@ -949,12 +1144,18 @@ export class MarginaliaSidebarView extends ItemView {
   }
 
   private renderReply(
-    card: HTMLElement,
+    parent: HTMLElement,
     annotation: Annotation,
     reply: AnnotationReply
   ): void {
-    const container = card.createDiv({ cls: "marginalia-reply" });
-    const meta = container.createDiv({ cls: "marginalia-reply-meta" });
+    const container = parent.createDiv({ cls: "marginalia-reply" });
+    const head = container.createDiv({ cls: "marginalia-reply-head" });
+    const author = head.createSpan({ cls: "marginalia-reply-author" });
+    author.setText(reply.author ?? "user");
+    const time = head.createSpan({ cls: "marginalia-reply-time" });
+    time.setText(formatReplyTime(reply.createdAt));
+    time.title = reply.createdAt;
+    const meta = head.createDiv({ cls: "marginalia-reply-actions" });
     const copyReply = meta.createEl("button", {
       cls: "clickable-icon marginalia-reply-copy",
       attr: { "aria-label": "Copy reply" }
