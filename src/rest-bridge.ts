@@ -39,6 +39,10 @@ export class RestBridge {
 
   connect(): void {
     this.disconnect();
+    // Channel toggles: MCP tools are the default agent surface, the raw
+    // REST endpoints are opt-in. With both off, stay invisible to the host.
+    const settings = this.plugin.settings;
+    if (!settings.agentMcpEnabled && !settings.agentRestEnabled) return;
     const connection = connectLocalRestApi(
       {
         plugins: (this.plugin.app as unknown as {
@@ -51,23 +55,27 @@ export class RestBridge {
     if (connection.kind !== "connected") return;
     this.api = connection.api;
     const api = new AnnotationsApi(this.plugin);
-    const router = connection.api.addVaultSubresource(SUBRESOURCE);
-    router.get("/", route((req) => api.list(req.vaultFile.path, req.query)));
-    router.post("/", route((req) => api.create(req.vaultFile.path, req.body)));
-    router.get("/:id", route((req) => api.get(req.vaultFile.path, req.params.id)));
-    router.patch("/:id", route((req) =>
-      api.patch(req.vaultFile.path, req.params.id, req.body)
-    ));
-    router.delete("/:id", route((req) => api.remove(req.vaultFile.path, req.params.id)));
-    router.post("/:id/replies", route((req) =>
-      api.addReply(req.vaultFile.path, req.params.id, req.body)
-    ));
+    if (settings.agentRestEnabled) {
+      const router = connection.api.addVaultSubresource(SUBRESOURCE);
+      router.get("/", route((req) => api.list(req.vaultFile.path, req.query)));
+      router.post("/", route((req) => api.create(req.vaultFile.path, req.body)));
+      router.get("/:id", route((req) => api.get(req.vaultFile.path, req.params.id)));
+      router.patch("/:id", route((req) =>
+        api.patch(req.vaultFile.path, req.params.id, req.body)
+      ));
+      router.delete("/:id", route((req) => api.remove(req.vaultFile.path, req.params.id)));
+      router.post("/:id/replies", route((req) =>
+        api.addReply(req.vaultFile.path, req.params.id, req.body)
+      ));
+    }
     // Best-effort: hosts without an MCP server simply skip this, and a
     // failed registration never takes the REST sub-resource down.
-    try {
-      registerMcpTools(connection.api, api);
-    } catch {
-      // Reserved-name collisions or host quirks stay invisible.
+    if (settings.agentMcpEnabled) {
+      try {
+        registerMcpTools(connection.api, api);
+      } catch {
+        // Reserved-name collisions or host quirks stay invisible.
+      }
     }
   }
 

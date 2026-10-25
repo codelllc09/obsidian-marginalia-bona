@@ -324,6 +324,12 @@ export default class MarginaliaPlugin extends Plugin {
     await this.saveData(this.settings);
     this.applyCssSettings();
     this.refresh();
+    // Agent channel toggles remount the bridge; other settings don't touch it
+    // (text settings fire onChange per keystroke - reconnecting there would
+    // churn the host registration).
+    if ("agentMcpEnabled" in changes || "agentRestEnabled" in changes) {
+      this.restBridge.connect();
+    }
   }
 
   async openSidebar(): Promise<MarginaliaSidebarView | null> {

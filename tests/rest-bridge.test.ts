@@ -4,6 +4,7 @@ import { AnnotationStore } from "../src/storage/annotation-store";
 import { MemoryAdapter } from "./memory-adapter";
 import { TFile } from "./obsidian-runtime-mock";
 import { AnnotationsApi } from "../src/rest-bridge/annotations-api";
+import { RestBridge } from "../src/rest-bridge";
 import { registerMcpTools } from "../src/rest-bridge/mcp-tools";
 import type { McpToolCallback } from "../src/rest-bridge/types";
 import type MarginaliaPlugin from "../src/main";
@@ -12,7 +13,11 @@ const NOTE = "Notes/Test.md";
 const NOTE_TEXT =
   "The quick brown fox jumps over the lazy dog.\nSecond line with quick brown fox again.";
 
-function makeApi(): { api: AnnotationsApi; store: AnnotationStore } {
+function makeApi(): {
+  api: AnnotationsApi;
+  store: AnnotationStore;
+  plugin: MarginaliaPlugin;
+} {
   const adapter = new MemoryAdapter();
   const store = new AnnotationStore({ vault: { adapter } } as never);
   const plugin = {
@@ -33,6 +38,7 @@ function makeApi(): { api: AnnotationsApi; store: AnnotationStore } {
   };
   return {
     store,
+    plugin: plugin as unknown as MarginaliaPlugin,
     api: new AnnotationsApi(plugin as unknown as MarginaliaPlugin)
   };
 }
@@ -261,5 +267,99 @@ describe("annotations MCP tools", () => {
   it("registers nothing when the host lacks an MCP server", () => {
     const { api } = makeApi();
     expect(() => registerMcpTools({} as never, api)).not.toThrow();
+  });
+});
+
+type ChannelSettings = { agentMcpEnabled: boolean; agentRestEnabled: boolean };
+
+type HostSpy = {
+  subresourceNames: string[];
+  routes: string[];
+  mcpTools: string[];
+  unregisterCount: number;
+};
+
+function makeBridge(settings: ChannelSettings) {
+  const { plugin } = makeApi();
+  const spy: HostSpy = {
+    subresourceNames: [],
+    routes: [],
+    mcpTools: [],
+    unregisterCount: 0
+  };
+  const host = {
+    apiVersion: 3,
+    addVaultSubresource(name: string) {
+      spy.subresourceNames.push(name);
+      return {
+        get: (path: string) => spy.routes.push(`GET ${path}`),
+        post: (path: string) => spy.routes.push(`POST ${path}`),
+        patch: (path: string) => spy.routes.push(`PATCH ${path}`),
+        delete: (path: string) => spy.routes.push(`DELETE ${path}`)
+      };
+    },
+    addMcpTool: (name: string) => spy.mcpTools.push(name),
+    unregister: () => {
+      spy.unregisterCount += 1;
+    }
+  };
+  const record = plugin as unknown as Record<string, unknown>;
+  record.manifest = { id: "marginalia-bona" };
+  record.settings = settings;
+  (plugin.app as unknown as Record<string, unknown>).plugins = {
+    plugins: {
+      "obsidian-local-rest-api": { getPublicApi: () => host }
+    }
+  };
+  return { bridge: new RestBridge(plugin), spy };
+}
+
+describe("agent channel toggles", () => {
+  it("stays invisible to the host when both channels are off", () => {
+    const { bridge, spy } = makeBridge({
+      agentMcpEnabled: false,
+      agentRestEnabled: false
+    });
+    bridge.connect();
+    expect(spy.subresourceNames).toEqual([]);
+    expect(spy.mcpTools).toEqual([]);
+    bridge.disconnect();
+    expect(spy.unregisterCount).toBe(0);
+  });
+
+  it("mounts REST routes only when the REST channel is enabled", () => {
+    const { bridge, spy } = makeBridge({
+      agentMcpEnabled: false,
+      agentRestEnabled: true
+    });
+    bridge.connect();
+    expect(spy.subresourceNames).toEqual(["annotations"]);
+    expect(spy.routes).toHaveLength(6);
+    expect(spy.mcpTools).toEqual([]);
+    bridge.disconnect();
+  });
+
+  it("registers MCP tools only when the MCP channel is enabled", () => {
+    const { bridge, spy } = makeBridge({
+      agentMcpEnabled: true,
+      agentRestEnabled: false
+    });
+    bridge.connect();
+    expect(spy.subresourceNames).toEqual([]);
+    expect(spy.routes).toEqual([]);
+    expect(spy.mcpTools).toHaveLength(6);
+    bridge.disconnect();
+    expect(spy.unregisterCount).toBe(1);
+  });
+
+  it("mounts both channels when both are enabled", () => {
+    const { bridge, spy } = makeBridge({
+      agentMcpEnabled: true,
+      agentRestEnabled: true
+    });
+    bridge.connect();
+    expect(spy.routes).toHaveLength(6);
+    expect(spy.mcpTools).toHaveLength(6);
+    bridge.disconnect();
   });
 });
