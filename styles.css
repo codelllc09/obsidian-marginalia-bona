@@ -292,27 +292,29 @@
   font-size: var(--font-ui-smaller);
 }
 
-/* Actions stay slightly visible at rest (hover-only icons have been
-   reported as invisible more than once) and sharpen on hover. */
+/* Same size and weight as the card actions: always visible at muted
+   colour, lifting to normal on hover. Hover-only or undersized icons have
+   been reported as invisible more than once. */
 .marginalia-reply-actions {
   display: flex;
   gap: var(--size-4-1);
   margin-left: auto;
-  opacity: 0.6;
-}
-
-.marginalia-reply:hover .marginalia-reply-actions {
-  opacity: 1;
 }
 
 .marginalia-reply-actions .clickable-icon {
-  height: 1.25em;
-  width: 1.25em;
+  color: var(--text-muted);
+  height: 1.5em;
+  width: 1.5em;
+}
+
+.marginalia-reply:hover .marginalia-reply-actions .clickable-icon,
+.marginalia-reply-actions .clickable-icon:focus-visible {
+  color: var(--text-normal);
 }
 
 .marginalia-reply-actions .clickable-icon svg {
-  height: 0.8em;
-  width: 0.8em;
+  height: 1em;
+  width: 1em;
 }
 
 .marginalia-reply-body {
@@ -1077,7 +1079,7 @@
    CSS stroke-width overrides the attribute for the small action icons. */
 .marginalia-card-actions .clickable-icon svg,
 .marginalia-card-header .marginalia-card-collapse svg,
-.marginalia-reply-meta .clickable-icon svg,
+.marginalia-reply-actions .clickable-icon svg,
 .marginalia-footer-action svg,
 .marginalia-dropdown-icon svg {
   stroke-width: 2.5;
