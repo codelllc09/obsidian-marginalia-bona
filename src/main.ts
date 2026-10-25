@@ -23,6 +23,7 @@ import { PdfAdapter } from "./pdf/pdf-adapter";
 import {
   describeReadingMargins,
   processReadingView,
+  readingRunStats,
   refreshReadingMargins
 } from "./reading/reading-renderer";
 import {
@@ -526,6 +527,7 @@ export default class MarginaliaPlugin extends Plugin {
         byStatus
       },
       marginsSuppressed: this.areMarginsSuppressed(),
+      readingRuns: readingRunStats(),
       reading: describeReadingMargins(this),
       storeIssues
     };

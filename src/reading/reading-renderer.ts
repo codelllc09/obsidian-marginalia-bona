@@ -25,6 +25,13 @@ interface PreviewState {
 
 const previewStates = new Set<PreviewState>();
 
+/** Counters answering "did the Reading-view pipeline even run?". */
+const counters = { passes: 0, statesCreated: 0, skippedOwnUi: 0, noContainer: 0 };
+
+export function readingRunStats(): Record<string, number> {
+  return { ...counters, previewStates: previewStates.size };
+}
+
 export function textSegments(root: HTMLElement): {
   text: string;
   segments: TextSegment[];
@@ -237,6 +244,7 @@ function ensurePreviewState(
   };
   state.observer.observe(preview);
   previewStates.add(state);
+  counters.statesCreated += 1;
   plugin.register(() => destroyPreviewState(state));
   return state;
 }
@@ -525,7 +533,11 @@ export function processReadingView(
   context: MarkdownPostProcessorContext,
   plugin: MarginaliaPlugin
 ): void {
-  if (element.closest(OWN_UI)) return;
+  counters.passes += 1;
+  if (element.closest(OWN_UI)) {
+    counters.skippedOwnUi += 1;
+    return;
+  }
   try {
     processReadingViewInner(element, context, plugin);
   } catch (error) {
@@ -559,7 +571,10 @@ function processReadingViewInner(
     }
   }
   const preview = readingContainerFor(element);
-  if (!preview) return;
+  if (!preview) {
+    counters.noContainer += 1;
+    return;
+  }
   preview.dataset.marginaliaSourcePath = context.sourcePath;
   schedulePreview(ensurePreviewState(preview, plugin));
 }
