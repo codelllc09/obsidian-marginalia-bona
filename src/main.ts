@@ -11,6 +11,7 @@ import {
   normalizePath
 } from "obsidian";
 import { attachmentPath, attachmentsFolderFor } from "./attachments";
+import { ANNOTATIONS_DIRECTORY } from "./storage/annotation-paths";
 import {
   Annotation,
   MarkdownAnchor
@@ -546,6 +547,23 @@ export default class MarginaliaPlugin extends Plugin {
     return this.copyDiagnostics();
   }
 
+  /** Write the report into the plugin's data folder so it can be read
+   *  without a clipboard round-trip. Best effort: never throws. */
+  async writeDiagnosticsToVault(): Promise<string> {
+    const report = diagnosticsReport(this.manifest.version);
+    const folder = normalizePath(`${ANNOTATIONS_DIRECTORY}/../diagnostics`);
+    const path = `${folder}/latest.txt`;
+    try {
+      if (!(await this.app.vault.adapter.exists(folder))) {
+        await this.app.vault.adapter.mkdir(folder);
+      }
+      await this.app.vault.adapter.write(path, report);
+    } catch (error) {
+      reportError("diagnostics", error);
+    }
+    return path;
+  }
+
   private async copyDiagnostics(): Promise<void> {
     const report = diagnosticsReport(this.manifest.version);
     try {
@@ -555,7 +573,8 @@ export default class MarginaliaPlugin extends Plugin {
       reportError("diagnostics", error);
       new Notice("Could not copy diagnostics; see the developer console");
     }
-    logEvent("info", "diagnostics", "report generated");
+    const path = await this.writeDiagnosticsToVault();
+    logEvent("info", "diagnostics", "report written", { path });
   }
 
   refresh(): void {

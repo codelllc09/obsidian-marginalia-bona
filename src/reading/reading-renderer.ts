@@ -625,6 +625,9 @@ function processReadingViewInner(
         source: context.sourcePath,
         ancestors: ancestorSignature(element)
       });
+      // Auto-persist the report: a failure in a real vault must be readable
+      // from disk without asking the user to copy anything.
+      void plugin.writeDiagnosticsToVault();
     }
     return;
   }
