@@ -972,3 +972,13 @@
   border-color: var(--interactive-accent);
   color: var(--text-accent);
 }
+
+/* Unread dot: shown while an annotation has no read timestamp. Read state
+   only ever changes through an explicit mark-read. */
+.marginalia-card-unread {
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+}

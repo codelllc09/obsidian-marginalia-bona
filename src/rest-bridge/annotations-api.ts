@@ -262,6 +262,7 @@ export class AnnotationsApi {
       status?: Annotation["status"];
       color?: string;
       markStyle?: MarkStyle;
+      readAt?: string;
     } = {};
     if (typeof body.text === "string") {
       if (

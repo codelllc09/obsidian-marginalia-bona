@@ -180,6 +180,18 @@ export default class MarginaliaPlugin extends Plugin {
       callback: () => void this.openSidebar()
     });
     this.addPluginCommand({
+      id: "mark-all-annotations-read",
+      name: "Mark all annotations read",
+      callback: async () => {
+        const now = new Date().toISOString();
+        for (const annotation of this.store.all()) {
+          if (annotation.readAt === undefined) {
+            await this.store.update(annotation.id, { readAt: now });
+          }
+        }
+      }
+    });
+    this.addPluginCommand({
       id: "add-markdown-annotation",
       name: "Add annotation to selection",
       editorCheckCallback: (checking, editor, view) => {
