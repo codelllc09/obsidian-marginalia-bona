@@ -80,13 +80,26 @@ def card(drift, collapsed, resolved, orphan, replies, unread=False):
         body_imgs = ('<div class="' + cls + '"><p>测试新功能；格式有了，回复也可以。</p>'
                      '<span class="marginalia-img-frame">' + img + '</span>'
                      '<p>再看一张：</p><span class="marginalia-img-frame">' + img + '</span></div>')
+    copy_icon = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+                 '<rect x="8" y="8" width="12" height="12" rx="2"/>'
+                 '<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>')
+    remove_icon = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+                   '<path d="M18 6 6 18M6 6l12 12"/></svg>')
     reply_html = ''
-    for r in range(replies):
-        reply_html += ('<div class="marginalia-reply"><div class="marginalia-reply-meta">'
-                       '<button class="clickable-icon marginalia-reply-copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>'
-                       '<button class="clickable-icon marginalia-reply-remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>'
-                       '<div class="marginalia-reply-body markdown-rendered"><p>回复 ' + str(r + 1)
-                       + '：回复的样式参考一下 word。</p></div></div>')
+    if replies:
+        reply_html += '<div class="marginalia-replies">'
+        for r in range(replies):
+            reply_html += ('<div class="marginalia-reply">'
+                           '<div class="marginalia-reply-head">'
+                           '<span class="marginalia-reply-author">user</span>'
+                           '<span class="marginalia-reply-time">09:14</span>'
+                           '<div class="marginalia-reply-actions">'
+                           '<button class="clickable-icon">' + copy_icon + '</button>'
+                           '<button class="clickable-icon">' + remove_icon + '</button>'
+                           '</div></div>'
+                           '<div class="marginalia-reply-body markdown-rendered">'
+                           '<p>回复 ' + str(r + 1) + '：回复的样式参考一下 word。</p></div></div>')
+        reply_html += '</div>'
     footer = ('<div class="marginalia-card-footer">'
               '<button class="marginalia-footer-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/><path d="m21 17-3-3 3-3"/></svg><span>Reply</span></button>'
               '<div class="marginalia-card-footer-spacer"></div>'
@@ -132,6 +145,10 @@ def page(dark, open_which="", width=600):
             + ('#1a1a1a' if dark else '#fff') + '; }\n'
             'h3 { color: var(--text-muted); font-size: 13px; margin: 10px 0 6px; }\n'
             '.marginalia-sidebar { max-width: 600px; }\n'
+            '.clickable-icon { align-items: center; background: transparent; border: none; border-radius: 4px; '
+            'box-shadow: none; color: var(--text-muted); display: inline-flex; height: 1.6em; '
+            'justify-content: center; padding: 0; width: 1.6em; }\n'
+            '.clickable-icon svg { height: 1em; width: 1em; }\n'
             ':root { --size-4-1:4px; --size-4-2:8px; --size-4-3:12px; --size-4-4:16px; --font-ui-small:13px; '
             '--font-ui-smaller:12px; --font-ui-smallest:11px; --radius-m:6px; --radius-s:4px; '
             '--shadow-s:0 2px 8px rgba(0,0,0,.15); --shadow-l:0 8px 24px rgba(0,0,0,.25); --layer-modal:30; '

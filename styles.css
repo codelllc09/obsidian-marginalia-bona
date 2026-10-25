@@ -258,34 +258,67 @@
 /* Word/WPS-style thread: replies are indented under the root note with a
    hairline separator; time + actions sit on their own right-aligned line
    (normal flow — an overlay strip here used to mask the reply text). */
-.marginalia-reply {
-  border-top: 1px solid var(--background-modifier-border);
-  margin-left: var(--size-4-2);
-  margin-top: var(--size-4-2);
-  padding: var(--size-4-1) 0 0 var(--size-4-2);
+/* Replies read as a thread under the root comment: a thin rail on the left,
+   each entry headed by its author and time, text below (comment-thread style
+   familiar from word processors). */
+.marginalia-replies {
+  border-left: 2px solid var(--background-modifier-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  margin-top: var(--size-4-3);
+  padding-left: var(--size-4-3);
 }
 
-.marginalia-reply-meta {
-  align-items: center;
+.marginalia-reply {
+  min-width: 0;
+}
+
+.marginalia-reply-head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--size-4-2);
+  min-height: 1.25em;
+}
+
+.marginalia-reply-author {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold, 600);
+}
+
+.marginalia-reply-time {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Actions stay slightly visible at rest (hover-only icons have been
+   reported as invisible more than once) and sharpen on hover. */
+.marginalia-reply-actions {
   display: flex;
   gap: var(--size-4-1);
-  justify-content: flex-end;
-  min-height: 1.125em;
+  margin-left: auto;
+  opacity: 0.6;
 }
 
-.marginalia-reply-meta .clickable-icon {
+.marginalia-reply:hover .marginalia-reply-actions {
+  opacity: 1;
+}
+
+.marginalia-reply-actions .clickable-icon {
   height: 1.25em;
   width: 1.25em;
 }
 
-.marginalia-reply-meta .clickable-icon svg {
-  height: 0.875em;
-  width: 0.875em;
+.marginalia-reply-actions .clickable-icon svg {
+  height: 0.8em;
+  width: 0.8em;
 }
 
 .marginalia-reply-body {
-  color: var(--text-muted);
+  color: var(--text-normal);
   font-size: var(--font-ui-small);
+  margin-top: 0.15em;
   padding-right: 0.5rem;
 }
 

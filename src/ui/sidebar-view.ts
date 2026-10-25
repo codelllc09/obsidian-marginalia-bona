@@ -21,6 +21,21 @@ import { ConfirmModal } from "./confirm-modal";
 export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
 
 type Scope = "current" | "vault";
+
+/** Compact "when" for reply headers: time alone for today, date otherwise.
+ *  Falls back to the raw string when the timestamp is unparseable. */
+function formatReplyTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  return sameDay
+    ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 /** "drifted" is a pseudo-filter: it selects annotations whose anchored
  *  passage changed after creation (anchorDrift), regardless of status.
  *  "unread" selects annotations without a read timestamp. */
@@ -876,8 +891,11 @@ export class MarginaliaSidebarView extends ItemView {
         annotation.sourcePath,
         this
       ).then(() => this.enhanceImages(body, annotation));
-      for (const reply of annotation.replies) {
-        this.renderReply(card, annotation, reply);
+      if (annotation.replies.length > 0) {
+        const replies = card.createDiv({ cls: "marginalia-replies" });
+        for (const reply of annotation.replies) {
+          this.renderReply(replies, annotation, reply);
+        }
       }
       if (this.replyFor === annotation.id) {
         this.renderReplyComposer(card, annotation);
@@ -1060,12 +1078,18 @@ export class MarginaliaSidebarView extends ItemView {
   }
 
   private renderReply(
-    card: HTMLElement,
+    parent: HTMLElement,
     annotation: Annotation,
     reply: AnnotationReply
   ): void {
-    const container = card.createDiv({ cls: "marginalia-reply" });
-    const meta = container.createDiv({ cls: "marginalia-reply-meta" });
+    const container = parent.createDiv({ cls: "marginalia-reply" });
+    const head = container.createDiv({ cls: "marginalia-reply-head" });
+    const author = head.createSpan({ cls: "marginalia-reply-author" });
+    author.setText(reply.author ?? "user");
+    const time = head.createSpan({ cls: "marginalia-reply-time" });
+    time.setText(formatReplyTime(reply.createdAt));
+    time.title = reply.createdAt;
+    const meta = head.createDiv({ cls: "marginalia-reply-actions" });
     const copyReply = meta.createEl("button", {
       cls: "clickable-icon marginalia-reply-copy",
       attr: { "aria-label": "Copy reply" }
