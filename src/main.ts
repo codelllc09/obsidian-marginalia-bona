@@ -575,63 +575,72 @@ export default class MarginaliaPlugin extends Plugin {
     this.readingRefreshTimer = window.setTimeout(() => {
       this.readingRefreshTimer = null;
       refreshReadingViews(this);
-      this.syncReserveClasses();
+      this.syncColumnCaps();
+      // Themes apply their line width after the leaf is laid out; a second
+      // pass catches panes that still had no gutter on the first look.
+      window.setTimeout(() => this.syncColumnCaps(), 500);
+      window.setTimeout(() => this.syncColumnCaps(), 1500);
     }, 120);
   }
 
-  /** Reserve a card column only where there is none: themes that centre the
-   *  reading column already leave a gutter, and squeezing them again is what
-   *  made the text feel narrow. */
-  private syncReserveClasses(): void {
-    if (!this.settings.reserveMarginSpace || !this.settings.showMargins) {
-      this.app.workspace.iterateAllLeaves((leaf) => {
-        if (leaf.view instanceof MarkdownView) {
-          leaf.view.containerEl.removeClass("marginalia-reserve");
-        }
-      });
-      return;
-    }
-
+  /** Make room for margin cards ourselves instead of asking the theme for it.
+   *
+   *  Measure what the theme actually renders (its line width, not the sizer),
+   *  and only when the natural gutter is too small, cap the text column at
+   *  "pane minus one card" - centred, so both modes agree on where the cards
+   *  sit. The cap is skipped when it would squeeze the text below ~40em, in
+   *  which case there is simply no room. */
+  private syncColumnCaps(): void {
+    const enabled = this.settings.reserveMarginSpace && this.settings.showMargins;
+    const cardSpace = this.settings.marginWidth + 18;
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (!(leaf.view instanceof MarkdownView)) return;
       const content = leaf.view.containerEl;
-      // Measure the layout as the theme intends it: our own class would
-      // otherwise create the gutter that then removes the class again.
-      const hadReserve = content.hasClass("marginalia-reserve");
-      if (hadReserve) content.removeClass("marginalia-reserve");
-      const editorColumn = content.querySelector<HTMLElement>(".cm-sizer");
-      const textColumn =
-        editorColumn ??
-        content.querySelector<HTMLElement>(".markdown-preview-sizer");
-      // Editor: one card width (text starts at the left edge). Reading: twice
-      // that, because the theme centres the column and the right gutter only
-      // gets half of the reserved space.
-      const reserve = editorColumn
-        ? this.settings.marginWidth + 26
-        : 2 * (this.settings.marginWidth + 18);
-      const pane =
-        content.querySelector<HTMLElement>(".cm-editor") ??
-        content.querySelector<HTMLElement>(".markdown-preview-view") ??
-        content;
+      // A Reading leaf keeps a hidden `.cm-editor` for instant switching, so
+      // pick the pane by mode - otherwise we measure a zero-width element.
+      const reading = leaf.view.getMode() !== "source";
+      const pane = reading
+        ? (content.querySelector<HTMLElement>(".markdown-preview-view") ??
+          content)
+        : (content.querySelector<HTMLElement>(".cm-editor") ?? content);
+      const textColumn = reading
+        ? content.querySelector<HTMLElement>(".markdown-preview-sizer")
+        : content.querySelector<HTMLElement>(".cm-line");
+      const fontSize =
+        Number.parseFloat(window.getComputedStyle(pane).fontSize) || 16;
+      const minGutter = Math.max(72, Math.round(fontSize * 8));
+      const minColumn = Math.round(fontSize * 34);
+
+      // Measure with our own cap removed, or the cap would justify itself.
+      const hadCap = content.hasClass("marginalia-column-cap");
+      if (hadCap) content.removeClass("marginalia-column-cap");
+
       let gutter = 0;
       if (textColumn) {
         const text = textColumn.getBoundingClientRect();
         const outer = pane.getBoundingClientRect();
-        gutter = Math.max(
-          text.left - outer.left,
-          outer.right - text.right
-        ) - 18;
+        gutter = Math.max(text.left - outer.left, outer.right - text.right);
       }
-      // Both thresholds scale with the text size, so a 1080p window at 100%
-      // and a 2K window at 200% behave the same way.
-      const fontSize =
-        Number.parseFloat(window.getComputedStyle(content).fontSize) || 16;
-      const minGutter = Math.max(72, Math.round(fontSize * 8));
-      const roomForText = content.clientWidth - reserve;
-      content.toggleClass(
-        "marginalia-reserve",
-        gutter < minGutter && roomForText >= Math.round(fontSize * 30)
+      // Respect the configured reading width (Obsidian's "readable line
+      // length") and only shrink further if a full card does not fit beside
+      // it. Using the same width in both modes keeps the cards aligned.
+      const configured =
+        Number.parseFloat(
+          window.getComputedStyle(pane).getPropertyValue("--file-line-width")
+        ) || 700;
+      const ideal = Math.round(
+        Math.min(configured, pane.clientWidth - 2 * cardSpace)
       );
+      const cap = enabled && gutter < minGutter && ideal >= minColumn ? ideal : 0;
+      content.toggleClass("marginalia-column-cap", cap > 0);
+      if (cap > 0) {
+        content.style.setProperty("--marginalia-column-cap", `${cap}px`);
+      } else {
+        content.style.removeProperty("--marginalia-column-cap");
+      }
+      if (enabled && cap === 0 && gutter < minGutter && textColumn) {
+        this.hintNoMarginRoom();
+      }
     });
   }
 
@@ -739,7 +748,7 @@ export default class MarginaliaPlugin extends Plugin {
     this.pdfAdapter?.renderVisibleHighlights();
     refreshReadingViews(this);
     refreshReadingMargins(this);
-    this.syncReserveClasses();
+    this.syncColumnCaps();
   }
 
   private beginMarkdownAnnotation(editor: Editor, view: MarkdownView): void {

@@ -116,7 +116,7 @@ export class MarginaliaSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Reserve space for margin cards")
       .setDesc(
-        "Narrows the text column so cards always have room. Needed when the theme (or a narrow pane) leaves no empty space beside the text - without it, cards only appear when the pane is wider than the line width."
+        "Caps the text column so cards always have room, whatever the theme does with line width. The cap is one card wide and only applied when the pane is wide enough to keep a comfortable column; turn it off if you prefer the theme's width and no cards."
       )
       .addToggle((toggle) =>
         toggle
