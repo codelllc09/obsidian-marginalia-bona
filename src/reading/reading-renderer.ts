@@ -52,21 +52,57 @@ function textSegments(root: HTMLElement): {
   return { text, segments };
 }
 
-function locateQuote(
+/** Rendered text loses inline Markdown markers: `code`, **bold**, ==mark==,
+ *  [[links]] and [text](url) survive only as their inner text. Anchors are
+ *  captured against the source, so both sides are normalised before
+ *  searching the DOM - otherwise a quote with formatting is never found and
+ *  its card silently disappears in Reading view. */
+export function plainQuoteText(value: string): string {
+  return value
+    .replaceAll(/!\[\[([^\]]+)\]\]/g, "$1")
+    .replaceAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, target: string, alias?: string) => alias ?? target)
+    .replaceAll(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replaceAll(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replaceAll(/`{1,3}([^`]*)`{1,3}/g, "$1")
+    .replaceAll(/(\*\*|__)(.*?)\1/g, "$2")
+    .replaceAll(/(\*|_)(.*?)\1/g, "$2")
+    .replaceAll(/~~(.*?)~~/g, "$1")
+    .replaceAll(/==(.*?)==/g, "$1")
+    .replaceAll(/\\([\\`*_{}[\]()#+\-.!])/g, "$1");
+}
+
+export function locateQuote(
   text: string,
   quote: { exact: string; prefix?: string; suffix?: string }
 ): number {
+  const needles = [quote.exact];
+  const plain = plainQuoteText(quote.exact);
+  if (plain && plain !== quote.exact) needles.push(plain);
+  const prefix = plainQuoteText(quote.prefix ?? "");
+  const suffix = plainQuoteText(quote.suffix ?? "");
+  for (const needle of needles) {
+    const found = locateNeedle(text, needle, prefix, suffix);
+    if (found >= 0) return found;
+  }
+  return -1;
+}
+
+function locateNeedle(
+  text: string,
+  exact: string,
+  prefix: string,
+  suffix: string
+): number {
+  if (!exact) return -1;
   const candidates: number[] = [];
   let cursor = 0;
   while (cursor <= text.length) {
-    const found = text.indexOf(quote.exact, cursor);
+    const found = text.indexOf(exact, cursor);
     if (found < 0) break;
     candidates.push(found);
-    cursor = found + Math.max(1, quote.exact.length);
+    cursor = found + Math.max(1, exact.length);
   }
   const contextual = candidates.filter((candidate) => {
-    const prefix = quote.prefix ?? "";
-    const suffix = quote.suffix ?? "";
     return (
       (!prefix ||
         text
@@ -74,16 +110,14 @@ function locateQuote(
           .endsWith(prefix)) &&
       (!suffix ||
         text
-          .slice(
-            candidate + quote.exact.length,
-            candidate + quote.exact.length + suffix.length
-          )
+          .slice(candidate + exact.length, candidate + exact.length + suffix.length)
           .startsWith(suffix))
     );
   });
   if (contextual.length === 1) return contextual[0];
   return candidates.length === 1 ? candidates[0] : -1;
 }
+
 
 function highlightOccurrence(
   root: HTMLElement,
@@ -98,7 +132,12 @@ function highlightOccurrence(
   const { text, segments } = textSegments(root);
   const start = locateQuote(text, annotation.anchor.quote);
   if (start < 0) return null;
-  const end = start + annotation.anchor.quote.exact.length;
+  const exact = annotation.anchor.quote.exact;
+  const end =
+    start +
+    (text.startsWith(plainQuoteText(exact), start)
+      ? plainQuoteText(exact).length
+      : exact.length);
   let firstMark: HTMLElement | null = null;
   for (const segment of segments) {
     const from = Math.max(start, segment.start);
