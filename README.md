@@ -234,19 +234,16 @@ Source notes are never modified.
 
 ## Development
 
-Requires Node.js 24 or newer.
-
 ```sh
-npm ci
-npm run lint
-npm test
-npm run build
+npm install
+npm run dev     # rebuild main.js on change
+npm test        # vitest
+npm run lint    # eslint
+npm run build   # type-check and write main.js
 ```
 
-The production build writes `main.js` to the repository root. Changes to
-storage or anchoring are expected to come with tests; the suite covers the
-query engine, thread format round-trips, trash consistency, and the API
-protocol.
+To see a build running, copy `main.js`, `manifest.json`, and `styles.css`
+into `<vault>/.obsidian/plugins/marginalia-bona/` and reload Obsidian.
 
 ## Credits and license
 

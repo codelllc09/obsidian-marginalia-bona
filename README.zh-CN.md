@@ -184,16 +184,15 @@ frontmatter 携带身份、状态、样式与已读状态；正文是根评论�
 
 ## 开发
 
-需要 Node.js 24 或更新版本。
-
 ```sh
-npm ci
-npm run lint
-npm test
-npm run build
+npm install
+npm run dev     # 改动时自动重新构建 main.js
+npm test        # vitest
+npm run lint    # eslint
+npm run build   # 类型检查并生成 main.js
 ```
 
-生产构建在仓库根目录生成 `main.js`。涉及存储或锚点的改动应附带测试；测试覆盖查询引擎、线程格式往返、回收站一致性与 API 协议。
+想看效果：把 `main.js`、`manifest.json`、`styles.css` 拷进 `<vault>/.obsidian/plugins/marginalia-bona/`，重载 Obsidian 即可。
 
 ## 致谢与许可
 
