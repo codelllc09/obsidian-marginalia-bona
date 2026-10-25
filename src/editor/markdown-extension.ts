@@ -234,6 +234,9 @@ function renderMargins(
     .filter(
       (annotation) =>
         annotation.status !== "orphaned" &&
+        // Same visibility rule as the reading view: resolved threads follow
+        // the "show resolved" setting instead of always showing.
+        (annotation.status !== "resolved" || plugin.settings.showResolved) &&
         annotation.anchor.kind === "markdown" &&
         annotation.anchor.startOffset <= view.state.doc.length
     )
