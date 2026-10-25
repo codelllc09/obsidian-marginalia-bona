@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Window } from "happy-dom";
 import type { Annotation } from "../src/domain/annotation";
 import { highlightOccurrence } from "../src/reading/reading-renderer";
+import { installDom } from "./dom-setup";
 
 /** Source text of the demo note, as the editor would see it. */
 const NOTE_TEXT = [
@@ -15,24 +15,7 @@ const NOTE_TEXT = [
 let document: Document;
 
 beforeEach(() => {
-  const window = new Window();
-  document = window.document as unknown as Document;
-  const g = globalThis as unknown as Record<string, unknown>;
-  // Obsidian exposes these as globals; the renderer relies on that.
-  g.createSpan = () => document.createElement("span");
-  g.createDiv = () => document.createElement("div");
-  g.NodeFilter = (window as unknown as Record<string, unknown>).NodeFilter;
-  g.window = window;
-  g.document = document;
-  g.requestAnimationFrame = (cb: FrameRequestCallback) => {
-    cb(0);
-    return 1;
-  };
-  g.cancelAnimationFrame = () => undefined;
-  g.ResizeObserver = class {
-    observe(): void {}
-    disconnect(): void {}
-  };
+  document = installDom().document;
 });
 
 function annotationWith(exact: string): Annotation {
