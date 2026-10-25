@@ -69,11 +69,12 @@
 .marginalia-dropdown {
   align-items: center;
   display: flex;
+  font-size: var(--font-ui-small);
   gap: var(--size-4-1);
   justify-content: space-between;
   max-width: 100%;
   min-width: 0;
-  padding-inline: var(--size-4-3);
+  padding-inline: var(--size-4-2);
   width: 100%;
 }
 
@@ -222,6 +223,20 @@
   padding: var(--size-4-3);
   transition: background-color 120ms ease, border-color 120ms ease;
   width: 100%;
+}
+
+/* Landing pulse for sidebar -> passage jumps in Reading view: a ring around
+   the marked span, whichever mark style it uses. */
+.marginalia-jump-target {
+  border-radius: 0.15em;
+  box-shadow: 0 0 0 0.18em var(--interactive-accent) !important;
+  transition: box-shadow 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marginalia-jump-target {
+    transition: none;
+  }
 }
 
 /* Landing pulse for highlight -> sidebar jumps: a ring plus a brief tint,
@@ -673,6 +688,19 @@
   cursor: pointer;
 }
 
+/* Images inside margin cards: a pasted screenshot must never widen the
+   card past the gutter, so cap width and height and keep our frame. */
+.marginalia-margin-card img {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 0.35em;
+  display: block;
+  height: auto;
+  max-height: 8em;
+  max-width: 100%;
+  object-fit: cover;
+  width: auto;
+}
+
 /* Per-annotation marks. --marginalia-mark-color/--marginalia-mark-opacity are set
    inline per mark; unset values fall back to the global defaults.
 
@@ -879,6 +907,17 @@
   z-index: var(--layer-popover);
 }
 
+/* Escape hatch for themes or plugins that hide the margin layer: cards must
+   never become invisible silently. */
+.marginalia-reading-margin-layer.marginalia-reading-margin-layer-forced {
+  display: block !important;
+  inset: 0 0 auto !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  width: 100% !important;
+  z-index: var(--layer-popover, 30) !important;
+}
+
 .marginalia-margin-card-reading {
   pointer-events: auto;
   position: absolute;
@@ -931,17 +970,6 @@
 
 .marginalia-pdf-highlight-layer.is-active .marginalia-pdf-highlight {
   box-shadow: 0 0 0 2px var(--interactive-accent);
-}
-
-@container (max-width: 899px) {
-  .marginalia-margin-card-live,
-  .marginalia-reading-margin-layer {
-    display: none;
-  }
-}
-
-.workspace-leaf-content[data-type="markdown"] {
-  container-type: inline-size;
 }
 
 @media (max-width: 700px) {

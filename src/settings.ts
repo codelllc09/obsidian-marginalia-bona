@@ -11,7 +11,7 @@ export interface MarginaliaSettings {
   showResolved: boolean;
   marginSide: MarginSide;
   marginWidth: number;
-  narrowPaneThreshold: number;
+  suppressMarginsWithSidebar: boolean;
   /** Default color for annotations created without an explicit color. */
   highlightColor: string;
   highlightOpacity: number;
@@ -42,7 +42,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   showResolved: false,
   marginSide: "auto",
   marginWidth: 200,
-  narrowPaneThreshold: 900,
+  suppressMarginsWithSidebar: true,
   highlightColor: "#ffd54f",
   highlightOpacity: 0.35,
   defaultMarkStyle: "highlight",
@@ -112,14 +112,15 @@ export class MarginaliaSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Narrow pane threshold")
-      .setDesc("Margins automatically disappear below this editor width.")
-      .addSlider((slider) =>
-        slider
-          .setLimits(600, 1400, 50)
-          .setValue(this.plugin.settings.narrowPaneThreshold)
+      .setName("Hide margin cards while the sidebar is open")
+      .setDesc(
+        "On by default: the sidebar already lists every annotation, so inline cards would duplicate it. Turn off to always show margin cards, as long as the pane leaves room for them."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.suppressMarginsWithSidebar)
           .onChange((value) =>
-            this.plugin.updateSettings({ narrowPaneThreshold: value })
+            this.plugin.updateSettings({ suppressMarginsWithSidebar: value })
           )
       );
 
@@ -262,6 +263,18 @@ export class MarginaliaSettingTab extends PluginSettingTab {
           .onChange((value) =>
             this.plugin.updateSettings({ agentRestEnabled: value })
           )
+      );
+
+    new Setting(containerEl).setName("Troubleshooting").setHeading();
+    new Setting(containerEl)
+      .setName("Diagnostics report")
+      .setDesc(
+        "Copies what the plugin currently sees: settings, annotation counts, Reading-view margin state, and recent render decisions. Nothing is sent anywhere - paste it where you need it."
+      )
+      .addButton((button) =>
+        button.setButtonText("Copy report").onClick(() => {
+          void this.plugin.copyDiagnosticsFromSettings();
+        })
       );
 
     new Setting(containerEl).setName("Commands").setHeading();

@@ -1,7 +1,8 @@
-import { MarkdownPostProcessorContext } from "obsidian";
+import { Component, MarkdownPostProcessorContext, MarkdownRenderer } from "obsidian";
 import type MarginaliaPlugin from "../main";
 import { Annotation } from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
+import { logEvent, reportError } from "../diagnostics";
 
 interface TextSegment {
   node: Text;
@@ -15,11 +16,45 @@ interface PreviewState {
   layer: HTMLElement;
   observer: ResizeObserver;
   frame: number;
+  /** Placement can be measured before Obsidian finishes laying the preview
+   *  out (or before annotations are marked), so a failed pass retries. */
+  retries: number;
+  retryTimer: number;
+  lastPass: Record<string, unknown> | null;
+  /** First block seen inside this preview: a class-name-free way to measure
+   *  the content column when the sizer element cannot be found. */
+  sample: HTMLElement;
 }
 
 const previewStates = new Set<PreviewState>();
 
-function textSegments(root: HTMLElement): {
+/** Counters answering "did the Reading-view pipeline even run?". */
+const counters = {
+  passes: 0,
+  statesCreated: 0,
+  skippedOwnUi: 0,
+  noContainer: 0,
+  deferredDetached: 0
+};
+
+const loggedNoContainer = new Set<string>();
+
+function ancestorSignature(element: HTMLElement): string[] {
+  const chain: string[] = [];
+  let node: HTMLElement | null = element;
+  for (let depth = 0; node && depth < 8; depth += 1) {
+    const cls = node.className.toString().trim().replace(/\s+/g, ".");
+    chain.push(`${node.tagName.toLowerCase()}${cls ? `.${cls}` : ""}`);
+    node = node.parentElement;
+  }
+  return chain;
+}
+
+export function readingRunStats(): Record<string, number> {
+  return { ...counters, previewStates: previewStates.size };
+}
+
+export function textSegments(root: HTMLElement): {
   text: string;
   segments: TextSegment[];
 } {
@@ -28,8 +63,11 @@ function textSegments(root: HTMLElement): {
       const parent = node.parentElement;
       if (
         !parent ||
+        // Code used to be excluded from the searchable text, which made
+        // any quote containing inline code impossible to locate. It is
+        // included now; only our own layer, scripts and math stay out.
         parent.closest(
-          ".marginalia-bona-reading-margin-layer, code, pre, script, style, .math"
+          ".marginalia-bona-reading-margin-layer, script, style, .math"
         )
       ) {
         return NodeFilter.FILTER_REJECT;
@@ -52,21 +90,58 @@ function textSegments(root: HTMLElement): {
   return { text, segments };
 }
 
-function locateQuote(
+/** Rendered text loses inline Markdown markers: `code`, **bold**, ==mark==,
+ *  [[links]] and [text](url) survive only as their inner text. Anchors are
+ *  captured against the source, so both sides are normalised before
+ *  searching the DOM - otherwise a quote with formatting is never found and
+ *  its card silently disappears in Reading view. */
+
+export function plainQuoteText(value: string): string {
+  return value
+    .replaceAll(/!\[\[([^\]]+)\]\]/g, "$1")
+    .replaceAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, target: string, alias?: string) => alias ?? target)
+    .replaceAll(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replaceAll(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replaceAll(/`{1,3}([^`]*)`{1,3}/g, "$1")
+    .replaceAll(/(\*\*|__)(.*?)\1/g, "$2")
+    .replaceAll(/(\*|_)(.*?)\1/g, "$2")
+    .replaceAll(/~~(.*?)~~/g, "$1")
+    .replaceAll(/==(.*?)==/g, "$1")
+    .replaceAll(/\\([\\`*_{}[\]()#+\-.!])/g, "$1");
+}
+
+export function locateQuote(
   text: string,
   quote: { exact: string; prefix?: string; suffix?: string }
 ): number {
+  const needles = [quote.exact];
+  const plain = plainQuoteText(quote.exact);
+  if (plain && plain !== quote.exact) needles.push(plain);
+  const prefix = plainQuoteText(quote.prefix ?? "");
+  const suffix = plainQuoteText(quote.suffix ?? "");
+  for (const needle of needles) {
+    const found = locateNeedle(text, needle, prefix, suffix);
+    if (found >= 0) return found;
+  }
+  return -1;
+}
+
+function locateNeedle(
+  text: string,
+  exact: string,
+  prefix: string,
+  suffix: string
+): number {
+  if (!exact) return -1;
   const candidates: number[] = [];
   let cursor = 0;
   while (cursor <= text.length) {
-    const found = text.indexOf(quote.exact, cursor);
+    const found = text.indexOf(exact, cursor);
     if (found < 0) break;
     candidates.push(found);
-    cursor = found + Math.max(1, quote.exact.length);
+    cursor = found + Math.max(1, exact.length);
   }
   const contextual = candidates.filter((candidate) => {
-    const prefix = quote.prefix ?? "";
-    const suffix = quote.suffix ?? "";
     return (
       (!prefix ||
         text
@@ -74,10 +149,7 @@ function locateQuote(
           .endsWith(prefix)) &&
       (!suffix ||
         text
-          .slice(
-            candidate + quote.exact.length,
-            candidate + quote.exact.length + suffix.length
-          )
+          .slice(candidate + exact.length, candidate + exact.length + suffix.length)
           .startsWith(suffix))
     );
   });
@@ -85,7 +157,8 @@ function locateQuote(
   return candidates.length === 1 ? candidates[0] : -1;
 }
 
-function highlightOccurrence(
+
+export function highlightOccurrence(
   root: HTMLElement,
   annotation: Annotation,
   plugin: MarginaliaPlugin
@@ -98,7 +171,12 @@ function highlightOccurrence(
   const { text, segments } = textSegments(root);
   const start = locateQuote(text, annotation.anchor.quote);
   if (start < 0) return null;
-  const end = start + annotation.anchor.quote.exact.length;
+  const exact = annotation.anchor.quote.exact;
+  const end =
+    start +
+    (text.startsWith(plainQuoteText(exact), start)
+      ? plainQuoteText(exact).length
+      : exact.length);
   let firstMark: HTMLElement | null = null;
   for (const segment of segments) {
     const from = Math.max(start, segment.start);
@@ -107,7 +185,11 @@ function highlightOccurrence(
     const range = document.createRange();
     range.setStart(segment.node, from - segment.start);
     range.setEnd(segment.node, to - segment.start);
-    const mark = createEl("mark");
+    // A span, not <mark>: Obsidian's theme styles `mark` with its own
+    // highlight background at higher specificity, which made every style
+    // (underline, wavy, strikethrough, bold) look like a plain highlight in
+    // Reading view. The editor path uses spans for the same reason.
+    const mark = createSpan();
     const presentation = markPresentation(annotation, {
       defaultStyle: plugin.settings.defaultMarkStyle,
       defaultColor: plugin.settings.highlightColor,
@@ -142,9 +224,55 @@ function findAnchor(
   return segment?.node.parentElement ?? null;
 }
 
+/** Containers rendered by OUR markdown renders (sidebar cards, hover cards,
+ *  margin cards) trigger the same post-processor; running the reading-view
+ *  pass inside them would recurse and inject marks into our own UI. */
+const OWN_UI =
+  ".marginalia-sidebar, .marginalia-hover-preview, .marginalia-margin-card, .marginalia-lightbox, .cm-editor";
+
+/** The scroll container of a Reading view, found without relying on one
+ *  class name (Obsidian has used .markdown-preview-view and
+ *  .markdown-reading-view; extensions/embeds may sit above either). */
+/** Class-name independent: the reading view is whatever ancestor actually
+ *  scrolls the document. Obsidian's class names are not a stable API. */
+function scrollHostFor(element: HTMLElement): HTMLElement | null {
+  let node = element.parentElement;
+  let best: HTMLElement | null = null;
+  let bestDelta = 8;
+  while (node && node !== document.body) {
+    const overflow = window.getComputedStyle(node).overflowY;
+    // Either the stylesheet says it scrolls, or it demonstrably does. The
+    // second test survives builds that scroll without declaring overflow;
+    // the largest overflow wins, which is the outermost scroller.
+    if (overflow === "auto" || overflow === "scroll") return node;
+    const delta = node.scrollHeight - node.clientHeight;
+    if (node.clientHeight > 0 && delta > bestDelta) {
+      best = node;
+      bestDelta = delta;
+    }
+    node = node.parentElement;
+  }
+  return best;
+}
+
+function readingContainerFor(element: HTMLElement): HTMLElement | null {
+  const direct = element.closest<HTMLElement>(
+    ".markdown-preview-view, .markdown-reading-view"
+  );
+  if (direct) return direct;
+  const sizer = element.closest<HTMLElement>(".markdown-preview-sizer");
+  if (sizer?.parentElement) return sizer.parentElement;
+  const section = element.closest<HTMLElement>(".markdown-preview-section");
+  if (section?.parentElement) return section.parentElement;
+  const host = scrollHostFor(element);
+  if (host) return host;
+  return element.closest<HTMLElement>(".workspace-leaf-content");
+}
+
 function ensurePreviewState(
   preview: HTMLElement,
-  plugin: MarginaliaPlugin
+  plugin: MarginaliaPlugin,
+  sample: HTMLElement
 ): PreviewState {
   const existing = [...previewStates].find(
     (state) => state.preview === preview
@@ -157,16 +285,22 @@ function ensurePreviewState(
     preview,
     layer,
     observer: new ResizeObserver(() => schedulePreview(state)),
-    frame: 0
+    frame: 0,
+    retries: 0,
+    retryTimer: 0,
+    lastPass: null,
+    sample
   };
   state.observer.observe(preview);
   previewStates.add(state);
+  counters.statesCreated += 1;
   plugin.register(() => destroyPreviewState(state));
   return state;
 }
 
 function destroyPreviewState(state: PreviewState): void {
   cancelAnimationFrame(state.frame);
+  window.clearTimeout(state.retryTimer);
   state.observer.disconnect();
   state.layer.remove();
   previewStates.delete(state);
@@ -174,16 +308,50 @@ function destroyPreviewState(state: PreviewState): void {
 
 function schedulePreview(state: PreviewState): void {
   window.cancelAnimationFrame(state.frame);
-  state.frame = window.requestAnimationFrame(() => renderPreviewMargins(state));
+  window.clearTimeout(state.retryTimer);
+  state.frame = window.requestAnimationFrame(() => {
+    try {
+      renderPreviewMargins(state);
+    } catch (error) {
+      reportError("reading-margins", error, {
+        source: state.preview.dataset.marginaliaSourcePath ?? ""
+      });
+    }
+  });
 }
 
-function measurePlacement(
-  state: PreviewState
-): { left: number; width: number } | null {
+/** Retry a pass that could not place cards yet: the preview may not have
+ *  been laid out (gutter measured as zero) or the marks may not exist. */
+function retryLater(state: PreviewState): void {
+  if (state.retries >= 10) {
+    state.plugin.scheduleDiagnosticsSnapshot();
+    return;
+  }
+  state.retries += 1;
+  window.clearTimeout(state.retryTimer);
+  state.retryTimer = window.setTimeout(() => {
+    try {
+      renderPreviewMargins(state);
+    } catch (error) {
+      reportError("reading-margins", error, {
+        source: state.preview.dataset.marginaliaSourcePath ?? ""
+      });
+    }
+  }, 80 * state.retries);
+}
+
+function measurePlacement(state: PreviewState): {
+  placement: { left: number; width: number } | null;
+  available: number;
+  side: string;
+} {
   const { preview, plugin } = state;
   const previewRect = preview.getBoundingClientRect();
   const sizer =
-    preview.querySelector<HTMLElement>(".markdown-preview-sizer") ?? preview;
+    preview.querySelector<HTMLElement>(".markdown-preview-sizer") ??
+    (state.sample.isConnected && preview.contains(state.sample)
+      ? state.sample
+      : preview);
   const contentRect = sizer.getBoundingClientRect();
   const gap = 10;
   const edge = 8;
@@ -202,30 +370,73 @@ function measurePlacement(
         : "right"
       : plugin.settings.marginSide;
   const available = side === "left" ? leftWidth : rightWidth;
-  if (available < 72) return null;
-  const width = Math.min(plugin.settings.marginWidth, available);
+  if (available < 72) return { placement: null, available, side };
+  // A missing/NaN setting must not produce a zero-width card.
+  const configuredWidth =
+    Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0
+      ? plugin.settings.marginWidth
+      : 200;
+  const width = Math.min(configuredWidth, available);
   return {
-    width,
-    left:
-      side === "left"
-        ? contentRect.left - previewRect.left - gap - width
-        : contentRect.right - previewRect.left + gap
+    available,
+    side,
+    placement: {
+      width,
+      left:
+        side === "left"
+          ? contentRect.left - previewRect.left - gap - width
+          : contentRect.right - previewRect.left + gap
+    }
   };
 }
 
+const marginComponents = new WeakMap<HTMLElement, Component>();
+
 function renderPreviewMargins(state: PreviewState): void {
   const { preview, layer, plugin } = state;
+  const previousReason = state.lastPass?.reason;
+  const record = (reason: string, extra?: Record<string, unknown>): void => {
+    state.lastPass = {
+      at: new Date().toISOString(),
+      reason,
+      ...extra
+    };
+    // Log only transitions: retries would otherwise flood the report.
+    if (previousReason !== reason) {
+      const source = preview.dataset.marginaliaSourcePath ?? "";
+      logEvent("info", "reading", `${reason} ${source}`.trim(), extra);
+    }
+  };
   if (!preview.isConnected) {
+    record("detached");
     destroyPreviewState(state);
     return;
   }
   layer.empty();
   layer.style.height = `${preview.scrollHeight}px`;
-  if (!plugin.settings.showMargins || plugin.areMarginsSuppressed()) return;
-  const placement = measurePlacement(state);
-  if (!placement) return;
+  if (!plugin.settings.showMargins) {
+    state.retries = 0;
+    record("margins-disabled");
+    return;
+  }
+  if (plugin.areMarginsSuppressed()) {
+    state.retries = 0;
+    record("suppressed-sidebar-open");
+    return;
+  }
+  const { placement, available, side } = measurePlacement(state);
+  if (!placement) {
+    // No gutter yet (layout not ready, or pane too narrow): try again shortly.
+      record("no-gutter", { available: Math.round(available), side });
+    retryLater(state);
+    return;
+  }
   const filePath = preview.dataset.marginaliaSourcePath;
-  if (!filePath) return;
+  if (!filePath) {
+    record("no-source-path");
+    retryLater(state);
+    return;
+  }
   const previewRect = preview.getBoundingClientRect();
   const entries = plugin.store
     .forSource(filePath)
@@ -254,7 +465,30 @@ function renderPreviewMargins(state: PreviewState): void {
     )
     .sort((a, b) => a.desiredTop - b.desiredTop);
 
-  let nextTop = 6;
+  if (entries.length === 0) {
+    // No annotations here: nothing to retry. Otherwise the marks may simply
+    // not exist yet in this pass, so try again shortly.
+    const stored = plugin.store.forSource(filePath).length;
+    record("no-located-anchors", { stored, retries: state.retries });
+    if (stored === 0) state.retries = 0;
+    else retryLater(state);
+    return;
+  }
+  state.retries = 0;
+
+  marginComponents.get(layer)?.unload();
+  const component = new Component();
+  component.load();
+  marginComponents.set(layer, component);
+  const stacked: Array<{ card: HTMLElement; desiredTop: number }> = [];
+  const stack = (): void => {
+    let nextTop = 6;
+    for (const item of stacked) {
+      const top = Math.max(item.desiredTop, nextTop);
+      item.card.style.top = `${Math.floor(top)}px`;
+      nextTop = top + item.card.getBoundingClientRect().height + 8;
+    }
+  };
   for (const entry of entries) {
     const card = layer.createDiv({
       cls: `marginalia-margin-card marginalia-margin-card-reading${
@@ -273,20 +507,28 @@ function renderPreviewMargins(state: PreviewState): void {
       "--marginalia-card-color",
       entry.annotation.color ?? plugin.settings.highlightColor
     );
-    card.createDiv({
-      cls: "marginalia-margin-card-body",
-      text: entry.annotation.body
+    const body = card.createDiv({
+      cls: "marginalia-margin-card-body markdown-rendered"
     });
+    const renderInto = (target: HTMLElement, markdown: string): void => {
+      void MarkdownRenderer.render(plugin.app, markdown, target, filePath, component)
+        .then(stack)
+        .catch(() => {
+          target.textContent = markdown;
+        });
+    };
+    renderInto(body, entry.annotation.body);
     for (const reply of entry.annotation.replies) {
-      card.createDiv({
-        cls: "marginalia-margin-card-reply",
-        text: reply.body
-      });
+      renderInto(
+        card.createDiv({
+          cls: "marginalia-margin-card-reply markdown-rendered"
+        }),
+        reply.body
+      );
     }
     card.style.left = `${Math.floor(placement.left)}px`;
     card.style.width = `${Math.floor(placement.width)}px`;
-    const top = Math.max(entry.desiredTop, nextTop);
-    card.style.top = `${Math.floor(top)}px`;
+    stacked.push({ card, desiredTop: entry.desiredTop });
     card.addEventListener("click", () =>
       void plugin.activateAnnotation(entry.annotation.id)
     );
@@ -295,8 +537,45 @@ function renderPreviewMargins(state: PreviewState): void {
       event.preventDefault();
       void plugin.activateAnnotation(entry.annotation.id);
     });
-    nextTop = top + card.getBoundingClientRect().height + 8;
   }
+  stack();
+  record("rendered", {
+    cards: stacked.length,
+    left: Math.round(placement.left),
+    width: Math.round(placement.width),
+    available: Math.round(available),
+    side
+  });
+  plugin.scheduleDiagnosticsSnapshot();
+  // Self-heal: a theme (or another plugin) hiding the layer must not make
+  // annotations invisible. The class re-asserts the layout with higher
+  // specificity than the stylesheet rule that hid it.
+  if (layer.getClientRects().length === 0) {
+    layer.addClass("marginalia-reading-margin-layer-forced");
+  }
+}
+
+/** State of every Reading view preview we manage, for the diagnostics report. */
+export function describeReadingMargins(
+  plugin: MarginaliaPlugin
+): Array<Record<string, unknown>> {
+  const rows: Array<Record<string, unknown>> = [];
+  for (const state of previewStates) {
+    if (state.plugin !== plugin) continue;
+    rows.push({
+      source: state.preview.dataset.marginaliaSourcePath ?? "",
+      containerClass: state.preview.className.slice(0, 120),
+      connected: state.preview.isConnected,
+      cards: state.layer.childElementCount,
+      layerVisible: state.layer.getClientRects().length > 0,
+      layerForced: state.layer.classList.contains(
+        "marginalia-reading-margin-layer-forced"
+      ),
+      retries: state.retries,
+      lastPass: state.lastPass
+    });
+  }
+  return rows;
 }
 
 export function refreshReadingMargins(plugin: MarginaliaPlugin): void {
@@ -305,7 +584,63 @@ export function refreshReadingMargins(plugin: MarginaliaPlugin): void {
   }
 }
 
+const pendingAttached = new WeakSet<HTMLElement>();
+
+/** Obsidian renders sections off-document and runs post-processors before
+ *  inserting them, so ancestry lookups fail on the first call. Wait for the
+ *  element to be attached, then run the pass for real. */
+function deferUntilAttached(
+  element: HTMLElement,
+  context: MarkdownPostProcessorContext,
+  plugin: MarginaliaPlugin,
+  attempt = 0
+): void {
+  if (element.isConnected) {
+    pendingAttached.delete(element);
+    processReadingView(element, context, plugin);
+    return;
+  }
+  if (attempt >= 20) {
+    pendingAttached.delete(element);
+    counters.noContainer += 1;
+    logEvent("warn", "reading", "block never attached to the document", {
+      source: context.sourcePath
+    });
+    void plugin.writeDiagnosticsToVault();
+    return;
+  }
+  window.setTimeout(
+    () => deferUntilAttached(element, context, plugin, attempt + 1),
+    60
+  );
+}
+
 export function processReadingView(
+  element: HTMLElement,
+  context: MarkdownPostProcessorContext,
+  plugin: MarginaliaPlugin
+): void {
+  counters.passes += 1;
+  if (element.closest(OWN_UI)) {
+    counters.skippedOwnUi += 1;
+    return;
+  }
+  if (!element.isConnected) {
+    counters.deferredDetached += 1;
+    if (!pendingAttached.has(element)) {
+      pendingAttached.add(element);
+      deferUntilAttached(element, context, plugin);
+    }
+    return;
+  }
+  try {
+    processReadingViewInner(element, context, plugin);
+  } catch (error) {
+    reportError("reading", error, { source: context.sourcePath });
+  }
+}
+
+function processReadingViewInner(
   element: HTMLElement,
   context: MarkdownPostProcessorContext,
   plugin: MarginaliaPlugin
@@ -319,12 +654,32 @@ export function processReadingView(
         (annotation.status !== "resolved" || plugin.settings.showResolved)
     );
   for (const annotation of annotations) {
-    if (plugin.settings.showHighlights) {
+    if (!plugin.settings.showHighlights) continue;
+    try {
       highlightOccurrence(element, annotation, plugin);
+    } catch (error) {
+      // A single block must never abort the whole Reading view pass.
+      reportError("reading-mark", error, {
+        source: context.sourcePath,
+        annotation: annotation.id
+      });
     }
   }
-  const preview = element.closest<HTMLElement>(".markdown-preview-view");
-  if (!preview) return;
+  const preview = readingContainerFor(element);
+  if (!preview) {
+    counters.noContainer += 1;
+    if (!loggedNoContainer.has(context.sourcePath)) {
+      loggedNoContainer.add(context.sourcePath);
+      logEvent("warn", "reading", "no preview container found", {
+        source: context.sourcePath,
+        ancestors: ancestorSignature(element)
+      });
+      // Auto-persist the report: a failure in a real vault must be readable
+      // from disk without asking the user to copy anything.
+      void plugin.writeDiagnosticsToVault();
+    }
+    return;
+  }
   preview.dataset.marginaliaSourcePath = context.sourcePath;
-  schedulePreview(ensurePreviewState(preview, plugin));
+  schedulePreview(ensurePreviewState(preview, plugin, element));
 }
