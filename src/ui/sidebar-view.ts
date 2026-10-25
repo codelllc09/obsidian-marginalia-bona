@@ -101,6 +101,9 @@ export class MarginaliaSidebarView extends ItemView {
   private sortMode: SortMode = "source";
   private activeId: string | null = null;
   private flashTimer: number | null = null;
+  /** A jump that has not landed yet: later re-renders must re-apply it,
+   *  otherwise an event-driven rebuild resets scroll and loses the pulse. */
+  private pendingJump: { id: string; until: number } | null = null;
   private draft:
     | ({ mode: "create"; input: NewAnnotation } & DraftState)
     | ({ mode: "edit"; annotation: Annotation } & DraftState)
@@ -181,10 +184,19 @@ export class MarginaliaSidebarView extends ItemView {
         this.render();
       }
     }
+    // Remember the jump for a moment: a rebuild triggered by any external
+    // event (file open, refresh) would otherwise wipe the scroll and pulse.
+    this.pendingJump = { id, until: Date.now() + 1500 };
+    this.applyJump(id);
+  }
+
+  /** Land a jump: mark, centre when off-screen, and pulse the card. */
+  private applyJump(id: string): void {
     const card = this.containerEl.querySelector(
       `[data-marginalia-id="${id}"]`
     );
     if (!(card instanceof HTMLElement)) return;
+    this.pendingJump = null;
     card.addClass("is-active");
     // Only move the list when the card is not already fully visible, and
     // then centre it: landing at the very top or bottom edge is what made
@@ -267,6 +279,11 @@ export class MarginaliaSidebarView extends ItemView {
     }
     for (const annotation of annotations) this.renderCard(list, annotation);
     if (wasDraftTextarea) this.focusDraft(caret ?? 0);
+    // A jump in flight survives rebuilds: land it on the fresh DOM.
+    if (this.pendingJump) {
+      if (Date.now() < this.pendingJump.until) this.applyJump(this.pendingJump.id);
+      else this.pendingJump = null;
+    }
   }
 
   private renderDraft(root: HTMLElement): void {
