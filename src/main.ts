@@ -622,10 +622,15 @@ export default class MarginaliaPlugin extends Plugin {
           outer.right - text.right
         ) - 18;
       }
+      // Both thresholds scale with the text size, so a 1080p window at 100%
+      // and a 2K window at 200% behave the same way.
+      const fontSize =
+        Number.parseFloat(window.getComputedStyle(content).fontSize) || 16;
+      const minGutter = Math.max(72, Math.round(fontSize * 8));
       const roomForText = content.clientWidth - reserve;
       content.toggleClass(
         "marginalia-reserve",
-        gutter < 72 && roomForText >= 480
+        gutter < minGutter && roomForText >= Math.round(fontSize * 30)
       );
     });
   }

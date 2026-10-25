@@ -404,9 +404,13 @@ function measurePlacement(state: PreviewState): {
     0,
     previewRect.right - contentRect.right - gap - edge
   );
+  // Thresholds are relative to the text size: a 2K screen at 200% scaling and
+  // a 1080p screen at 100% both work, and so do larger editor fonts.
+  const fontSize =
+    Number.parseFloat(window.getComputedStyle(preview).fontSize) || 16;
   // "auto" means the right margin unless it is too narrow: a few pixels of
   // scrollbar gutter used to flip the cards to the left, which reads as a bug.
-  const MIN_ROOM = 72;
+  const MIN_ROOM = Math.max(72, Math.round(fontSize * 8));
   const side =
     plugin.settings.marginSide === "auto"
       ? rightWidth >= MIN_ROOM
@@ -418,7 +422,7 @@ function measurePlacement(state: PreviewState): {
             : "right"
       : plugin.settings.marginSide;
   const available = side === "left" ? leftWidth : rightWidth;
-  if (available < 72) return { placement: null, available, side };
+  if (available < MIN_ROOM) return { placement: null, available, side };
   // A missing/NaN setting must not produce a zero-width card.
   const configuredWidth =
     Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0

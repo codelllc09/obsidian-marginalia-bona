@@ -112,9 +112,13 @@ function choosePlacement(
     0,
     editorRect.right - contentRect.right - gap - edge
   );
+  // Thresholds are relative to the text size: a 2K screen at 200% scaling and
+  // a 1080p screen at 100% both work, and so do larger editor fonts.
+  const fontSize =
+    Number.parseFloat(window.getComputedStyle(view.dom).fontSize) || 16;
   // "auto" means the right margin unless it is too narrow: a few pixels of
   // scrollbar gutter used to flip the cards to the left, which reads as a bug.
-  const MIN_ROOM = 72;
+  const MIN_ROOM = Math.max(72, Math.round(fontSize * 8));
   const side =
     plugin.settings.marginSide === "auto"
       ? rightWidth >= MIN_ROOM
