@@ -13,8 +13,6 @@ const PATH_PARAM = {
   description: "Vault path of the annotated note, e.g. Daily/2026-10-24.md"
 };
 
-const ERROR_REF = { $ref: "#/components/schemas/MarginaliaError" };
-
 const JSON_BODY = (schema: Record<string, unknown>) => ({
   required: true,
   content: { "application/json": { schema } }
@@ -25,6 +23,13 @@ const OK_THREAD = {
     "The annotation thread: {id, source, status, author, color, markStyle, created, updated, drifted, anchor, body, replies[]}."
 };
 
+const ERROR_LINE =
+  "Errors: JSON {errorCode, message} - 40001 invalid body / 40401 unknown " +
+  "annotation / 40402 not a Markdown note / 40403 quote not found / 40404 " +
+  "unknown reply / 40902 ambiguous quote (pass occurrence) / 40903 " +
+  "expected_text or expected_quote lock mismatch. The full envelope is " +
+  "documented under components.schemas.MarginaliaError.";
+
 function op(
   summary: string,
   description: string,
@@ -32,14 +37,8 @@ function op(
 ): Record<string, unknown> {
   return {
     summary,
-    description,
+    description: `${description}\n\n${ERROR_LINE}`,
     tags: [TAG],
-    responses: {
-      default: {
-        description: "Error envelope.",
-        content: { "application/json": { schema: ERROR_REF } }
-      }
-    },
     ...extra
   };
 }
