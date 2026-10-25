@@ -69,11 +69,12 @@
 .marginalia-dropdown {
   align-items: center;
   display: flex;
+  font-size: var(--font-ui-small);
   gap: var(--size-4-1);
   justify-content: space-between;
   max-width: 100%;
   min-width: 0;
-  padding-inline: var(--size-4-3);
+  padding-inline: var(--size-4-2);
   width: 100%;
 }
 

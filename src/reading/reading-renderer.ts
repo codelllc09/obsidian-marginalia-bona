@@ -1,4 +1,4 @@
-import { MarkdownPostProcessorContext } from "obsidian";
+import { Component, MarkdownPostProcessorContext, MarkdownRenderer } from "obsidian";
 import type MarginaliaPlugin from "../main";
 import { Annotation } from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
@@ -213,6 +213,8 @@ function measurePlacement(
   };
 }
 
+const marginComponents = new WeakMap<HTMLElement, Component>();
+
 function renderPreviewMargins(state: PreviewState): void {
   const { preview, layer, plugin } = state;
   if (!preview.isConnected) {
@@ -254,7 +256,19 @@ function renderPreviewMargins(state: PreviewState): void {
     )
     .sort((a, b) => a.desiredTop - b.desiredTop);
 
-  let nextTop = 6;
+  marginComponents.get(layer)?.unload();
+  const component = new Component();
+  component.load();
+  marginComponents.set(layer, component);
+  const stacked: Array<{ card: HTMLElement; desiredTop: number }> = [];
+  const stack = (): void => {
+    let nextTop = 6;
+    for (const item of stacked) {
+      const top = Math.max(item.desiredTop, nextTop);
+      item.card.style.top = `${Math.floor(top)}px`;
+      nextTop = top + item.card.getBoundingClientRect().height + 8;
+    }
+  };
   for (const entry of entries) {
     const card = layer.createDiv({
       cls: `marginalia-margin-card marginalia-margin-card-reading${
@@ -273,20 +287,28 @@ function renderPreviewMargins(state: PreviewState): void {
       "--marginalia-card-color",
       entry.annotation.color ?? plugin.settings.highlightColor
     );
-    card.createDiv({
-      cls: "marginalia-margin-card-body",
-      text: entry.annotation.body
+    const body = card.createDiv({
+      cls: "marginalia-margin-card-body markdown-rendered"
     });
+    const renderInto = (target: HTMLElement, markdown: string): void => {
+      void MarkdownRenderer.render(plugin.app, markdown, target, filePath, component)
+        .then(stack)
+        .catch(() => {
+          target.textContent = markdown;
+        });
+    };
+    renderInto(body, entry.annotation.body);
     for (const reply of entry.annotation.replies) {
-      card.createDiv({
-        cls: "marginalia-margin-card-reply",
-        text: reply.body
-      });
+      renderInto(
+        card.createDiv({
+          cls: "marginalia-margin-card-reply markdown-rendered"
+        }),
+        reply.body
+      );
     }
     card.style.left = `${Math.floor(placement.left)}px`;
     card.style.width = `${Math.floor(placement.width)}px`;
-    const top = Math.max(entry.desiredTop, nextTop);
-    card.style.top = `${Math.floor(top)}px`;
+    stacked.push({ card, desiredTop: entry.desiredTop });
     card.addEventListener("click", () =>
       void plugin.activateAnnotation(entry.annotation.id)
     );
@@ -295,8 +317,8 @@ function renderPreviewMargins(state: PreviewState): void {
       event.preventDefault();
       void plugin.activateAnnotation(entry.annotation.id);
     });
-    nextTop = top + card.getBoundingClientRect().height + 8;
   }
+  stack();
 }
 
 export function refreshReadingMargins(plugin: MarginaliaPlugin): void {

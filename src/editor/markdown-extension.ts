@@ -6,7 +6,7 @@ import {
   ViewPlugin,
   ViewUpdate
 } from "@codemirror/view";
-import { MarkdownView } from "obsidian";
+import { Component, MarkdownRenderer, MarkdownView } from "obsidian";
 import type MarginaliaPlugin from "../main";
 import {
   Annotation,
@@ -131,10 +131,27 @@ function choosePlacement(
   };
 }
 
+/** One Component per render pass; unmounted when the layer re-renders. */
+const marginComponents = new WeakMap<HTMLElement, Component>();
+
+function marginComponentFor(
+  plugin: MarginaliaPlugin,
+  layer: HTMLElement
+): Component {
+  marginComponents.get(layer)?.unload();
+  const component = new Component();
+  component.load();
+  marginComponents.set(layer, component);
+  return component;
+}
+
 function createMarginCard(
   annotation: Annotation,
   plugin: MarginaliaPlugin,
-  width: number
+  width: number,
+  sourcePath: string,
+  component: Component,
+  onRendered: () => void
 ): HTMLElement {
   const card = createDiv();
   card.className = "marginalia-margin-card marginalia-margin-card-live";
@@ -150,14 +167,29 @@ function createMarginCard(
     "--marginalia-card-color",
     annotation.color ?? plugin.settings.highlightColor
   );
-  const body = createDiv({ cls: "marginalia-margin-card-body" });
-  body.textContent = annotation.body;
+  // Rendered as Markdown so emphasis, code and links look like they do in
+  // the sidebar; the card heights change afterwards, hence the relayout.
+  const body = createDiv({ cls: "marginalia-margin-card-body markdown-rendered" });
   card.appendChild(body);
+  const renderInto = (target: HTMLElement, markdown: string): void => {
+    void MarkdownRenderer.render(
+      plugin.app,
+      markdown,
+      target,
+      sourcePath,
+      component
+    )
+      .then(onRendered)
+      .catch(() => {
+        target.textContent = markdown;
+      });
+  };
+  renderInto(body, annotation.body);
   for (const reply of annotation.replies) {
-    card.createDiv({
-      cls: "marginalia-margin-card-reply",
-      text: reply.body
-    });
+    renderInto(
+      card.createDiv({ cls: "marginalia-margin-card-reply markdown-rendered" }),
+      reply.body
+    );
   }
   if (annotation.replies.length > 0) {
     card.createDiv({
@@ -222,18 +254,34 @@ function renderMargins(
     )
     .sort((a, b) => a.desiredTop - b.desiredTop);
 
-  let nextTop = 6;
+  const stacked: Array<{ card: HTMLElement; desiredTop: number }> = [];
+  const stack = (): void => {
+    let nextTop = 6;
+    for (const item of stacked) {
+      const top = Math.max(6, item.desiredTop, nextTop);
+      item.card.style.top = `${Math.floor(top)}px`;
+      nextTop = top + item.card.getBoundingClientRect().height + 8;
+    }
+  };
+  const sourcePath = markdownPathForEditor(view, plugin) ?? "";
+  const component = marginComponentFor(plugin, layer);
   for (const entry of entries) {
     if (entry.desiredTop < -200 || entry.desiredTop > editorRect.height + 200) {
       continue;
     }
-    const card = createMarginCard(entry.annotation, plugin, placement.width);
+    const card = createMarginCard(
+      entry.annotation,
+      plugin,
+      placement.width,
+      sourcePath,
+      component,
+      stack
+    );
     card.style.left = `${Math.floor(placement.left)}px`;
     layer.appendChild(card);
-    const top = Math.max(6, entry.desiredTop, nextTop);
-    card.style.top = `${Math.floor(top)}px`;
-    nextTop = top + card.getBoundingClientRect().height + 8;
+    stacked.push({ card, desiredTop: entry.desiredTop });
   }
+  stack();
 }
 
 async function mapChangedAnchors(
