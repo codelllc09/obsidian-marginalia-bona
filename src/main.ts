@@ -537,7 +537,28 @@ export default class MarginaliaPlugin extends Plugin {
       }
       return;
     }
-    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    // Scroll the preview only: scrollIntoView also scrolls every ancestor,
+    // which dragged the collapsed sidebars into view and re-tiled the layout.
+    const scroller = (() => {
+      let node: HTMLElement | null = target.parentElement;
+      while (node) {
+        const overflow = getComputedStyle(node).overflowY;
+        if (overflow === "auto" || overflow === "scroll") return node;
+        node = node.parentElement;
+      }
+      return root;
+    })();
+    if (scroller) {
+      const targetRect = target.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const offset =
+        targetRect.top -
+        scrollerRect.top +
+        scroller.scrollTop -
+        scroller.clientHeight / 2 +
+        targetRect.height / 2;
+      scroller.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+    }
     target.addClass("marginalia-jump-target");
     window.setTimeout(() => target.removeClass("marginalia-jump-target"), 1400);
     logEvent("info", "jump", "landed in Reading view", {

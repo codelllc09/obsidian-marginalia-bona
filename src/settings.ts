@@ -44,7 +44,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   marginSide: "auto",
   marginWidth: 200,
   suppressMarginsWithSidebar: true,
-  reserveMarginSpace: false,
+  reserveMarginSpace: true,
   highlightColor: "#ffd54f",
   highlightOpacity: 0.35,
   defaultMarkStyle: "highlight",

@@ -193,6 +193,28 @@ export class MarginaliaSidebarView extends ItemView {
     this.applyJump(id, true);
   }
 
+  /** Centre an element inside our own list. `scrollIntoView` also scrolls
+   *  every ancestor, which drags the workspace sidebars into view and
+   *  re-tiles the layout mid-jump. */
+  private centerInList(element: HTMLElement, smooth: boolean): void {
+    const scroller = this.listEl;
+    if (!scroller) return;
+    const rect = element.getBoundingClientRect();
+    const viewRect = scroller.getBoundingClientRect();
+    const fullyVisible =
+      rect.top >= viewRect.top && rect.bottom <= viewRect.bottom;
+    if (fullyVisible) return;
+    const offset =
+      rect.top -
+      viewRect.top +
+      scroller.scrollTop -
+      (scroller.clientHeight - rect.height) / 2;
+    scroller.scrollTo({
+      top: Math.max(0, offset),
+      behavior: smooth ? "smooth" : "auto"
+    });
+  }
+
   /** Land a jump: mark, centre when off-screen, and pulse the card.
    *  Re-applied after each rebuild while the jump window lasts; rebuilds
    *  reset the scroll position, so they land instantly instead of
@@ -206,19 +228,7 @@ export class MarginaliaSidebarView extends ItemView {
     // Only move the list when the card is not already fully visible, and
     // then centre it: landing at the very top or bottom edge is what made
     // jumps feel like nothing happened.
-    const scroller = this.listEl;
-    if (scroller) {
-      const cardRect = card.getBoundingClientRect();
-      const viewRect = scroller.getBoundingClientRect();
-      const fullyVisible =
-        cardRect.top >= viewRect.top && cardRect.bottom <= viewRect.bottom;
-      if (!fullyVisible) {
-        card.scrollIntoView({
-          block: "center",
-          behavior: smooth ? "smooth" : "auto"
-        });
-      }
-    }
+    this.centerInList(card, smooth);
     // A short pulse tells the eye where the jump landed.
     if (this.flashTimer !== null) window.clearTimeout(this.flashTimer);
     card.removeClass("is-flashing");
@@ -1296,7 +1306,7 @@ export class MarginaliaSidebarView extends ItemView {
     composer.addEventListener("click", (event) => event.stopPropagation());
     window.setTimeout(() => {
       // Long cards: make sure the composer is actually on screen.
-      composer.scrollIntoView({ block: "nearest" });
+      this.centerInList(composer, false);
       textarea.focus();
     });
   }
