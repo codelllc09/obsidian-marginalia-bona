@@ -223,3 +223,65 @@ describe("markdown thread format / hostile round-trips", () => {
     });
   });
 });
+
+describe("legacy files with an empty Replies section", () => {
+  const legacy = `---
+siden-schema: 1
+id: "11111111-2222-4000-8000-000000000001"
+source: "Note.md"
+source-type: "markdown"
+status: "open"
+created: "2024-01-01T00:00:00.000Z"
+updated: "2024-01-01T00:00:00.000Z"
+---
+
+# Annotation
+
+正文只有一行。
+
+## Replies
+
+<!-- siden:anchor -->
+
+## Anchor metadata
+
+\`\`\`json
+{
+  "kind": "markdown",
+  "startOffset": 0,
+  "endOffset": 6,
+  "startLine": 0,
+  "startCharacter": 0,
+  "endLine": 0,
+  "endCharacter": 6,
+  "quote": { "exact": "正文只有一行", "prefix": "", "suffix": "" },
+  "originalQuote": "正文只有一行"
+}
+\`\`\`
+
+<!-- /siden:anchor -->
+`;
+
+  it("does not leak the empty heading into the body", () => {
+    const annotation = parseAnnotation(legacy);
+    expect(annotation.body).toBe("正文只有一行。");
+    expect(annotation.replies).toEqual([]);
+  });
+
+  it("keeps a quoted Replies marker that is followed by prose", () => {
+    const quoted = legacy.replace(
+      "正文只有一行。\n\n## Replies\n",
+      "正文只有一行。\n\n文件里用 ## Replies 分段。\n"
+    );
+    const annotation = parseAnnotation(quoted);
+    expect(annotation.body).toContain("## Replies");
+  });
+
+  it("round-trips after the fix", () => {
+    const annotation = parseAnnotation(legacy);
+    const reparsed = parseAnnotation(serializeAnnotation(annotation));
+    expect(reparsed.body).toBe(annotation.body);
+    expect(reparsed.replies).toEqual([]);
+    expect(serializeAnnotation(reparsed)).toBe(serializeAnnotation(annotation));
+  });
+});

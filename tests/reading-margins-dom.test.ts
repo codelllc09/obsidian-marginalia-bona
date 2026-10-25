@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { describeReadingMargins, processReadingView } from "../src/reading/reading-renderer";
+import { describeReadingMargins, processReadingView, refreshReadingMargins } from "../src/reading/reading-renderer";
 import { installDom } from "./dom-setup";
 import type { Annotation } from "../src/domain/annotation";
 
@@ -312,5 +312,44 @@ describe("Reading view margins: post-processor runs before insertion", () => {
 
     expect(preview.querySelectorAll("span[data-marginalia-id]")).toHaveLength(1);
     expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
+  });
+});
+
+describe("Reading view margins: layer height", () => {
+  it("does not feed its own height back into the scroll area", () => {
+    const { preview } = buildPreview();
+    const plugin = fakePlugin([annotation()]);
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      plugin as never
+    );
+    const height = Number.parseFloat(
+      preview.querySelector<HTMLElement>(".marginalia-reading-margin-layer")
+        ?.style.height ?? "NaN"
+    );
+    // Content height (900) plus slack, never an inflated scrollHeight.
+    expect(Number.isFinite(height)).toBe(true);
+    expect(height).toBeLessThan(1500);
+  });
+});
+
+describe("Reading view margins: marks survive a replaced section", () => {
+  it("re-applies the mark when the pass runs on the live preview", () => {
+    const { preview } = buildPreview();
+    const plugin = fakePlugin([annotation()]);
+    const block = preview.firstElementChild?.firstElementChild as HTMLElement;
+    processReadingView(block, { sourcePath: NOTE } as never, plugin as never);
+    expect(preview.querySelectorAll("span[data-marginalia-id]")).toHaveLength(1);
+
+    // Obsidian re-renders the section: the marked node is gone, the text is new.
+    const sizer = preview.firstElementChild as HTMLElement;
+    const rebuilt = document.createElement("p");
+    rebuilt.textContent = "Maxwell's electrodynamics leads to asymmetries in moving bodies.";
+    sizer.replaceChildren(rebuilt);
+    expect(preview.querySelectorAll("span[data-marginalia-id]")).toHaveLength(0);
+
+    refreshReadingMargins(plugin as never);
+    expect(preview.querySelectorAll("span[data-marginalia-id]")).toHaveLength(1);
   });
 });
