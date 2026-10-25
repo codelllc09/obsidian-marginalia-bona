@@ -20,7 +20,6 @@
 .marginalia-toolbar {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
   gap: var(--size-4-2);
   max-width: 100%;
   min-width: 0;
@@ -31,27 +30,30 @@
   width: auto;
 }
 
-/* Pushes the scope/filter controls to the trailing edge. */
-.marginalia-toolbar-spacer {
-  flex: 1 1 var(--size-4-4);
+/* Three equal columns: the triggers keep a stable order and width, and the
+   popovers open as the same-width list underneath them. */
+.marginalia-filter-row {
+  display: grid;
+  gap: var(--size-4-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: var(--size-4-2);
+  min-width: 0;
 }
 
-.marginalia-toolbar > button:not(.clickable-icon) {
-  flex: 0 0 auto;
-  width: auto;
+.marginalia-dropdown-wrap {
+  min-width: 0;
+  position: relative;
 }
 
 .marginalia-dropdown {
   align-items: center;
-  display: inline-flex;
-  flex-direction: row;
+  display: flex;
   gap: var(--size-4-1);
+  justify-content: space-between;
   max-width: 100%;
-}
-
-.marginalia-dropdown svg {
-  height: 0.75em;
-  width: 0.75em;
+  min-width: 0;
+  padding-inline: var(--size-4-3);
+  width: 100%;
 }
 
 .marginalia-dropdown-label {
@@ -60,9 +62,81 @@
   white-space: nowrap;
 }
 
-.marginalia-toolbar select {
+.marginalia-dropdown-icon {
+  display: inline-flex;
   flex: 0 0 auto;
-  width: auto;
+}
+
+.marginalia-dropdown-icon svg {
+  height: 0.75em;
+  width: 0.75em;
+}
+
+.marginalia-dropdown-menu {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+  box-sizing: border-box;
+  display: none;
+  left: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: var(--size-4-1);
+  position: absolute;
+  top: calc(100% + 0.25em);
+  width: 100%;
+  z-index: var(--layer-popover, 30);
+}
+
+.marginalia-dropdown-menu.is-open {
+  display: block;
+}
+
+.marginalia-dropdown-item {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  color: var(--text-normal);
+  cursor: pointer;
+  display: flex;
+  font-size: 1em;
+  gap: 0.4em;
+  height: auto;
+  justify-content: flex-start;
+  padding: 0.35em 0.5em;
+  text-align: start;
+  width: 100%;
+}
+
+.marginalia-dropdown-item:hover,
+.marginalia-dropdown-item:focus-visible {
+  background: var(--background-modifier-hover);
+}
+
+.marginalia-dropdown-check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 1em;
+  visibility: hidden;
+  width: 1em;
+}
+
+.marginalia-dropdown-item.is-selected .marginalia-dropdown-check {
+  visibility: visible;
+}
+
+.marginalia-dropdown-check svg {
+  height: 1em;
+  width: 1em;
+}
+
+.marginalia-dropdown-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .marginalia-search {

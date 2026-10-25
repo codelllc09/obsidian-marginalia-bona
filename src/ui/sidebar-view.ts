@@ -103,6 +103,8 @@ export class MarginaliaSidebarView extends ItemView {
   /** Currently open Obsidian menu + the control that owns it, so a
    *  second click on the same control toggles it closed. */
   private openMenuInstance: Menu | null = null;
+  /** Closes the currently open filter popover, if any (one at a time). */
+  private openFilterClose: (() => void) | null = null;
   private openMenuOwner: HTMLElement | null = null;
   private lastMenuCloseAt = 0;
   private lastMenuOwner: HTMLElement | null = null;
@@ -478,9 +480,11 @@ export class MarginaliaSidebarView extends ItemView {
     bottomButton.addEventListener("click", () =>
       this.listEl?.scrollTo({ top: this.listEl.scrollHeight, behavior: "smooth" })
     );
-    toolbar.createDiv({ cls: "marginalia-toolbar-spacer" });
+    // Filters get their own row of three equal columns so the triggers keep
+    // a stable order and width no matter how many annotations are shown.
+    const filters = root.createDiv({ cls: "marginalia-filter-row" });
     this.renderDropdown(
-      toolbar,
+      filters,
       "Status",
       [
         { value: "open", label: "Open" },
@@ -497,7 +501,7 @@ export class MarginaliaSidebarView extends ItemView {
       }
     );
     this.renderDropdown(
-      toolbar,
+      filters,
       "Scope",
       [
         { value: "current", label: "Current file" },
@@ -510,7 +514,7 @@ export class MarginaliaSidebarView extends ItemView {
       }
     );
     this.renderDropdown(
-      toolbar,
+      filters,
       "Sort",
       [
         { value: "source", label: "Source order" },
@@ -526,47 +530,144 @@ export class MarginaliaSidebarView extends ItemView {
     );
   }
 
-  /** Dropdown-style toolbar button: "Name: option" + chevron, opens an
-   *  Obsidian menu with the active option checked. A native <select> and
-   *  a text-toggling button both read as dead controls — the chevron and
-   *  the visible alternatives make the choices discoverable. */
+  /** Dropdown-style filter trigger: "Name: option" + chevron, opening a
+   *  popover anchored under the trigger and exactly as wide as it. The list
+   *  opens as a plain stacked menu so every choice is visible at once;
+   *  Obsidian's context Menu follows the pointer instead, which reads as a
+   *  stray floating panel next to a rail of equal-width filters. */
   private renderDropdown<T extends string>(
-    toolbar: HTMLElement,
+    parent: HTMLElement,
     name: string,
     options: ReadonlyArray<{ value: T; label: string }>,
     get: () => T,
     set: (value: T) => void
   ): void {
-    const button = toolbar.createEl("button", {
+    const wrap = parent.createDiv({ cls: "marginalia-dropdown-wrap" });
+    const button = wrap.createEl("button", {
       cls: "marginalia-dropdown",
-      attr: { "aria-haspopup": "menu" }
+      attr: { "aria-haspopup": "menu", "aria-expanded": "false" }
     });
     const label = button.createSpan({ cls: "marginalia-dropdown-label" });
     const iconEl = button.createSpan({ cls: "marginalia-dropdown-icon" });
     setIcon(iconEl, "chevron-down");
+
+    const menu = wrap.createDiv({
+      cls: "marginalia-dropdown-menu",
+      attr: { role: "menu", "aria-label": name }
+    });
+    const items = options.map((option) => {
+      const item = menu.createEl("button", {
+        cls: "marginalia-dropdown-item",
+        attr: { role: "menuitemradio", tabindex: "-1" }
+      });
+      const check = item.createSpan({ cls: "marginalia-dropdown-check" });
+      setIcon(check, "check");
+      item.createSpan({ cls: "marginalia-dropdown-item-label" }).setText(
+        option.label
+      );
+      item.addEventListener("click", () => {
+        close(true);
+        if (option.value !== get()) set(option.value);
+        sync();
+      });
+      return item;
+    });
+
     const sync = () => {
       const current = options.find((option) => option.value === get());
-      label.setText(`${name}: ${current?.label ?? ""}`);
-      button.setAttribute(
-        "aria-label",
-        `${name}: ${current?.label ?? ""} (choose from menu)`
-      );
+      const text = `${name}: ${current?.label ?? ""}`;
+      label.setText(text);
+      button.setAttribute("aria-label", text);
+      button.title = text;
+      options.forEach((option, index) => {
+        const selected = option.value === get();
+        items[index].classList.toggle("is-selected", selected);
+        items[index].setAttribute("aria-checked", String(selected));
+      });
     };
-    sync();
-    button.addEventListener("click", (event) => {
-      const menu = new Menu();
-      for (const option of options) {
-        menu.addItem((item) =>
-          item
-            .setTitle(option.label)
-            .setChecked(option.value === get())
-            .onClick(() => {
-              if (option.value !== get()) set(option.value);
-              sync();
-            })
-        );
+
+    const isOpen = () => menu.classList.contains("is-open");
+
+    const focusItem = (index: number) => {
+      const clamped = (index + items.length) % items.length;
+      items[clamped].focus();
+    };
+
+    const onOutside = (event: PointerEvent) => {
+      if (!wrap.contains(event.target as Node)) close();
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      const focused = items.indexOf(document.activeElement as HTMLButtonElement);
+      switch (event.key) {
+        case "Escape":
+          event.preventDefault();
+          close(true);
+          return;
+        case "Tab":
+          close();
+          return;
+        case "ArrowDown":
+          event.preventDefault();
+          focusItem(focused < 0 ? 0 : focused + 1);
+          return;
+        case "ArrowUp":
+          event.preventDefault();
+          focusItem(focused < 0 ? items.length - 1 : focused - 1);
+          return;
+        case "Home":
+          event.preventDefault();
+          focusItem(0);
+          return;
+        case "End":
+          event.preventDefault();
+          focusItem(items.length - 1);
+          return;
+        default:
+          if (event.key === "Enter" || event.key === " ") {
+            // Enter/Space on a focused item is its click; on the trigger it
+            // opens the menu.
+            if (focused < 0) return;
+            event.preventDefault();
+            items[focused].click();
+          }
       }
-      this.showMenu(menu, event, button);
+    };
+
+    const open = () => {
+      // One popover at a time: closing through the stored handle also
+      // detaches the previous menu's document listeners.
+      this.openFilterClose?.();
+      this.openFilterClose = () => close();
+      menu.classList.add("is-open");
+      button.setAttribute("aria-expanded", "true");
+      document.addEventListener("pointerdown", onOutside, true);
+      document.addEventListener("keydown", onKeydown, true);
+      const selected = options.findIndex((option) => option.value === get());
+      const target = items[selected] ?? items[0];
+      target.focus();
+      target.scrollIntoView({ block: "nearest" });
+    };
+
+    const close = (focusTrigger = false) => {
+      if (!isOpen()) return;
+      menu.classList.remove("is-open");
+      button.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", onOutside, true);
+      document.removeEventListener("keydown", onKeydown, true);
+      if (this.openFilterClose) this.openFilterClose = null;
+      if (focusTrigger) button.focus();
+    };
+
+    sync();
+    button.addEventListener("click", () => {
+      if (isOpen()) close();
+      else open();
+    });
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (!isOpen()) open();
+      }
     });
   }
 
