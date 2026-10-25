@@ -50,15 +50,25 @@ export function registerMcpTools(
     if (typeof args.status === "string") q.status = args.status;
     if (typeof args.author === "string") q.author = args.author;
     if (typeof args.read === "boolean") q.read = String(args.read);
+    if (typeof args.q === "string") q.q = args.q;
+    if (typeof args.sort === "string") q.sort = args.sort;
+    if (typeof args.dir === "string") q.dir = args.dir;
+    if (typeof args.limit === "number") q.limit = String(args.limit);
     return q;
   };
 
   add(
     "marginalia_list_annotations",
-    "List Marginalia annotation threads on a note, newest first. " +
-      "status=drifted returns annotations whose quoted passage moved.",
+    "List annotation threads. With source: that note only. Omit source to " +
+      "search the whole vault (cap 200, response carries total). " +
+      "status=drifted matches annotations whose quoted passage moved.",
     {
-      ...SOURCE_SHAPE,
+      source: z
+        .string()
+        .optional()
+        .describe(
+          "Vault path of the note to list; omit to search the whole vault"
+        ),
       status: STATUS_ENUM.optional().describe(
         "Filter: open, resolved, orphaned, drifted, or all (default all)"
       ),
@@ -69,10 +79,38 @@ export function registerMcpTools(
       read: z
         .boolean()
         .optional()
-        .describe("Filter: true = read only, false = unread only")
+        .describe("Filter: true = read only, false = unread only"),
+      q: z
+        .string()
+        .optional()
+        .describe(
+          "Case-insensitive substring across body, replies, quote, and note path"
+        ),
+      sort: z
+        .enum(["source", "created", "updated"])
+        .optional()
+        .describe(
+          "Order: source (document order, default), created, or updated; combine with dir"
+        ),
+      dir: z
+        .enum(["asc", "desc"])
+        .optional()
+        .describe("Sort direction, default asc"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe("Cap on returned threads (hard cap 200); response carries total")
     },
     async (args) =>
-      render(api.list(String(args.source), query(args)))
+      render(
+        api.list(
+          typeof args.source === "string" ? args.source : undefined,
+          query(args)
+        )
+      )
   );
 
   add(

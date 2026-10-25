@@ -72,8 +72,8 @@ export function openApiDescription(): Record<string, unknown> {
       "/vault/{path}/annotations/": {
         parameters: [PATH_PARAM],
         get: op(
-          "List annotation threads on a note",
-          "Query `status`: open | resolved | orphaned | drifted | all (default all). Query `author` filters by author (e.g. Pi, user).",
+          "List annotation threads",
+          "Query `status`: open | resolved | orphaned | all (default all); the aliases drifted/unread are accepted. Query `read`: true | false. Query `q` is a case-insensitive substring across body, replies, quote, and note path. `sort`: source (document order, default) | created | updated, with `dir` asc (default) | desc. The response carries `total` (all matches) alongside `threads` (capped at 200 via `limit`).",
           {
             parameters: [
               PATH_PARAM,
@@ -81,18 +81,49 @@ export function openApiDescription(): Record<string, unknown> {
                 name: "status",
                 in: "query",
                 schema: { type: "string" },
-                description: "open | resolved | orphaned | drifted | all"
+                description: "open | resolved | orphaned | drifted | unread | all"
               },
               {
                 name: "author",
                 in: "query",
                 schema: { type: "string" },
                 description: "Filter by author"
+              },
+              {
+                name: "read",
+                in: "query",
+                schema: { type: "string" },
+                description: "true = read only, false = unread only"
+              },
+              {
+                name: "q",
+                in: "query",
+                schema: { type: "string" },
+                description: "Substring across body, replies, quote, note path"
+              },
+              {
+                name: "sort",
+                in: "query",
+                schema: { type: "string" },
+                description: "source | created | updated"
+              },
+              {
+                name: "dir",
+                in: "query",
+                schema: { type: "string" },
+                description: "asc | desc"
+              },
+              {
+                name: "limit",
+                in: "query",
+                schema: { type: "integer", minimum: 1, maximum: 200 },
+                description: "Cap on returned threads"
               }
             ],
             responses: {
               "200": {
-                description: "Threads: {threads: [...]}, newest semantics per store order."
+                description:
+                  "{total: number, threads: [...]}, threads capped by limit."
               }
             }
           }

@@ -13,6 +13,8 @@ import type MarginaliaPlugin from "../src/main";
 const NOTE = "Notes/Test.md";
 const NOTE_TEXT =
   "The quick brown fox jumps over the lazy dog.\nSecond line with quick brown fox again.";
+const OTHER = "Notes/Other.md";
+const OTHER_TEXT = "Another note with its own lazy dog passage.\nAnd more.";
 
 function makeApi(): {
   api: AnnotationsApi;
@@ -21,18 +23,19 @@ function makeApi(): {
 } {
   const adapter = new MemoryAdapter();
   const store = new AnnotationStore({ vault: { adapter } } as never);
+  const texts: Record<string, string> = { [NOTE]: NOTE_TEXT, [OTHER]: OTHER_TEXT };
   const plugin = {
     app: {
       vault: {
         adapter,
         getAbstractFileByPath: (path: string) => {
-          if (path !== NOTE) return null;
+          if (!(path in texts)) return null;
           const file = new TFile();
           file.path = path;
           file.extension = "md";
           return file;
         },
-        cachedRead: async () => NOTE_TEXT
+        cachedRead: async (file: { path: string }) => texts[file.path] ?? ""
       }
     },
     store
@@ -703,5 +706,81 @@ describe("openapi contribution", () => {
         seen.add(tag.name);
       }
     }).not.toThrow();
+  });
+});
+
+describe("query engine surfaces", () => {
+  it("lists across the whole vault when source is omitted (MCP)", async () => {
+    const { api } = makeApi();
+    const { host, tools } = makeHost();
+    registerMcpTools(host as never, api);
+    await tools.get("marginalia_create_annotation")!.callback({
+      source: NOTE, text: "On test note.", quote: "lazy dog"
+    });
+    await tools.get("marginalia_create_annotation")!.callback({
+      source: OTHER, text: "On other note.", quote: "lazy dog passage"
+    });
+    const whole = JSON.parse(
+      (await tools.get("marginalia_list_annotations")!.callback({
+        q: "lazy dog"
+      })) as string
+    ) as { total: number; threads: Array<{ source: string }> };
+    expect(whole.total).toBe(2);
+    expect(whole.threads.map((t) => t.source).sort()).toEqual([NOTE, OTHER].sort());
+  });
+
+  it("filters with q, sorts by created desc, and caps with limit", async () => {
+    const { api } = makeApi();
+    await api.createFromText(NOTE, NOTE_TEXT, {
+      text: "first", quote: "lazy dog", author: "Pi"
+    });
+    // createdAt has millisecond resolution: separate the two writes so the
+    // created-desc assertion is deterministic.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await api.createFromText(OTHER, OTHER_TEXT, {
+      text: "second", quote: "lazy dog passage", author: "Pi"
+    });
+    await api.createFromText(OTHER, OTHER_TEXT, {
+      text: "third", quote: "And more.", author: "user"
+    });
+
+    const searched = api.list(undefined, { q: "second" }) as {
+      body: { total: number; threads: Array<{ source: string }> };
+    };
+    expect(searched.body.total).toBe(1);
+    expect(searched.body.threads[0].source).toBe(OTHER);
+
+    const sorted = api.list(undefined, { author: "Pi", sort: "created", dir: "desc" }) as {
+      body: { threads: Array<{ source: string }> };
+    };
+    expect(sorted.body.threads[0].source).toBe(OTHER);
+
+    const capped = api.list(undefined, { author: "Pi", sort: "created", dir: "desc", limit: "1" }) as {
+      body: { total: number; threads: unknown[] };
+    };
+    expect(capped.body.total).toBe(2);
+    expect(capped.body.threads).toHaveLength(1);
+  });
+
+  it("keeps legacy status aliases working", async () => {
+    const { api } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "x", quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    await api.patch(NOTE, created.body.id, { read: true });
+
+    const unreadAlias = api.list(NOTE, { status: "unread" }) as {
+      body: { threads: unknown[] };
+    };
+    expect(unreadAlias.body.threads).toHaveLength(0);
+    const driftedAlias = api.list(NOTE, { status: "drifted" }) as {
+      body: { threads: unknown[] };
+    };
+    expect(driftedAlias.body.threads).toHaveLength(0);
+  });
+
+  it("rejects an unknown status with 400", () => {
+    const { api } = makeApi();
+    expect((api.list(NOTE, { status: "sparkle" }) as { status: number }).status).toBe(400);
   });
 });
