@@ -1,7 +1,12 @@
 import { TFile } from "obsidian";
 import type MarginaliaPlugin from "../main";
-import { anchorDrift } from "../domain/annotation";
-import type { Annotation } from "../domain/annotation";
+import {
+  anchorDrift,
+  isMarkStyle,
+  MARK_STYLES,
+  type Annotation,
+  type MarkStyle
+} from "../domain/annotation";
 import { buildAnchor, findPassage } from "./anchor";
 import type { RouteResult, VaultRouteContext } from "./types";
 
@@ -33,11 +38,43 @@ function stringField(body: Record<string, unknown>, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
+
+/** Reads an optional per-annotation color: {value} when present, {error}
+ *  when malformed, {} when absent. */
+function optionalColor(body: Record<string, unknown>): {
+  value?: string;
+  error?: string;
+} {
+  const raw = body.color;
+  if (raw === undefined) return {};
+  if (typeof raw !== "string" || !HEX_COLOR.test(raw)) {
+    return { error: "color must be a hex value like #ffd54f" };
+  }
+  return { value: raw };
+}
+
+/** Reads an optional per-annotation mark style; same contract as
+ *  optionalColor. */
+function optionalStyle(body: Record<string, unknown>): {
+  value?: MarkStyle;
+  error?: string;
+} {
+  const raw = body.style;
+  if (raw === undefined) return {};
+  if (!isMarkStyle(raw)) {
+    return { error: `style must be one of: ${MARK_STYLES.join(", ")}` };
+  }
+  return { value: raw };
+}
+
 export interface CreatePayload {
   text: string;
   quote: string;
   occurrence?: number;
   author: string;
+  color?: string;
+  markStyle?: MarkStyle;
 }
 
 /** REST handlers for the annotations sub-resource. Every write goes
@@ -64,6 +101,8 @@ export class AnnotationsApi {
       source: annotation.sourcePath,
       status: annotation.status,
       author: annotation.author ?? "user",
+      color: annotation.color ?? null,
+      markStyle: annotation.markStyle ?? null,
       created: annotation.createdAt,
       updated: annotation.updatedAt,
       drifted: anchorDrift(annotation) !== null,
@@ -92,6 +131,10 @@ export class AnnotationsApi {
       threads = threads.filter((a) => anchorDrift(a) !== null);
     } else if (status && status !== "all") {
       threads = threads.filter((a) => a.status === status);
+    }
+    const author = query.author;
+    if (author) {
+      threads = threads.filter((a) => (a.author ?? "user") === author);
     }
     return {
       status: 200,
@@ -126,6 +169,10 @@ export class AnnotationsApi {
       );
     }
     const author = stringField(body, "author") || "Agent";
+    const color = optionalColor(body);
+    if (color.error) return err(400, ERROR_CODES.invalidBody, color.error);
+    const style = optionalStyle(body);
+    if (style.error) return err(400, ERROR_CODES.invalidBody, style.error);
     // Safety policy: a multi-match quote is never anchored on a guess -
     // the caller must say which occurrence it means.
     const occurrence =
@@ -135,7 +182,9 @@ export class AnnotationsApi {
       text,
       quote,
       occurrence,
-      author
+      author,
+      color: color.value,
+      markStyle: style.value
     });
   }
 
@@ -162,6 +211,8 @@ export class AnnotationsApi {
       status: "open",
       body: payload.text.trim(),
       author: payload.author,
+      color: payload.color,
+      markStyle: payload.markStyle,
       anchor: buildAnchor(noteText, payload.quote, found.startOffset)
     });
     return { status: 201, body: this.threadPayload(annotation) };
@@ -199,6 +250,8 @@ export class AnnotationsApi {
     const changes: {
       body?: string;
       status?: Annotation["status"];
+      color?: string;
+      markStyle?: MarkStyle;
     } = {};
     if (typeof body.text === "string") {
       if (
@@ -213,6 +266,12 @@ export class AnnotationsApi {
       }
       changes.body = body.text;
     }
+    const color = optionalColor(body);
+    if (color.error) return err(400, ERROR_CODES.invalidBody, color.error);
+    if (color.value !== undefined) changes.color = color.value;
+    const style = optionalStyle(body);
+    if (style.error) return err(400, ERROR_CODES.invalidBody, style.error);
+    if (style.value !== undefined) changes.markStyle = style.value;
     if (body.resolved === true) changes.status = "resolved";
     else if (body.resolved === false) changes.status = "open";
     if (Object.keys(changes).length === 0) {

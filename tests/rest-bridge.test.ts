@@ -363,3 +363,89 @@ describe("agent channel toggles", () => {
     bridge.disconnect();
   });
 });
+
+describe("per-annotation styling and author filters", () => {
+  it("creates with color and style and echoes them back", async () => {
+    const { api } = makeApi();
+    const result = await api.create(NOTE, {
+      text: "Styled.",
+      quote: "quick brown fox jumps",
+      color: "#ff5252",
+      style: "wavy",
+      author: "Pi"
+    });
+    expect(result.status).toBe(201);
+    const body = result.body as { color: string | null; markStyle: string | null };
+    expect(body.color).toBe("#ff5252");
+    expect(body.markStyle).toBe("wavy");
+  });
+
+  it("rejects malformed color and unknown style with 400", async () => {
+    const { api } = makeApi();
+    expect(
+      (
+        await api.create(NOTE, {
+          text: "x",
+          quote: "quick brown fox jumps",
+          color: "red"
+        })
+      ).status
+    ).toBe(400);
+    expect(
+      (
+        await api.create(NOTE, {
+          text: "x",
+          quote: "quick brown fox jumps",
+          style: "sparkle"
+        })
+      ).status
+    ).toBe(400);
+  });
+
+  it("updates color and style via patch", async () => {
+    const { api } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "Original.",
+      quote: "quick brown fox jumps"
+    })) as { status: number; body: { id: string } };
+    const patched = await api.patch(NOTE, created.body.id, {
+      color: "#123abc",
+      style: "underline"
+    });
+    const body = patched.body as { color: string; markStyle: string };
+    expect(body.color).toBe("#123abc");
+    expect(body.markStyle).toBe("underline");
+  });
+
+  it("lists threads filtered by author", async () => {
+    const { api } = makeApi();
+    await api.createFromText(NOTE, NOTE_TEXT, {
+      text: "Mine.",
+      quote: "quick brown fox jumps",
+      occurrence: 1,
+      author: "Pi"
+    });
+    const mine = api.list(NOTE, { author: "Pi" }) as {
+      body: { threads: Array<{ author: string }> };
+    };
+    expect(mine.body.threads.length).toBeGreaterThan(0);
+    expect(mine.body.threads.every((t) => t.author === "Pi")).toBe(true);
+  });
+
+  it("exposes color and style through the MCP tool", async () => {
+    const { api } = makeApi();
+    const { host, tools } = makeHost();
+    registerMcpTools(host as never, api);
+    const created = JSON.parse(
+      (await tools.get("marginalia_create_annotation")!.callback({
+        source: NOTE,
+        text: "Styled via MCP.",
+        quote: "lazy dog",
+        color: "#00bcd4",
+        style: "bold"
+      })) as string
+    ) as { color: string; markStyle: string };
+    expect(created.color).toBe("#00bcd4");
+    expect(created.markStyle).toBe("bold");
+  });
+});

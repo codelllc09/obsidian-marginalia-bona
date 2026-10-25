@@ -5,6 +5,17 @@ import type { RestApiHost } from "./types";
 
 const STATUS_ENUM = z.enum(["open", "resolved", "orphaned", "drifted", "all"]);
 
+const COLOR_PARAM = z
+  .string()
+  .regex(/^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/, "hex color like #ffd54f")
+  .optional()
+  .describe("Per-annotation highlight color (hex, e.g. #ffd54f)");
+
+const STYLE_PARAM = z
+  .enum(["highlight", "underline", "wavy", "strikethrough", "bold"])
+  .optional()
+  .describe("Mark style");
+
 /** The host wraps our shape with its own zod v4 (`z.object(shape)`),
  *  so only a ZodRawShape is accepted here - never z.object() itself. */
 
@@ -37,6 +48,7 @@ export function registerMcpTools(
   const query = (args: Record<string, unknown>) => {
     const q: Record<string, string> = {};
     if (typeof args.status === "string") q.status = args.status;
+    if (typeof args.author === "string") q.author = args.author;
     return q;
   };
 
@@ -48,7 +60,11 @@ export function registerMcpTools(
       ...SOURCE_SHAPE,
       status: STATUS_ENUM.optional().describe(
         "Filter: open, resolved, orphaned, drifted, or all (default all)"
-      )
+      ),
+      author: z
+        .string()
+        .optional()
+        .describe("Filter by author, e.g. Pi or user")
     },
     async (args) =>
       render(api.list(String(args.source), query(args)))
@@ -72,7 +88,9 @@ export function registerMcpTools(
         .min(1)
         .optional()
         .describe("1-based index of the match when the quote is ambiguous"),
-      author: z.string().optional().describe("Defaults to Agent")
+      author: z.string().optional().describe("Defaults to Agent"),
+      color: COLOR_PARAM,
+      style: STYLE_PARAM
     },
     async (args) =>
       render(
@@ -81,7 +99,9 @@ export function registerMcpTools(
           quote: String(args.quote),
           occurrence:
             typeof args.occurrence === "number" ? args.occurrence : undefined,
-          author: typeof args.author === "string" ? args.author : undefined
+          author: typeof args.author === "string" ? args.author : undefined,
+          color: typeof args.color === "string" ? args.color : undefined,
+          style: typeof args.style === "string" ? args.style : undefined
         })
       )
   );
@@ -113,8 +133,8 @@ export function registerMcpTools(
 
   add(
     "marginalia_update_annotation",
-    "Edit an annotation's text and/or resolution state. Pass expected_text " +
-      "to fail instead of overwriting concurrent edits.",
+    "Edit an annotation's text, color, style, and/or resolution state. " +
+      "Pass expected_text to fail instead of overwriting concurrent edits.",
     {
       ...SOURCE_SHAPE,
       id: z.string().describe("Annotation id"),
@@ -126,7 +146,9 @@ export function registerMcpTools(
       status: z
         .enum(["open", "resolved"])
         .optional()
-        .describe("Resolution state")
+        .describe("Resolution state"),
+      color: COLOR_PARAM,
+      style: STYLE_PARAM
     },
     async (args) => {
       const body: Record<string, unknown> = {};
@@ -138,6 +160,8 @@ export function registerMcpTools(
       }
       if (args.status === "resolved") body.resolved = true;
       else if (args.status === "open") body.resolved = false;
+      if (typeof args.color === "string") body.color = args.color;
+      if (typeof args.style === "string") body.style = args.style;
       return render(await api.patch(String(args.source), String(args.id), body));
     }
   );
