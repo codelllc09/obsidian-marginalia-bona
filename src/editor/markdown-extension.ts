@@ -112,11 +112,18 @@ function choosePlacement(
     0,
     editorRect.right - contentRect.right - gap - edge
   );
+  // "auto" means the right margin unless it is too narrow: a few pixels of
+  // scrollbar gutter used to flip the cards to the left, which reads as a bug.
+  const MIN_ROOM = 72;
   const side =
     plugin.settings.marginSide === "auto"
-      ? leftWidth > rightWidth
-        ? "left"
-        : "right"
+      ? rightWidth >= MIN_ROOM
+        ? "right"
+        : leftWidth >= MIN_ROOM
+          ? "left"
+          : leftWidth > rightWidth
+            ? "left"
+            : "right"
       : plugin.settings.marginSide;
   const available = side === "left" ? leftWidth : rightWidth;
   if (available < 72) {

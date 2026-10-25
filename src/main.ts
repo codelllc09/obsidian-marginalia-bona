@@ -575,7 +575,59 @@ export default class MarginaliaPlugin extends Plugin {
     this.readingRefreshTimer = window.setTimeout(() => {
       this.readingRefreshTimer = null;
       refreshReadingViews(this);
+      this.syncReserveClasses();
     }, 120);
+  }
+
+  /** Reserve a card column only where there is none: themes that centre the
+   *  reading column already leave a gutter, and squeezing them again is what
+   *  made the text feel narrow. */
+  private syncReserveClasses(): void {
+    if (!this.settings.reserveMarginSpace || !this.settings.showMargins) {
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        if (leaf.view instanceof MarkdownView) {
+          leaf.view.containerEl.removeClass("marginalia-reserve");
+        }
+      });
+      return;
+    }
+
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (!(leaf.view instanceof MarkdownView)) return;
+      const content = leaf.view.containerEl;
+      // Measure the layout as the theme intends it: our own class would
+      // otherwise create the gutter that then removes the class again.
+      const hadReserve = content.hasClass("marginalia-reserve");
+      if (hadReserve) content.removeClass("marginalia-reserve");
+      const editorColumn = content.querySelector<HTMLElement>(".cm-sizer");
+      const textColumn =
+        editorColumn ??
+        content.querySelector<HTMLElement>(".markdown-preview-sizer");
+      // Editor: one card width (text starts at the left edge). Reading: twice
+      // that, because the theme centres the column and the right gutter only
+      // gets half of the reserved space.
+      const reserve = editorColumn
+        ? this.settings.marginWidth + 26
+        : 2 * (this.settings.marginWidth + 18);
+      const pane =
+        content.querySelector<HTMLElement>(".cm-editor") ??
+        content.querySelector<HTMLElement>(".markdown-preview-view") ??
+        content;
+      let gutter = 0;
+      if (textColumn) {
+        const text = textColumn.getBoundingClientRect();
+        const outer = pane.getBoundingClientRect();
+        gutter = Math.max(
+          text.left - outer.left,
+          outer.right - text.right
+        ) - 18;
+      }
+      const roomForText = content.clientWidth - reserve;
+      content.toggleClass(
+        "marginalia-reserve",
+        gutter < 72 && roomForText >= 480
+      );
+    });
   }
 
   private diagnosticsSnapshot(): Record<string, unknown> {
@@ -682,6 +734,7 @@ export default class MarginaliaPlugin extends Plugin {
     this.pdfAdapter?.renderVisibleHighlights();
     refreshReadingViews(this);
     refreshReadingMargins(this);
+    this.syncReserveClasses();
   }
 
   private beginMarkdownAnnotation(editor: Editor, view: MarkdownView): void {
@@ -925,10 +978,6 @@ export default class MarginaliaPlugin extends Plugin {
     document.body.dataset.marginaliaMarginSide = this.settings.marginSide;
     document.body.dataset.marginaliaForceWordBreaks = String(
       this.settings.forceLongWordBreaks
-    );
-    document.body.toggleClass(
-      "marginalia-reserve-margin",
-      this.settings.reserveMarginSpace && this.settings.showMargins
     );
     document.body.style.setProperty(
       "--marginalia-margin-width",

@@ -228,13 +228,18 @@
 /* Reserve a column for margin cards: narrowing the text beats hiding the
    feature. The reserve is applied to the text column only, so the pane,
    scrollbar and any theme padding stay untouched. */
-body.marginalia-reserve-margin {
-  --marginalia-reserve: calc(var(--marginalia-margin-width, 220px) + 3em);
+/* The text column is centred, so the right gutter only gets half of the
+   reserved width: reserve twice the card width plus the gap. */
+.marginalia-reserve {
+  --marginalia-reserve: calc(
+    2 * (var(--marginalia-margin-width, 220px) + 18px)
+  );
+  --marginalia-reserve-editor: calc(
+    var(--marginalia-margin-width, 220px) + 26px
+  );
 }
 
-body.marginalia-reserve-margin
-  .workspace-leaf-content[data-type="markdown"]
-  .markdown-preview-sizer {
+.marginalia-reserve .markdown-preview-sizer {
   margin-inline: auto;
   max-width: min(
     var(--file-line-width, 700px),
@@ -242,11 +247,11 @@ body.marginalia-reserve-margin
   ) !important;
 }
 
-body.marginalia-reserve-margin
-  .workspace-leaf-content[data-type="markdown"]
-  .cm-sizer {
-  max-width: calc(100% - var(--marginalia-reserve)) !important;
-  margin-inline: auto;
+/* The editor's text column already starts at the left edge, so one card
+   width is enough here - centring it would waste the other half. */
+.marginalia-reserve .cm-sizer {
+  margin-inline: 0 auto !important;
+  max-width: calc(100% - var(--marginalia-reserve-editor)) !important;
 }
 
 /* Landing pulse for sidebar -> passage jumps in Reading view: a ring around
