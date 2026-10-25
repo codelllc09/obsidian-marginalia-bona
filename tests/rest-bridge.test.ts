@@ -610,7 +610,12 @@ describe("openapi contribution", () => {
     expect(doc.paths["/vault/{path}/annotations/{id}/replies/{replyId}"]).toHaveProperty("delete");
     expect(doc.paths["/vault/{path}/annotations/{id}/reanchor"]).toHaveProperty("post");
     expect(doc.tags[0].name).toBe("Marginalia annotations");
-    expect(doc.components.schemas.Error).toBeTruthy();
+    expect(doc.components.schemas.MarginaliaError).toBeTruthy();
+    // Namespace discipline: the host already declares generic names like
+    // "Error" - a collision makes addOpenApiDescription throw.
+    for (const name of Object.keys(doc.components.schemas)) {
+      expect(name.startsWith("Marginalia")).toBe(true);
+    }
   });
 
   it("passes the host's description validator rules", () => {

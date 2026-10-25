@@ -13,7 +13,7 @@ const PATH_PARAM = {
   description: "Vault path of the annotated note, e.g. Daily/2026-10-24.md"
 };
 
-const ERROR_REF = { $ref: "#/components/schemas/Error" };
+const ERROR_REF = { $ref: "#/components/schemas/MarginaliaError" };
 
 const JSON_BODY = (schema: Record<string, unknown>) => [
   {
@@ -54,7 +54,7 @@ export function openApiDescription(): Record<string, unknown> {
     ],
     components: {
       schemas: {
-        Error: {
+        MarginaliaError: {
           type: "object",
           required: ["errorCode", "message"],
           properties: {
