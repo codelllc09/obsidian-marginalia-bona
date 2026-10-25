@@ -158,8 +158,11 @@ answer a reply and the answer nests under it.
 ## Settings
 
 - Highlight visibility, color, opacity, and style
-- Margin visibility, side, and maximum width
-- Automatic narrow-pane fallback
+- Margin cards on/off (also a command, so it can have a hotkey), side, and
+  maximum width
+- Space reservation for margin cards, so they appear whatever the theme does
+  with line width; skipped when the pane is too narrow to keep a readable
+  column
 - Resolved annotation visibility
 - Forced wrapping for very long words, links, and code
 - Attachments folder for pasted images (follows Obsidian's convention by
