@@ -63,6 +63,11 @@ updated: "<ISO 时间>"
 
 ## 读写规则 / rules
 
+**写操作首选 MCP 工具（\`marginalia_*\`）或 REST 接口**——插件负责锚定、格式与
+索引，agent 只发语义指令。下面的文件规则仅在二者不可用时作为兕底。
+**Prefer the marginalia_* MCP tools or REST endpoints for all writes; the
+file rules below are the fallback when neither is available.**
+
 1. **磁盘是唯一可信源**：插件会自动拾取外部写入（约 4 秒内），侧栏随之刷新。
    The plugin picks up external writes within seconds.
 2. **保持结构完整**：frontmatter 的键、\`<!-- siden:anchor -->\` 注释对、

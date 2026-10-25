@@ -168,8 +168,9 @@ export function registerMcpTools(
 
   add(
     "marginalia_reanchor",
-    "Re-anchor an annotation to a new passage - the agent-side fix for " +
-      "drifted or orphaned annotations after the note was edited. Same quote " +
+    "Move an annotation to a new passage - the agent-side fix for drifted " +
+      "or orphaned annotations after the note was edited. Prefer this over " +
+      "delete + recreate: the thread (replies) is preserved. Same quote " +
       "rules as create: exact match, occurrence disambiguates. Clears the " +
       "orphaned status and the drift flag.",
     {
