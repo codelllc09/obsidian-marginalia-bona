@@ -15,6 +15,10 @@ interface PreviewState {
   layer: HTMLElement;
   observer: ResizeObserver;
   frame: number;
+  /** Placement can be measured before Obsidian finishes laying the preview
+   *  out (or before annotations are marked), so a failed pass retries. */
+  retries: number;
+  retryTimer: number;
 }
 
 const previewStates = new Set<PreviewState>();
@@ -224,7 +228,9 @@ function ensurePreviewState(
     preview,
     layer,
     observer: new ResizeObserver(() => schedulePreview(state)),
-    frame: 0
+    frame: 0,
+    retries: 0,
+    retryTimer: 0
   };
   state.observer.observe(preview);
   previewStates.add(state);
@@ -234,6 +240,7 @@ function ensurePreviewState(
 
 function destroyPreviewState(state: PreviewState): void {
   cancelAnimationFrame(state.frame);
+  window.clearTimeout(state.retryTimer);
   state.observer.disconnect();
   state.layer.remove();
   previewStates.delete(state);
@@ -241,7 +248,20 @@ function destroyPreviewState(state: PreviewState): void {
 
 function schedulePreview(state: PreviewState): void {
   window.cancelAnimationFrame(state.frame);
+  window.clearTimeout(state.retryTimer);
   state.frame = window.requestAnimationFrame(() => renderPreviewMargins(state));
+}
+
+/** Retry a pass that could not place cards yet: the preview may not have
+ *  been laid out (gutter measured as zero) or the marks may not exist. */
+function retryLater(state: PreviewState): void {
+  if (state.retries >= 10) return;
+  state.retries += 1;
+  window.clearTimeout(state.retryTimer);
+  state.retryTimer = window.setTimeout(
+    () => renderPreviewMargins(state),
+    80 * state.retries
+  );
 }
 
 function measurePlacement(
@@ -290,11 +310,21 @@ function renderPreviewMargins(state: PreviewState): void {
   }
   layer.empty();
   layer.style.height = `${preview.scrollHeight}px`;
-  if (!plugin.settings.showMargins || plugin.areMarginsSuppressed()) return;
+  if (!plugin.settings.showMargins || plugin.areMarginsSuppressed()) {
+    state.retries = 0;
+    return;
+  }
   const placement = measurePlacement(state);
-  if (!placement) return;
+  if (!placement) {
+    // No gutter yet (layout not ready, or pane too narrow): try again shortly.
+    retryLater(state);
+    return;
+  }
   const filePath = preview.dataset.marginaliaSourcePath;
-  if (!filePath) return;
+  if (!filePath) {
+    retryLater(state);
+    return;
+  }
   const previewRect = preview.getBoundingClientRect();
   const entries = plugin.store
     .forSource(filePath)
@@ -322,6 +352,13 @@ function renderPreviewMargins(state: PreviewState): void {
       ): entry is { annotation: Annotation; desiredTop: number } => Boolean(entry)
     )
     .sort((a, b) => a.desiredTop - b.desiredTop);
+
+  if (entries.length === 0) {
+    // Marks may not exist yet in this pass; try again shortly.
+    retryLater(state);
+    return;
+  }
+  state.retries = 0;
 
   marginComponents.get(layer)?.unload();
   const component = new Component();

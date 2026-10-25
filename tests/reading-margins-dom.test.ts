@@ -105,3 +105,36 @@ describe("Reading view margin cards", () => {
     expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(0);
   });
 });
+
+describe("Reading view margins: layout race", () => {
+  it("retries when the first pass measures no gutter", async () => {
+    const { preview, sizer } = buildPreview();
+    // First pass: not laid out yet.
+    preview.getBoundingClientRect = () => ({
+      left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0,
+      toJSON: () => ({})
+    });
+    sizer.getBoundingClientRect = () => ({
+      left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0,
+      toJSON: () => ({})
+    });
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      fakePlugin([annotation()]) as never
+    );
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(0);
+
+    // Layout settles a moment later: the retry must produce the card.
+    preview.getBoundingClientRect = () => ({
+      left: 0, right: 800, top: 0, bottom: 900, width: 800, height: 900, x: 0, y: 0,
+      toJSON: () => ({})
+    });
+    sizer.getBoundingClientRect = () => ({
+      left: 200, right: 600, top: 0, bottom: 900, width: 400, height: 900, x: 200, y: 0,
+      toJSON: () => ({})
+    });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
+  });
+});
