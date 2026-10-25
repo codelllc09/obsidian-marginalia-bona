@@ -465,7 +465,7 @@ describe("per-annotation styling and author filters", () => {
         quote: "lazy dog",
         color: "#00bcd4",
         style: "bold"
-      })) as string
+      }))
     ) as { color: string; markStyle: string };
     expect(created.color).toBe("#00bcd4");
     expect(created.markStyle).toBe("bold");
@@ -568,32 +568,32 @@ describe("reply editing and reanchoring", () => {
         source: NOTE,
         text: "Root.",
         quote: "lazy dog"
-      })) as string
+      }))
     ) as { id: string };
     const reply = JSON.parse(
       (await tools.get("marginalia_add_reply")!.callback({
         source: NOTE, id: created.id, text: "First.", author: "Pi"
-      })) as string
+      }))
     ) as { replies: Array<{ id: string }> };
 
     const reanchored = JSON.parse(
       (await tools.get("marginalia_reanchor")!.callback({
         source: NOTE, id: created.id, quote: "Second line"
-      })) as string
+      }))
     ) as { anchor: { quote: { exact: string } } };
     expect(reanchored.anchor.quote.exact).toBe("Second line");
 
     const edited = JSON.parse(
       (await tools.get("marginalia_update_reply")!.callback({
         source: NOTE, id: created.id, replyId: reply.replies[0].id, text: "Edited."
-      })) as string
+      }))
     ) as { replies: Array<{ body: string }> };
     expect(edited.replies[0].body).toBe("Edited.");
 
     const afterDelete = JSON.parse(
       (await tools.get("marginalia_delete_reply")!.callback({
         source: NOTE, id: created.id, replyId: reply.replies[0].id
-      })) as string
+      }))
     ) as { replies: unknown[] };
     expect(afterDelete.replies).toHaveLength(0);
   });
@@ -648,7 +648,7 @@ describe("read / unread state", () => {
     const created = JSON.parse(
       (await tools.get("marginalia_create_annotation")!.callback({
         source: NOTE, text: "Root.", quote: "lazy dog"
-      })) as string
+      }))
     ) as { id: string };
     await tools.get("marginalia_update_annotation")!.callback({
       source: NOTE, id: created.id, read: true
@@ -656,7 +656,7 @@ describe("read / unread state", () => {
     const got = JSON.parse(
       (await tools.get("marginalia_get_annotation")!.callback({
         source: NOTE, id: created.id
-      })) as string
+      }))
     ) as { readAt: string | null };
     expect(typeof got.readAt).toBe("string");
   });
@@ -689,10 +689,10 @@ describe("openapi contribution", () => {
   it("passes the host's description validator rules", () => {
     // Mirrors the host's assertValidDescription: paths must start with "/",
     // path items and component sections must be objects, tags unique names.
-    const doc = openApiDescription() as Record<string, unknown>;
+    const doc = openApiDescription();
     expect(() => {
       if (typeof doc !== "object" || doc === null) throw new Error("not object");
-      const { paths, components, tags } = doc as Record<string, unknown>;
+      const { paths, components, tags } = doc;
       for (const [p, item] of Object.entries(paths as Record<string, unknown>)) {
         if (!p.startsWith("/")) throw new Error(`path ${p} must start with /`);
         if (typeof item !== "object" || item === null) throw new Error("bad item");
@@ -725,7 +725,7 @@ describe("query engine surfaces", () => {
     const whole = JSON.parse(
       (await tools.get("marginalia_list_annotations")!.callback({
         q: "lazy dog"
-      })) as string
+      }))
     ) as { total: number; threads: Array<{ source: string }> };
     expect(whole.total).toBe(2);
     expect(whole.threads.map((t) => t.source).sort()).toEqual([NOTE, OTHER].sort());
@@ -784,5 +784,46 @@ describe("query engine surfaces", () => {
   it("rejects an unknown status with 400", () => {
     const { api } = makeApi();
     expect((api.list(NOTE, { status: "sparkle" }) as { status: number }).status).toBe(400);
+  });
+});
+
+describe("trash / recycle bin", () => {
+  it("lists parsed entries and restores by id", async () => {
+    const { api, store } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "Soft delete me.",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    const id = created.body.id;
+    const removed = await api.remove(NOTE, id);
+    expect((removed.body as { trash: string }).trash).toContain("trash/");
+    expect(api.get(NOTE, id).status).toBe(404);
+
+    const trash = await store.listTrash();
+    const entry = trash.find((e) => e.id === id);
+    expect(entry).toBeTruthy();
+    expect(entry?.source).toBe(NOTE);
+    expect(entry?.body).toContain("Soft delete me.");
+
+    const restored = await api.restoreFromTrash(id);
+    expect(restored.status).toBe(200);
+    const body = restored.body as { body: string; status: string };
+    expect(body.body).toBe("Soft delete me.");
+    expect(body.status).toBe("open");
+    expect(api.get(NOTE, id).status).toBe(200);
+    expect((await store.listTrash()).find((e) => e.id === id)).toBeUndefined();
+  });
+
+  it("purges trash older than the cutoff", async () => {
+    const { api, store } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "Purge me.",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    await api.remove(NOTE, created.body.id);
+    expect((await store.listTrash()).length).toBe(1);
+    // Cutoff in the future: everything counts as expired.
+    await store.purgeTrash(Date.now() + 60_000);
+    expect(await store.listTrash()).toHaveLength(0);
   });
 });

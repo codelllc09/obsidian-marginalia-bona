@@ -173,7 +173,7 @@ export class AnnotationsApi {
     }
     const threads = this.plugin.store.query({
       source: notePath,
-      status: status as AnnotationQuery["status"] | undefined,
+      status: status,
       drifted,
       unread,
       author: query.author || undefined,

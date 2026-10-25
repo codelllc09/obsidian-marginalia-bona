@@ -379,8 +379,8 @@ export class AnnotationStore {
       body: string;
       trashedAt: number;
     }> = [];
-    for (const name of files) {
-      const path = `${DEFAULT_TRASH_DIRECTORY}/${name}`;
+    for (const path of files) {
+      // adapter.list returns full vault-relative paths - never re-prefix.
       const stat = await adapter.stat(path);
       let id: string | null = null;
       let source: string | null = null;
@@ -393,7 +393,13 @@ export class AnnotationStore {
       } catch {
         // Unparseable trash stays listed but cannot be restored by id.
       }
-      entries.push({ name, id, source, body, trashedAt: stat?.mtime ?? 0 });
+      entries.push({
+        name: path.slice(path.lastIndexOf("/") + 1),
+        id,
+        source,
+        body,
+        trashedAt: stat?.mtime ?? 0
+      });
     }
     return entries;
   }
@@ -406,8 +412,7 @@ export class AnnotationStore {
       throw new Error(`No trash entry for ${id}`);
     }
     const { files } = await adapter.list(DEFAULT_TRASH_DIRECTORY);
-    for (const name of files) {
-      const path = `${DEFAULT_TRASH_DIRECTORY}/${name}`;
+    for (const path of files) {
       const content = await adapter.read(path);
       let parsed: Annotation;
       try {
@@ -434,8 +439,7 @@ export class AnnotationStore {
     if (!(await adapter.exists(DEFAULT_TRASH_DIRECTORY))) return 0;
     const { files } = await adapter.list(DEFAULT_TRASH_DIRECTORY);
     let purged = 0;
-    for (const name of files) {
-      const path = `${DEFAULT_TRASH_DIRECTORY}/${name}`;
+    for (const path of files) {
       const stat = await adapter.stat(path);
       if (stat && stat.mtime < cutoff) {
         await adapter.remove(path);
