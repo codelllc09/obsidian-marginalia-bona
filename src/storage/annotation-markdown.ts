@@ -79,6 +79,7 @@ export function serializeAnnotation(annotation: Annotation): string {
       ? [`mark-style: ${scalar(annotation.markStyle)}`]
       : []),
     ...(annotation.author ? [`author: ${scalar(annotation.author)}`] : []),
+    ...(annotation.readAt ? [`read-at: ${scalar(annotation.readAt)}`] : []),
     `created: ${scalar(annotation.createdAt)}`,
     `updated: ${scalar(annotation.updatedAt)}`,
     "---"
@@ -210,6 +211,9 @@ export function parseAnnotation(source: string): Annotation {
       : {}),
     ...(typeof metadata["author"] === "string" && metadata["author"]
       ? { author: metadata["author"] }
+      : {}),
+    ...(typeof metadata["read-at"] === "string" && metadata["read-at"]
+      ? { readAt: metadata["read-at"] }
       : {}),
     createdAt: requiredString(metadata, "created"),
     updatedAt: requiredString(metadata, "updated"),

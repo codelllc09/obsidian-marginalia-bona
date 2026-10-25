@@ -579,3 +579,66 @@ describe("reply editing and reanchoring", () => {
     expect(afterDelete.replies).toHaveLength(0);
   });
 });
+
+describe("read / unread state", () => {
+  it("marks read with a timestamp and back to unread via patch", async () => {
+    const { api } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "To read.",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string; readAt: string | null } };
+    expect(created.body.readAt).toBeNull();
+
+    const read = await api.patch(NOTE, created.body.id, { read: true });
+    const readBody = read.body as { readAt: string | null };
+    expect(typeof readBody.readAt).toBe("string");
+
+    const unread = await api.patch(NOTE, created.body.id, { read: false });
+    expect((unread.body as { readAt: string | null }).readAt).toBeNull();
+  });
+
+  it("lists threads filtered by read state", async () => {
+    const { api } = makeApi();
+    const readOne = (await api.create(NOTE, {
+      text: "read one",
+      quote: "quick brown fox jumps",
+      occurrence: 1
+    })) as { status: number; body: { id: string } };
+    await api.patch(NOTE, readOne.body.id, { read: true });
+    await api.create(NOTE, {
+      text: "unread one",
+      quote: "lazy dog"
+    });
+
+    const unread = api.list(NOTE, { read: "false" }) as {
+      body: { threads: Array<{ id: string; readAt: string | null }> };
+    };
+    expect(unread.body.threads.some((t) => t.id === readOne.body.id)).toBe(false);
+    expect(unread.body.threads.every((t) => t.readAt === null)).toBe(true);
+
+    const read = api.list(NOTE, { read: "true" }) as {
+      body: { threads: unknown[] };
+    };
+    expect(read.body.threads).toHaveLength(1);
+  });
+
+  it("round-trips read-at through the thread payload and MCP tools", async () => {
+    const { api } = makeApi();
+    const { host, tools } = makeHost();
+    registerMcpTools(host as never, api);
+    const created = JSON.parse(
+      (await tools.get("marginalia_create_annotation")!.callback({
+        source: NOTE, text: "Root.", quote: "lazy dog"
+      })) as string
+    ) as { id: string };
+    await tools.get("marginalia_update_annotation")!.callback({
+      source: NOTE, id: created.id, read: true
+    });
+    const got = JSON.parse(
+      (await tools.get("marginalia_get_annotation")!.callback({
+        source: NOTE, id: created.id
+      })) as string
+    ) as { readAt: string | null };
+    expect(typeof got.readAt).toBe("string");
+  });
+});

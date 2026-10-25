@@ -104,6 +104,7 @@ export class AnnotationsApi {
       author: annotation.author ?? "user",
       color: annotation.color ?? null,
       markStyle: annotation.markStyle ?? null,
+      readAt: annotation.readAt ?? null,
       created: annotation.createdAt,
       updated: annotation.updatedAt,
       drifted: anchorDrift(annotation) !== null,
@@ -136,6 +137,14 @@ export class AnnotationsApi {
     const author = query.author;
     if (author) {
       threads = threads.filter((a) => (a.author ?? "user") === author);
+    }
+    // "true"/"false" strings: the REST query arrives stringified, the MCP
+    // query builder stringifies booleans before passing them on.
+    const read = query.read;
+    if (read === "true") {
+      threads = threads.filter((a) => a.readAt !== undefined);
+    } else if (read === "false") {
+      threads = threads.filter((a) => a.readAt === undefined);
     }
     return {
       status: 200,
@@ -275,6 +284,10 @@ export class AnnotationsApi {
     if (style.value !== undefined) changes.markStyle = style.value;
     if (body.resolved === true) changes.status = "resolved";
     else if (body.resolved === false) changes.status = "open";
+    if (typeof body.read === "boolean") {
+      // Never set automatically: only this explicit write records the read.
+      changes.readAt = body.read ? new Date().toISOString() : undefined;
+    }
     if (Object.keys(changes).length === 0) {
       return err(400, ERROR_CODES.invalidBody, "nothing to update");
     }
