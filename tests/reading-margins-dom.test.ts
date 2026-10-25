@@ -292,3 +292,25 @@ describe("Reading view margins: unknown container classes", () => {
     expect(root.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
   });
 });
+
+describe("Reading view margins: post-processor runs before insertion", () => {
+  it("waits for the block to be attached, then marks and places cards", async () => {
+    const { preview } = buildPreview();
+    const element = preview.firstElementChild?.firstElementChild as HTMLElement;
+    // Obsidian's real order: the section is rendered off-document, the
+    // post-processor runs, and only then is the section inserted.
+    preview.remove();
+    processReadingView(
+      element,
+      { sourcePath: NOTE } as never,
+      fakePlugin([annotation()]) as never
+    );
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(0);
+
+    document.body.appendChild(preview);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(preview.querySelectorAll("span[data-marginalia-id]")).toHaveLength(1);
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
+  });
+});

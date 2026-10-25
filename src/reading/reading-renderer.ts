@@ -29,7 +29,13 @@ interface PreviewState {
 const previewStates = new Set<PreviewState>();
 
 /** Counters answering "did the Reading-view pipeline even run?". */
-const counters = { passes: 0, statesCreated: 0, skippedOwnUi: 0, noContainer: 0 };
+const counters = {
+  passes: 0,
+  statesCreated: 0,
+  skippedOwnUi: 0,
+  noContainer: 0,
+  deferredDetached: 0
+};
 
 const loggedNoContainer = new Set<string>();
 
@@ -574,6 +580,37 @@ export function refreshReadingMargins(plugin: MarginaliaPlugin): void {
   }
 }
 
+const pendingAttached = new WeakSet<HTMLElement>();
+
+/** Obsidian renders sections off-document and runs post-processors before
+ *  inserting them, so ancestry lookups fail on the first call. Wait for the
+ *  element to be attached, then run the pass for real. */
+function deferUntilAttached(
+  element: HTMLElement,
+  context: MarkdownPostProcessorContext,
+  plugin: MarginaliaPlugin,
+  attempt = 0
+): void {
+  if (element.isConnected) {
+    pendingAttached.delete(element);
+    processReadingView(element, context, plugin);
+    return;
+  }
+  if (attempt >= 20) {
+    pendingAttached.delete(element);
+    counters.noContainer += 1;
+    logEvent("warn", "reading", "block never attached to the document", {
+      source: context.sourcePath
+    });
+    void plugin.writeDiagnosticsToVault();
+    return;
+  }
+  window.setTimeout(
+    () => deferUntilAttached(element, context, plugin, attempt + 1),
+    60
+  );
+}
+
 export function processReadingView(
   element: HTMLElement,
   context: MarkdownPostProcessorContext,
@@ -582,6 +619,14 @@ export function processReadingView(
   counters.passes += 1;
   if (element.closest(OWN_UI)) {
     counters.skippedOwnUi += 1;
+    return;
+  }
+  if (!element.isConnected) {
+    counters.deferredDetached += 1;
+    if (!pendingAttached.has(element)) {
+      pendingAttached.add(element);
+      deferUntilAttached(element, context, plugin);
+    }
     return;
   }
   try {
