@@ -14,24 +14,30 @@ AI agents included — can read and write them directly.
 
 ## Features
 
-- Annotate selected Markdown text
-- Review, search, edit, resolve, reopen, and delete annotations in one sidebar
-- Highlight annotated passages
-- Show responsive margin cards in Live Preview and Reading View
-- Navigate between sidebar comments and their source passages
-- Keep source notes unchanged
-- Store annotations as human-readable Markdown
-- Recover anchors after edits when they can be identified safely
-- Per-annotation color and mark style (highlight, underline, wavy,
-  strikethrough, bold)
-- Reply threads inside one annotation file
-- Read/unread state with an unread filter and a "mark all read" command
-- Sort by document position, creation, or last update; full-vault text search
-- A recycle bin: deleting moves the thread to `.marginalia-bona/trash/`,
-  restorable for 30 days
+- Select text to annotate; the passage is highlighted in place
+- Every annotation lives in one sidebar: view, search, edit, delete. Mark
+  annotations resolved when they are handled, and set them back to unresolved
+  later
+- Margin cards show annotations in the empty space beside the text, in both
+  Live Preview and Reading View
+- Click a comment to jump to its passage; click a highlight to jump back to
+  its comment
+- Each annotation can have its own color and mark style (highlight,
+  underline, wavy, strikethrough, bold)
+- Reply directly under an annotation to form a thread
+- Read/unread state: the sidebar has an unread filter and a "mark all read"
+  command
+- Sort by document position, creation date, or last update; search covers the
+  whole vault
+- Deleted annotations go to a recycle bin (`.marginalia-bona/trash/`) and
+  stay restorable for 30 days
 - Paste images into the sidebar; they are stored following your attachment
   settings
-- Export one note's annotations, or the whole vault, as readable Markdown
+- Export one note, or the whole vault, to a single readable Markdown file
+- Annotations follow the text as it changes: when a passage is rewritten the
+  plugin tries to find it again, and marks the annotation orphaned instead of
+  pointing at the wrong place
+- Source notes are never modified
 - An agent bridge: MCP tools and REST endpoints over the Local REST API
   plugin, so AI agents can create and edit annotations safely
 
