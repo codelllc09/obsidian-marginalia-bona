@@ -427,6 +427,21 @@ export class AnnotationStore {
       }
       await adapter.rename(path, target);
       await this.ingestExternal(target, content);
+      // The note may have changed while the thread sat in the bin: run the
+      // same anchor reconciliation an external edit would trigger, so a
+      // lost passage comes back ORPHANED instead of silently stale.
+      const restored = this.require(id);
+      if (restored.anchor.kind !== "document") {
+        // Adapter-only file access: the store never reaches into vault APIs.
+        if (await adapter.exists(restored.sourcePath)) {
+          await this.reconcileMarkdownSource(
+            restored.sourcePath,
+            await adapter.read(restored.sourcePath)
+          );
+        } else if (restored.status !== "orphaned") {
+          await this.update(id, { status: "orphaned" });
+        }
+      }
       return this.require(id);
     }
     throw new Error(`No trash entry for ${id}`);

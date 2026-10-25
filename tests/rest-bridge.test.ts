@@ -7,6 +7,9 @@ import { AnnotationsApi } from "../src/rest-bridge/annotations-api";
 import { RestBridge } from "../src/rest-bridge";
 import { openApiDescription } from "../src/rest-bridge/openapi";
 import { registerMcpTools } from "../src/rest-bridge/mcp-tools";
+import { parseAnnotation } from "../src/storage/annotation-markdown";
+import { buildAnchor } from "../src/rest-bridge/anchor";
+import { threadPathFor } from "../src/storage/annotation-paths";
 import type { McpToolCallback } from "../src/rest-bridge/types";
 import type MarginaliaPlugin from "../src/main";
 
@@ -732,19 +735,17 @@ describe("query engine surfaces", () => {
   });
 
   it("filters with q, sorts by created desc, and caps with limit", async () => {
-    const { api } = makeApi();
-    await api.createFromText(NOTE, NOTE_TEXT, {
-      text: "first", quote: "lazy dog", author: "Pi"
-    });
-    // createdAt has millisecond resolution: separate the two writes so the
-    // created-desc assertion is deterministic.
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await api.createFromText(OTHER, OTHER_TEXT, {
-      text: "second", quote: "lazy dog passage", author: "Pi"
-    });
-    await api.createFromText(OTHER, OTHER_TEXT, {
-      text: "third", quote: "And more.", author: "user"
-    });
+    const { api, store } = makeApi();
+    // Explicit createdAt values: no clock dependency in the ordering.
+    const mk = async (source: string, text: string, quote: string, createdAt: string, author: string) =>
+      store.create({
+        sourcePath: source, sourceType: "markdown", status: "open",
+        body: text, author, createdAt,
+        anchor: buildAnchor(source === NOTE ? NOTE_TEXT : OTHER_TEXT, quote, (source === NOTE ? NOTE_TEXT : OTHER_TEXT).indexOf(quote))
+      });
+    await mk(NOTE, "first", "lazy dog", "2026-01-01T00:00:00.000Z", "Pi");
+    await mk(OTHER, "second", "lazy dog passage", "2026-02-01T00:00:00.000Z", "Pi");
+    await mk(OTHER, "third", "And more.", "2026-03-01T00:00:00.000Z", "user");
 
     const searched = api.list(undefined, { q: "second" }) as {
       body: { total: number; threads: Array<{ source: string }> };
@@ -790,6 +791,9 @@ describe("query engine surfaces", () => {
 describe("trash / recycle bin", () => {
   it("lists parsed entries and restores by id", async () => {
     const { api, store } = makeApi();
+    await (store as unknown as {
+      app: { vault: { adapter: { write: (p: string, v: string) => Promise<void> } } }
+    }).app.vault.adapter.write(NOTE, NOTE_TEXT);
     const created = (await api.create(NOTE, {
       text: "Soft delete me.",
       quote: "lazy dog"
@@ -825,5 +829,69 @@ describe("trash / recycle bin", () => {
     // Cutoff in the future: everything counts as expired.
     await store.purgeTrash(Date.now() + 60_000);
     expect(await store.listTrash()).toHaveLength(0);
+  });
+});
+
+describe("restore anchor scenarios", () => {
+  it("restore after the passage was rewritten lands orphaned", async () => {
+    const { api, store } = makeApi();
+    const adapter = (store as unknown as { app: { vault: { adapter: { write: (p: string, v: string) => Promise<void>; remove: (p: string) => Promise<void> } } } }).app.vault.adapter;
+    const created = (await api.create(OTHER, {
+      text: "x", quote: "lazy dog passage"
+    })) as { status: number; body: { id: string } };
+    // The note exists until the rewrite below.
+    await adapter.write(OTHER, OTHER_TEXT);
+    await api.remove(OTHER, created.body.id);
+    // The note gets rewritten while the thread sits in the bin.
+    await adapter.write(
+      OTHER,
+      "The note was rewritten; the old passage is gone."
+    );
+    const restored = await api.restoreFromTrash(created.body.id);
+    const body = restored.body as { status: string };
+    expect(body.status).toBe("orphaned");
+  });
+
+  it("restore after the note itself was deleted lands orphaned", async () => {
+    const { api, store } = makeApi();
+    const adapter = (store as unknown as { app: { vault: { adapter: { write: (p: string, v: string) => Promise<void>; remove: (p: string) => Promise<void> } } } }).app.vault.adapter;
+    const created = (await api.create(OTHER, {
+      text: "x", quote: "lazy dog passage"
+    })) as { status: number; body: { id: string } };
+    await adapter.write(OTHER, OTHER_TEXT);
+    await api.remove(OTHER, created.body.id);
+    await adapter.remove(OTHER);
+    const restored = await api.restoreFromTrash(created.body.id);
+    expect((restored.body as { status: string }).status).toBe("orphaned");
+  });
+
+  it("restore refuses a live target path and keeps the trash entry", async () => {
+    const { api, store } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "x", quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    await api.remove(NOTE, created.body.id);
+    // Someone already occupies the canonical target path (derived from
+    // the trash file itself, the way restore does).
+    const adapter = (store as unknown as {
+      app: { vault: { adapter: {
+        list: (p: string) => Promise<{ files: string[] }>;
+        read: (p: string) => Promise<string>;
+        write: (p: string, v: string) => Promise<void>;
+      } } }
+    }).app.vault.adapter;
+    const trashFile = (await adapter.list(".marginalia-bona/trash")).files[0];
+    const parsedTrash = parseAnnotation(await adapter.read(trashFile));
+    const target = threadPathFor(".marginalia-bona/annotations", parsedTrash);
+    await adapter.write(target, "placeholder");
+    const refused = await api.restoreFromTrash(created.body.id);
+    expect(refused.status).toBe(404);
+    expect(
+      (refused.body as { message: string }).message
+    ).toMatch(/already exists/);
+    // The trash entry survives untouched.
+    expect(
+      (await store.listTrash()).find((e) => e.id === created.body.id)
+    ).toBeTruthy();
   });
 });
