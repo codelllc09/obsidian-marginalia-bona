@@ -20,6 +20,7 @@ import { ConfirmModal } from "./confirm-modal";
 
 export const MARGINALIA_VIEW_TYPE = "marginalia-annotations";
 
+
 type Scope = "current" | "vault";
 
 /** Compact "when" for reply headers: time alone for today, date otherwise.
@@ -187,16 +188,18 @@ export class MarginaliaSidebarView extends ItemView {
     // Remember the jump for a moment: a rebuild triggered by any external
     // event (file open, refresh) would otherwise wipe the scroll and pulse.
     this.pendingJump = { id, until: Date.now() + 1500 };
-    this.applyJump(id);
+    this.applyJump(id, true);
   }
 
-  /** Land a jump: mark, centre when off-screen, and pulse the card. */
-  private applyJump(id: string): void {
+  /** Land a jump: mark, centre when off-screen, and pulse the card.
+   *  Re-applied after each rebuild while the jump window lasts; rebuilds
+   *  reset the scroll position, so they land instantly instead of
+   *  animating from wherever the rebuild left the list. */
+  private applyJump(id: string, smooth = false): void {
     const card = this.containerEl.querySelector(
       `[data-marginalia-id="${id}"]`
     );
     if (!(card instanceof HTMLElement)) return;
-    this.pendingJump = null;
     card.addClass("is-active");
     // Only move the list when the card is not already fully visible, and
     // then centre it: landing at the very top or bottom edge is what made
@@ -208,7 +211,10 @@ export class MarginaliaSidebarView extends ItemView {
       const fullyVisible =
         cardRect.top >= viewRect.top && cardRect.bottom <= viewRect.bottom;
       if (!fullyVisible) {
-        card.scrollIntoView({ block: "center", behavior: "smooth" });
+        card.scrollIntoView({
+          block: "center",
+          behavior: smooth ? "smooth" : "auto"
+        });
       }
     }
     // A short pulse tells the eye where the jump landed.
@@ -281,8 +287,11 @@ export class MarginaliaSidebarView extends ItemView {
     if (wasDraftTextarea) this.focusDraft(caret ?? 0);
     // A jump in flight survives rebuilds: land it on the fresh DOM.
     if (this.pendingJump) {
-      if (Date.now() < this.pendingJump.until) this.applyJump(this.pendingJump.id);
-      else this.pendingJump = null;
+      if (Date.now() < this.pendingJump.until) {
+        this.applyJump(this.pendingJump.id);
+      } else {
+        this.pendingJump = null;
+      }
     }
   }
 
