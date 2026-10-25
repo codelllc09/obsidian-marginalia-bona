@@ -109,13 +109,34 @@ Marginalia Bona 可以通过
 以下任一通道。
 
 **MCP 工具**（默认开启）：在 Local REST API 服务器的 `/mcp` 端点上注册了
-十一个工具——批注的列出、创建、获取、更新、删除，回复管理，重新锚定，以及
-回收站的列出与恢复。工具会校验输入，并复用与侧栏相同的规则：引文在文中多次
-出现时会被拒绝并附带匹配数，调用方需指明第几处；乐观锁（`expected_text`、
-`expected_quote`）在线程被读过又发生变化时返回明确的 409。
+十一个工具。
 
-**REST 端点**（默认关闭）：同样的操作以纯 HTTP 形式暴露在 `/annotations/`
-之下，Local REST API 服务器原有的 `/openapi.yaml` 里有完整描述。
+| 工具 | 作用 |
+|---|---|
+| `marginalia_list_annotations` | 列出线程。`source` 限定单篇笔记；省略则检索全库。可按 `status`、`author`、`read`、`q` 过滤，`sort` 加 `dir` 排序，`limit` 限制输出。 |
+| `marginalia_create_annotation` | 在 `source` 中锚定 `quote` 并保存 `text`。引文多次出现时会被拒绝并附带匹配数，需用 `occurrence`（从 1 起）指明第几处。可选 `author`、`color`（hex）、`style`。 |
+| `marginalia_get_annotation` | 按 `source` 与 `id` 取一条线程，含锚点、回复与已读状态。 |
+| `marginalia_update_annotation` | 编辑 `text`（传 `expected_text` 可在线程被读过又变化时以 409 拒绝写入），或设置 `status`、`read`、`color`、`style`。 |
+| `marginalia_delete_annotation` | 把线程移入回收站，响应中给出回收站文件路径。 |
+| `marginalia_add_reply` | 向线程追加一条回复。 |
+| `marginalia_update_reply` | 编辑某条回复的文字（可一并改作者）。 |
+| `marginalia_delete_reply` | 删除某条回复。 |
+| `marginalia_reanchor` | 把线程锚到新段落：与创建相同的引文规则，可选 `expected_quote` 乐观锁。正文与回复原样保留。 |
+| `marginalia_list_trash` | 列出回收站条目的 id、来源与正文摘要。 |
+| `marginalia_restore_annotation` | 把回收站条目移回批注目录，并按笔记现状调和锚点。 |
+
+**REST 端点**（默认关闭）：同样的操作以纯 HTTP 形式暴露在
+`/vault/<笔记路径>/annotations/` 之下，Local REST API 服务器原有的
+`/openapi.yaml` 里有完整描述。例如：
+
+```sh
+curl -k -X POST -H "Authorization: Bearer <api key>" -H "Content-Type: application/json" \
+  --data '{"text": "Consider a table here", "quote": "the three options", "author": "Pi"}' \
+  "https://127.0.0.1:27124/vault/Projects/Plan.md/annotations/"
+```
+
+直接读磁盘上的批注文件永远安全，往往也最快；桥接的意义在于让写入经过插件
+完成——由插件构建锚点、维护索引一致性。
 
 直接读磁盘上的批注文件永远安全，往往也最快；桥接的意义在于让写入经过插件
 完成——由插件构建锚点、维护索引一致性。
@@ -138,9 +159,58 @@ Marginalia Bona 可以通过
 .marginalia-bona/annotations/<源笔记路径>/<引文摘要>-<短id>.md
 ```
 
-一个文件就是一条线程：frontmatter 携带身份、状态、样式与已读状态；正文是
-根评论；回复在 `Replies` 标题之下；文件末尾的 JSON 代码块记录锚点。文件名
-在线程创建时生成，此后保持不变——即使锚定的文本发生变化。
+一个文件就是一条线程。下面是一份真实文件的节选：
+
+````markdown
+---
+siden-schema: 1
+id: "606404a7-9c1e-4b2f-8a57-1d0f6f20b9ce"
+source: "Projects/Plan.md"
+source-type: "markdown"
+status: "open"
+author: "Pi"
+created: "2026-10-24T09:12:40.245Z"
+updated: "2026-10-24T09:14:02.881Z"
+---
+
+# Annotation
+
+Consider a table here — three rows for the quarterly numbers.
+
+## Replies
+
+### b71c02de | 2026-10-24T09:14:02.881Z | user
+
+Agreed, but keep the totals in the text.
+
+<!-- siden:anchor -->
+
+## Anchor metadata
+
+```json
+{
+  "kind": "markdown",
+  "startOffset": 284,
+  "endOffset": 301,
+  "startLine": 11,
+  "startCharacter": 23,
+  "endLine": 11,
+  "endCharacter": 40,
+  "quote": {
+    "exact": "the three options",
+    "prefix": "Consider a table here: ",
+    "suffix": "."
+  },
+  "originalQuote": "the three options"
+}
+```
+
+<!-- /siden:anchor -->
+````
+
+frontmatter 携带身份、状态、样式与已读状态；正文是根评论；回复在
+`Replies` 标题之下；文件末尾的 JSON 代码块记录锚点。文件名在线程创建时
+生成，此后保持不变——即使锚定的文本发生变化。
 
 `.marginalia-bona/index/` 目录按文档存放 JSONL 分片——这是可重建的缓存，
 让 Agent 和侧栏无需读遍所有文件就能定位线程。运行
@@ -156,6 +226,14 @@ Marginalia Bona 可以通过
 - Agent 桥接只与本机的 Local REST API 插件通信，不额外监听任何端口。
 - PDF 选择与高亮定位依赖 Obsidian 内部 PDF 阅读器的 DOM——公开插件 API 没有
   暴露这些能力，因此 Obsidian 升级后可能需要一次兼容性更新。
+
+## 已知限制
+
+- PDF 批注只有侧栏评论与高亮，没有边注卡片。
+- 回收站暂时没有侧栏视图，Agent 通过 MCP 或 REST 访问。
+- 引文在文中多次出现时绝不猜测：调用方必须指明第几处。
+- PDF 选择与高亮定位依赖 Obsidian 内部 PDF 阅读器的 DOM，Obsidian 升级后
+  可能需要一次兼容性更新。
 
 ## 开发
 

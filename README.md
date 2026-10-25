@@ -119,18 +119,32 @@ Marginalia Bona can let AI agents read and write annotations through the
 [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api)
 plugin. Install it and keep it running on `127.0.0.1` to use either channel.
 
-**MCP tools** (enabled by default): eleven tools registered on the Local REST
-API server's `/mcp` endpoint — list, create, get, update, and delete
-annotations, manage replies, re-anchor, and list or restore the trash. Tools
-validate their input and reuse the same rules as the sidebar: a quote that
-matches several passages is rejected with the number of matches until the
-caller passes an occurrence, and optimistic locks (`expected_text`,
-`expected_quote`) return a clear 409 when the thread changed since it was
-read.
+**MCP tools** (enabled by default): eleven tools on the Local REST API
+server's `/mcp` endpoint.
+
+| Tool | Does |
+|---|---|
+| `marginalia_list_annotations` | Lists threads. `source` scopes to one note; without it the whole vault is searched. Filters: `status`, `author`, `read`, `q`; ordering with `sort` and `dir`; `limit` caps output. |
+| `marginalia_create_annotation` | Anchors `quote` in `source` and stores `text`. A quote matching several passages is rejected with the match count until `occurrence` (1-based) says which one. `author`, `color` (hex), `style` optional. |
+| `marginalia_get_annotation` | One thread by `source` and `id`, with its anchor, replies, and read state. |
+| `marginalia_update_annotation` | Edits `text` (`expected_text` refuses the write with a 409 when the thread changed since it was read), or sets `status`, `read`, `color`, `style`. |
+| `marginalia_delete_annotation` | Moves the thread to the recycle bin; the response names the trash file. |
+| `marginalia_add_reply` | Appends a reply to a thread. |
+| `marginalia_update_reply` | Edits one reply's text (and optionally its author). |
+| `marginalia_delete_reply` | Removes one reply. |
+| `marginalia_reanchor` | Attaches a thread to a new passage: same quote rules as create, `expected_quote` optional lock. Body and replies are kept. |
+| `marginalia_list_trash` | Lists recycle-bin entries with id, source, and body preview. |
+| `marginalia_restore_annotation` | Moves a trash entry back to its annotations folder and reconciles the anchor against the note as it is now. |
 
 **REST endpoints** (off by default): the same operations as plain HTTP under
-`/annotations/`, described in the `/openapi.yaml` that the Local REST API
-server already exposes.
+`/vault/<note path>/annotations/`, described in the `/openapi.yaml` that the
+Local REST API server already serves. For example:
+
+```sh
+curl -k -X POST -H "Authorization: Bearer <api key>" -H "Content-Type: application/json" \
+  --data '{"text": "Consider a table here", "quote": "the three options", "author": "Pi"}' \
+  "https://127.0.0.1:27124/vault/Projects/Plan.md/annotations/"
+```
 
 Reading annotation files directly from disk is always safe and often fastest;
 the bridge exists so that writes go through the plugin, which builds anchors
@@ -155,11 +169,59 @@ Annotations are stored as individual Markdown files under:
 .marginalia-bona/annotations/<source path>/<quote excerpt>-<short id>.md
 ```
 
-Each file is one thread: frontmatter carries identity, status, styling, and
-read state; the body is the root comment; replies follow under a `Replies`
-heading; a fenced JSON block at the end records the anchor. File names are
-minted when the thread is created and stay stable afterwards, even when the
-anchored text drifts.
+Each file is one thread. A real one, shortened:
+
+````markdown
+---
+siden-schema: 1
+id: "606404a7-9c1e-4b2f-8a57-1d0f6f20b9ce"
+source: "Projects/Plan.md"
+source-type: "markdown"
+status: "open"
+author: "Pi"
+created: "2026-10-24T09:12:40.245Z"
+updated: "2026-10-24T09:14:02.881Z"
+---
+
+# Annotation
+
+Consider a table here — three rows for the quarterly numbers.
+
+## Replies
+
+### b71c02de | 2026-10-24T09:14:02.881Z | user
+
+Agreed, but keep the totals in the text.
+
+<!-- siden:anchor -->
+
+## Anchor metadata
+
+```json
+{
+  "kind": "markdown",
+  "startOffset": 284,
+  "endOffset": 301,
+  "startLine": 11,
+  "startCharacter": 23,
+  "endLine": 11,
+  "endCharacter": 40,
+  "quote": {
+    "exact": "the three options",
+    "prefix": "Consider a table here: ",
+    "suffix": "."
+  },
+  "originalQuote": "the three options"
+}
+```
+
+<!-- /siden:anchor -->
+````
+
+Frontmatter carries identity, status, styling, and read state; the body is
+the root comment; replies follow under a `Replies` heading; the fenced JSON
+block at the end records the anchor. File names are minted when the thread is
+created and stay stable afterwards, even when the anchored text drifts.
 
 The `.marginalia-bona/index/` folder holds one JSONL shard per document — a
 rebuildable cache that lets agents and the sidebar locate threads without
@@ -178,6 +240,15 @@ Source Markdown and PDF files are never modified.
 - PDF selection and highlight positioning integrate with Obsidian's internal
   PDF viewer DOM because the public plugin API does not expose those
   features. An Obsidian update can therefore require a compatibility update.
+
+## Limitations
+
+- PDF annotations are sidebar comments and highlights only; no margin cards.
+- The recycle bin has no sidebar view yet; agents reach it over MCP or REST.
+- A quote that appears more than once in a note is never anchored on a guess:
+  the caller must say which occurrence it means.
+- PDF selection and highlight positioning depend on Obsidian's internal PDF
+  viewer DOM and may need a compatibility update after Obsidian upgrades.
 
 ## Development
 
