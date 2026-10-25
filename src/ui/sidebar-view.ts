@@ -638,7 +638,17 @@ export class MarginaliaSidebarView extends ItemView {
       // detaches the previous menu's document listeners.
       this.openFilterClose?.();
       this.openFilterClose = () => close();
+      menu.classList.remove("is-end");
       menu.classList.add("is-open");
+      // Keep the grown popover inside the sidebar: cap its width at the
+      // view's, and flip to right-alignment when it would overflow.
+      const boundary = this.containerEl.getBoundingClientRect();
+      menu.style.maxWidth = `${Math.max(160, boundary.width - 8)}px`;
+      const wrapRect = wrap.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      if (wrapRect.left + menuRect.width > boundary.right - 4) {
+        menu.classList.add("is-end");
+      }
       button.setAttribute("aria-expanded", "true");
       document.addEventListener("pointerdown", onOutside, true);
       document.addEventListener("keydown", onKeydown, true);

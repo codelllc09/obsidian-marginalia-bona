@@ -31,7 +31,7 @@ ICON_DOWN = ("<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" s
              "<path d=\"M12 5v14M19 12l-7 7-7-7\"/></svg>")
 
 
-def dropdown(name, current, options, open_menu=False):
+def dropdown(name, current, options, open_menu=False, end_align=False):
     items = []
     for option in options:
         selected = " is-selected" if option == current else ""
@@ -43,11 +43,11 @@ def dropdown(name, current, options, open_menu=False):
             '<button class="marginalia-dropdown" aria-haspopup="menu">'
             '<span class="marginalia-dropdown-label">' + name + ': ' + current + '</span>'
             '<span class="marginalia-dropdown-icon">' + CHEVRON + '</span></button>'
-            '<div class="marginalia-dropdown-menu' + (' is-open' if open_menu else '') + '" role="menu">'
+            '<div class="marginalia-dropdown-menu' + (' is-open' if open_menu else '') + (' is-end' if end_align else '') + '" role="menu">'
             + "".join(items) + '</div></div>')
 
 
-def toolbar(menu_open=False):
+def toolbar(open_which=""):
     return ("\n  <input class=\"marginalia-search\" type=\"search\" placeholder=\"Search annotations...\">\n"
             "  <div class=\"marginalia-toolbar\">\n"
             "    <button class=\"clickable-icon marginalia-collapse-toggle\">" + ICON_COLLAPSE + "</button>\n"
@@ -55,9 +55,9 @@ def toolbar(menu_open=False):
             "    <button class=\"clickable-icon marginalia-scroll-button\">" + ICON_DOWN + "</button>\n"
             "  </div>\n"
             "  <div class=\"marginalia-filter-row\">"
-            + dropdown("Status", "Open", ["Open", "Unread", "Drifted", "Resolved", "Orphaned", "All"], menu_open)
+            + dropdown("Status", "Open", ["Open", "Unread", "Drifted", "Resolved", "Orphaned", "All"], open_which == "status")
             + dropdown("Scope", "Current file", ["Current file", "Whole vault"])
-            + dropdown("Sort", "Source order", ["Source order", "Created newest", "Created oldest", "Updated newest"])
+            + dropdown("Sort", "Source order", ["Source order", "Created newest", "Created oldest", "Updated newest"], open_which == "sort", end_align=open_which == "sort")
             + "</div>\n")
 
 
@@ -121,7 +121,7 @@ def card(drift, collapsed, resolved, orphan, replies, unread=False):
     return card_html
 
 
-def page(dark, menu_open=False):
+def page(dark, open_which="", width=600):
     theme_vars = ("--text-normal:#ddd; --text-muted:#999; --text-faint:#666; --interactive-accent:#8b5cf6; "
                   "--background-primary:#262626; --background-secondary:#202020; "
                   "--background-secondary-alt:#2a2a2a; --background-modifier-border:#444;") if dark else \
@@ -141,7 +141,7 @@ def page(dark, menu_open=False):
     return ('<!doctype html><html><head><meta charset="utf-8"><style>\n' + base
             + '\n</style>\n<style>\n' + css + '\n</style></head><body>\n'
             + '<h3>' + ('Dark' if dark else 'Light') + '</h3>\n'
-            + '<div class="marginalia-sidebar">' + toolbar(menu_open)
+            + '<div class="marginalia-sidebar" style="max-width:' + str(width) + 'px">' + toolbar(open_which)
             + '\n<div class="marginalia-body"><div class="marginalia-list">\n'
             + card(True, False, False, False, 2)
             + card(False, True, False, False, 0, unread=True)
@@ -153,7 +153,8 @@ def page(dark, menu_open=False):
 out = sys.argv[1] if len(sys.argv) > 1 else "/tmp/sidebar-preview"
 open(out + "-light.html", "w").write(page(False))
 open(out + "-dark.html", "w").write(page(True))
-open(out + "-light-menu.html", "w").write(page(False, menu_open=True))
-open(out + "-dark-menu.html", "w").write(page(True, menu_open=True))
-print("written", out + "-light.html", out + "-dark.html",
-      out + "-light-menu.html", out + "-dark-menu.html")
+open(out + "-light-menu.html", "w").write(page(False, "status"))
+open(out + "-dark-menu.html", "w").write(page(True, "status"))
+open(out + "-narrow-status.html", "w").write(page(False, "status", 380))
+open(out + "-narrow-sort.html", "w").write(page(False, "sort", 380))
+print("written 6 variants under " + out)

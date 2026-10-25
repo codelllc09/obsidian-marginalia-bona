@@ -72,6 +72,9 @@
   width: 0.75em;
 }
 
+/* At least as wide as its trigger, but allowed to grow with the content so
+   labels never truncate at narrow sidebar widths. `.is-end` flips it to the
+   trigger's right edge when growing to the right would leave the view. */
 .marginalia-dropdown-menu {
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
@@ -81,16 +84,22 @@
   display: none;
   left: 0;
   max-height: 40vh;
+  min-width: 100%;
   overflow-y: auto;
   padding: var(--size-4-1);
   position: absolute;
   top: calc(100% + 0.25em);
-  width: 100%;
+  width: max-content;
   z-index: var(--layer-popover, 30);
 }
 
 .marginalia-dropdown-menu.is-open {
   display: block;
+}
+
+.marginalia-dropdown-menu.is-end {
+  left: auto;
+  right: 0;
 }
 
 .marginalia-dropdown-item {
