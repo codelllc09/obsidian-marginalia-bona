@@ -674,6 +674,19 @@
   cursor: pointer;
 }
 
+/* Images inside margin cards: a pasted screenshot must never widen the
+   card past the gutter, so cap width and height and keep our frame. */
+.marginalia-margin-card img {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 0.35em;
+  display: block;
+  height: auto;
+  max-height: 8em;
+  max-width: 100%;
+  object-fit: cover;
+  width: auto;
+}
+
 /* Per-annotation marks. --marginalia-mark-color/--marginalia-mark-opacity are set
    inline per mark; unset values fall back to the global defaults.
 
