@@ -86,8 +86,14 @@ function buildHighlights(
 }
 
 function measureContentColumn(view: EditorView): DOMRect {
+  // Themes such as Minimal constrain each rendered line (`.cm-line`) instead
+  // of the sizer, so measuring `.cm-sizer` reports "no gutter" on a page that
+  // visibly has one. Prefer a real line, fall back to the sizer.
+  const line = view.contentDOM.querySelector<HTMLElement>(".cm-line");
   const sizer =
-    view.dom.querySelector<HTMLElement>(".cm-sizer") ?? view.contentDOM;
+    line ??
+    view.dom.querySelector<HTMLElement>(".cm-sizer") ??
+    view.contentDOM;
   const sizerRect = sizer.getBoundingClientRect();
   const editorRect = view.dom.getBoundingClientRect();
   return new DOMRect(
