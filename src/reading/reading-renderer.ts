@@ -107,7 +107,11 @@ function highlightOccurrence(
     const range = document.createRange();
     range.setStart(segment.node, from - segment.start);
     range.setEnd(segment.node, to - segment.start);
-    const mark = createEl("mark");
+    // A span, not <mark>: Obsidian's theme styles `mark` with its own
+    // highlight background at higher specificity, which made every style
+    // (underline, wavy, strikethrough, bold) look like a plain highlight in
+    // Reading view. The editor path uses spans for the same reason.
+    const mark = createSpan();
     const presentation = markPresentation(annotation, {
       defaultStyle: plugin.settings.defaultMarkStyle,
       defaultColor: plugin.settings.highlightColor,
