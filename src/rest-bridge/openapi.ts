@@ -15,12 +15,10 @@ const PATH_PARAM = {
 
 const ERROR_REF = { $ref: "#/components/schemas/MarginaliaError" };
 
-const JSON_BODY = (schema: Record<string, unknown>) => [
-  {
-    required: true,
-    content: { "application/json": { schema } }
-  }
-];
+const JSON_BODY = (schema: Record<string, unknown>) => ({
+  required: true,
+  content: { "application/json": { schema } }
+});
 
 const OK_THREAD = {
   description:
