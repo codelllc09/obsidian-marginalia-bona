@@ -30,6 +30,8 @@ export interface AnnotationReply {
   body: string;
   /** Who wrote this reply (user name or agent name, e.g. "Pi"). */
   author?: string;
+  /** The reply this one answers; absent for a top-level reply. */
+  parentId?: string;
 }
 
 export interface TextQuote {
@@ -253,6 +255,9 @@ export function assertAnnotation(value: unknown): asserts value is Annotation {
     }
     if (reply.author !== undefined && typeof reply.author !== "string") {
       throw new Error("Annotation reply author must be a string when present.");
+    }
+    if (reply.parentId !== undefined && typeof reply.parentId !== "string") {
+      throw new Error("Annotation reply parentId must be a string when present.");
     }
   }
 }

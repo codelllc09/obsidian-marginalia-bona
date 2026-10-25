@@ -68,7 +68,7 @@ function renderThread(annotation: Annotation, index: number): string {
 
   for (const reply of annotation.replies) {
     const replyMeta = [
-      `**${reply.author ?? "user"}**`,
+      `${reply.parentId ? "↳ " : ""}**${reply.author ?? "user"}**`,
       formatTime(reply.createdAt)
     ].join(" · ");
     parts.push(quoteBlock(`${replyMeta}\n${reply.body.trimEnd()}`));

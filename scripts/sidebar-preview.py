@@ -85,21 +85,35 @@ def card(drift, collapsed, resolved, orphan, replies, unread=False):
                  '<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>')
     remove_icon = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
                    '<path d="M18 6 6 18M6 6l12 12"/></svg>')
+    copy_icon = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+                 '<rect x="8" y="8" width="12" height="12" rx="2"/>'
+                 '<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>')
+    remove_icon = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+                   '<path d="M18 6 6 18M6 6l12 12"/></svg>')
+    answer_icon = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+                   '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>')
+
+    def reply_block(author, time, text, depth=0):
+        cls = "marginalia-reply is-nested" if depth else "marginalia-reply"
+        return ('<div class="' + cls + '" style="--marginalia-reply-depth:' + str(depth) + '">'
+                '<div class="marginalia-reply-head">'
+                '<span class="marginalia-reply-author">' + author + '</span>'
+                '<span class="marginalia-reply-time">' + time + '</span>'
+                '<div class="marginalia-reply-actions">'
+                '<button class="clickable-icon">' + answer_icon + '</button>'
+                '<button class="clickable-icon">' + copy_icon + '</button>'
+                '<button class="clickable-icon">' + remove_icon + '</button>'
+                '</div></div>'
+                '<div class="marginalia-reply-body markdown-rendered"><p>' + text + '</p></div></div>')
+
     reply_html = ''
     if replies:
-        reply_html += '<div class="marginalia-replies">'
-        for r in range(replies):
-            reply_html += ('<div class="marginalia-reply">'
-                           '<div class="marginalia-reply-head">'
-                           '<span class="marginalia-reply-author">user</span>'
-                           '<span class="marginalia-reply-time">09:14</span>'
-                           '<div class="marginalia-reply-actions">'
-                           '<button class="clickable-icon">' + copy_icon + '</button>'
-                           '<button class="clickable-icon">' + remove_icon + '</button>'
-                           '</div></div>'
-                           '<div class="marginalia-reply-body markdown-rendered">'
-                           '<p>回复 ' + str(r + 1) + '：回复的样式参考一下 word。</p></div></div>')
-        reply_html += '</div>'
+        reply_html = ('<div class="marginalia-replies">'
+                      + reply_block('Pi', '10:02', '保持总量写进正文即可，表格分季度。')
+                      + reply_block('user', '10:05', '同意，那就按季度拆，总量放最后一行。', 1)
+                      + reply_block('Pi', '10:06', '好，我来改。', 2)
+                      + reply_block('user', '10:09', '另外标题换一下措辞。')
+                      + '</div>')
     footer = ('<div class="marginalia-card-footer">'
               '<button class="marginalia-footer-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/><path d="m21 17-3-3 3-3"/></svg><span>Reply</span></button>'
               '<div class="marginalia-card-footer-spacer"></div>'

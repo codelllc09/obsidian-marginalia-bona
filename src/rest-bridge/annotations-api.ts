@@ -137,7 +137,8 @@ export class AnnotationsApi {
         id: reply.id,
         author: reply.author ?? "user",
         createdAt: reply.createdAt,
-        body: reply.body
+        body: reply.body,
+        parentId: reply.parentId ?? null
       }))
     };
   }
@@ -296,7 +297,23 @@ export class AnnotationsApi {
       return err(400, ERROR_CODES.invalidBody, "text is required");
     }
     const author = stringField(body, "author") || "Agent";
-    const updated = await this.plugin.store.addReply(id, text, author);
+    const parentId = stringField(body, "parent_id") || undefined;
+    if (
+      parentId !== undefined &&
+      !annotation.replies.some((reply) => reply.id === parentId)
+    ) {
+      return err(
+        404,
+        ERROR_CODES.unknownReply,
+        `No reply ${parentId} to answer on ${id}`
+      );
+    }
+    const updated = await this.plugin.store.addReply(
+      id,
+      text,
+      author,
+      parentId
+    );
     return { status: 201, body: this.threadPayload(updated) };
   }
 
