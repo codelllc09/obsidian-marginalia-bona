@@ -22,11 +22,11 @@ describe("AnnotationStore.reanchor", () => {
       anchor: {
         kind: "markdown",
         startOffset: 100,
-        endOffset: 110,
+        endOffset: 115,
         startLine: 5,
         startCharacter: 0,
         endLine: 5,
-        endCharacter: 10,
+        endCharacter: 15,
         quote: { exact: "deleted passage" }
       },
       author: "user"

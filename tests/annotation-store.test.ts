@@ -58,11 +58,11 @@ describe("AnnotationStore", () => {
       anchor: {
         kind: "markdown",
         startOffset: 0,
-        endOffset: 3,
+        endOffset: 14,
         startLine: 0,
         startCharacter: 0,
         endLine: 0,
-        endCharacter: 3,
+        endCharacter: 14,
         quote: { exact: "old quote text" }
       },
       replies: []
@@ -106,7 +106,7 @@ describe("AnnotationStore", () => {
     const updated = await store.update(annotation.id, {
       anchor: {
         ...anchor,
-        quote: { exact: "completely different text now" }
+        quote: { exact: "gone" }
       }
     });
     const after = threadPathFor(".marginalia-bona/annotations", updated);
@@ -163,11 +163,11 @@ describe("AnnotationStore", () => {
       anchor: {
         kind: "markdown",
         startOffset: 0,
-        endOffset: 20,
+        endOffset: 19,
         startLine: 0,
         startCharacter: 0,
         endLine: 0,
-        endCharacter: 20,
+        endCharacter: 19,
         quote: { exact: "一二三四五六七八九十十一十二十三十四；" }
       }
     });

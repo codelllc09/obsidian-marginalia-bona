@@ -113,11 +113,22 @@ ${JSON.stringify(annotation.anchor, null, 2)}
     expect(parsed.body).toBe("Old body.");
   });
 
-  it("rejects malformed reply headings", () => {
+  it("degrades malformed reply headings instead of rejecting the file", () => {
     const broken = serializeAnnotation({
       ...annotation,
-      replies: [{ id: "x", createdAt: "t", body: "hi" }]
-    }).replace("### x | t", "###");
-    expect(() => parseAnnotation(broken)).toThrow("reply heading is malformed");
+      replies: [{ id: "x", createdAt: "2026-01-01T00:00:00.000Z", body: "hi" }]
+    }).replace("### x | 2026-01-01T00:00:00.000Z", "###");
+    const parsed = parseAnnotation(broken);
+    expect(parsed.replies).toEqual([]);
+    expect(parsed.body).toContain("## Replies");
+  });
+
+  it("keeps reply bodies that contain plain markdown H3 lines", () => {
+    const parsed = parseAnnotation(serializeAnnotation({
+      ...annotation,
+      replies: [{ id: "x", createdAt: "2026-01-01T00:00:00.000Z", body: "### Summary\npoint" }]
+    }));
+    expect(parsed.replies).toHaveLength(1);
+    expect(parsed.replies[0].body).toBe("### Summary\npoint");
   });
 });

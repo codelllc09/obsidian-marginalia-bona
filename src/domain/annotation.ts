@@ -174,6 +174,34 @@ export function assertAnnotation(value: unknown): asserts value is Annotation {
   ) {
     throw new Error("Annotation anchor kind is invalid.");
   }
+  if (annotation.anchor.kind === "markdown" || annotation.anchor.kind === "pdf") {
+    const quote = (annotation.anchor as { quote?: { exact?: unknown } }).quote;
+    if (!quote || typeof quote !== "object" || typeof quote.exact !== "string") {
+      throw new Error("Annotation anchor quote with exact text is required.");
+    }
+  }
+  if (annotation.anchor.kind === "markdown") {
+    const anchor = annotation.anchor;
+    for (const key of [
+      "startOffset",
+      "endOffset",
+      "startLine",
+      "startCharacter",
+      "endLine",
+      "endCharacter"
+    ] as const) {
+      const value = anchor[key];
+      if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw new Error(`Anchor ${key} must be an integer.`);
+      }
+    }
+    if (anchor.startOffset < 0 || anchor.endOffset < anchor.startOffset) {
+      throw new Error("Anchor offsets must be non-negative and ordered.");
+    }
+    if (anchor.endOffset - anchor.startOffset !== anchor.quote.exact.length) {
+      throw new Error("Anchor span must match the quote length.");
+    }
+  }
   if (
     annotation.sourceType === "markdown" &&
     annotation.anchor.kind === "pdf"
@@ -184,7 +212,10 @@ export function assertAnnotation(value: unknown): asserts value is Annotation {
     throw new Error("A PDF source cannot use a Markdown anchor.");
   }
   const color = annotation.color;
-  if (color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+  if (
+    color !== undefined &&
+    !/^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(color)
+  ) {
     throw new Error(`Annotation color is invalid: ${color}`);
   }
   const markStyle = annotation.markStyle;

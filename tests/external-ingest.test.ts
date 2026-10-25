@@ -34,7 +34,7 @@ ${body}
 ## Anchor metadata
 
 \`\`\`json
-{"kind":"markdown","startOffset":0,"endOffset":9,"startLine":0,"startCharacter":0,"endLine":0,"endCharacter":9,"quote":{"exact":"new passage"}}
+{"kind":"markdown","startOffset":0,"endOffset":11,"startLine":0,"startCharacter":0,"endLine":0,"endCharacter":11,"quote":{"exact":"new passage"}}
 \`\`\`
 
 <!-- /siden:anchor -->
