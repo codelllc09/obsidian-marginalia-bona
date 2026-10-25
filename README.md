@@ -68,6 +68,12 @@ The data directory `.marginalia-bona/` is separate from upstream Siden's
 
 ## Usage
 
+![Hover a highlight to read its thread, then use Jump to return to the passage](media/demo.gif)
+
+The clip above is the whole loop: hover a highlight, open the sidebar, and
+jump back to the passage. [MP4 version](media/demo.mp4) if the GIF is too
+coarse.
+
 ### Annotate Markdown
 
 1. Select text in Live Preview.

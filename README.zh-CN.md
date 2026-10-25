@@ -48,6 +48,11 @@ Marginalia Bona 为 Obsidian 的 Markdown 笔记提供批注能力。
 
 ## 使用
 
+![悬停高亮看线程，用 Jump 跳回原文](media/demo.gif)
+
+上面的片段就是完整回路：悬停看批注、打开侧栏、跳回原文。觉得 GIF 太糊可以看
+[MP4 版](media/demo.mp4)。
+
 ### 批注 Markdown
 
 1. 在实时预览中选中文字。
