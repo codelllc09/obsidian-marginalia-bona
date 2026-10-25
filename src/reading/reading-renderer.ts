@@ -57,6 +57,7 @@ function textSegments(root: HTMLElement): {
  *  captured against the source, so both sides are normalised before
  *  searching the DOM - otherwise a quote with formatting is never found and
  *  its card silently disappears in Reading view. */
+
 export function plainQuoteText(value: string): string {
   return value
     .replaceAll(/!\[\[([^\]]+)\]\]/g, "$1")
@@ -183,6 +184,26 @@ function findAnchor(
     (candidate) => candidate.start <= start && candidate.end > start
   );
   return segment?.node.parentElement ?? null;
+}
+
+/** Containers rendered by OUR markdown renders (sidebar cards, hover cards,
+ *  margin cards) trigger the same post-processor; running the reading-view
+ *  pass inside them would recurse and inject marks into our own UI. */
+const OWN_UI =
+  ".marginalia-sidebar, .marginalia-hover-preview, .marginalia-margin-card, .marginalia-lightbox, .cm-editor";
+
+/** The scroll container of a Reading view, found without relying on one
+ *  class name (Obsidian has used .markdown-preview-view and
+ *  .markdown-reading-view; extensions/embeds may sit above either). */
+function readingContainerFor(element: HTMLElement): HTMLElement | null {
+  const direct = element.closest<HTMLElement>(
+    ".markdown-preview-view, .markdown-reading-view"
+  );
+  if (direct) return direct;
+  const sizer = element.closest<HTMLElement>(".markdown-preview-sizer");
+  if (sizer?.parentElement) return sizer.parentElement;
+  const section = element.closest<HTMLElement>(".markdown-preview-section");
+  return section?.parentElement ?? null;
 }
 
 function ensurePreviewState(
@@ -375,6 +396,15 @@ export function processReadingView(
   context: MarkdownPostProcessorContext,
   plugin: MarginaliaPlugin
 ): void {
+  if (element.closest(OWN_UI)) return;
+  processReadingViewInner(element, context, plugin);
+}
+
+function processReadingViewInner(
+  element: HTMLElement,
+  context: MarkdownPostProcessorContext,
+  plugin: MarginaliaPlugin
+): void {
   if (context.sourcePath.startsWith(".marginalia-bona/")) return;
   const annotations = plugin.store
     .forSource(context.sourcePath)
@@ -384,11 +414,15 @@ export function processReadingView(
         (annotation.status !== "resolved" || plugin.settings.showResolved)
     );
   for (const annotation of annotations) {
-    if (plugin.settings.showHighlights) {
+    if (!plugin.settings.showHighlights) continue;
+    try {
       highlightOccurrence(element, annotation, plugin);
+    } catch (error) {
+      // A single block must never abort the whole Reading view pass.
+      console.warn("Marginalia: could not mark a passage in Reading view", error);
     }
   }
-  const preview = element.closest<HTMLElement>(".markdown-preview-view");
+  const preview = readingContainerFor(element);
   if (!preview) return;
   preview.dataset.marginaliaSourcePath = context.sourcePath;
   schedulePreview(ensurePreviewState(preview, plugin));
