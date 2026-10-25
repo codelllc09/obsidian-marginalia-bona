@@ -25,8 +25,9 @@ AI agents included — can read and write them directly.
 - Each annotation can have its own color and mark style (highlight,
   underline, wavy, strikethrough, bold)
 - Reply directly under an annotation to form a thread
-- Read/unread state: the sidebar has an unread filter and a "mark all read"
-  command
+- Read/unread state: an unread filter, a "mark all read" command, and an
+  unread count on the ribbon icon; content written by others turns a thread
+  unread again
 - Sort by document position, creation date, or last update; search covers the
   whole vault
 - Deleted annotations go to a recycle bin (`.marginalia-bona/trash/`) and
@@ -87,7 +88,10 @@ ribbon.
 The sidebar can show annotations for the current file or the entire vault.
 Search across comment bodies, replies, quotes, and note paths; filter by
 status, author, and read state; sort by position, creation date, or last
-update.
+update. A reply from someone else, or an annotation added from outside,
+turns the thread unread again. That shows in the unread filter and the
+ribbon count; new annotations also raise a notice while the sidebar is
+closed.
 
 ### Deleted annotations
 
@@ -137,6 +141,10 @@ curl -k -X POST -H "Authorization: Bearer <api key>" -H "Content-Type: applicati
 Reading annotation files directly from disk is always safe and often fastest;
 the bridge exists so that writes go through the plugin, which builds anchors
 and keeps the index consistent.
+
+Writing under an author other than the configured user name marks the
+thread unread, so the user sees the agent's work. Pass `parent_id` to
+answer a reply and the answer nests under it.
 
 ## Settings
 
