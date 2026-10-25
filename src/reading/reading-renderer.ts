@@ -19,7 +19,7 @@ interface PreviewState {
 
 const previewStates = new Set<PreviewState>();
 
-function textSegments(root: HTMLElement): {
+export function textSegments(root: HTMLElement): {
   text: string;
   segments: TextSegment[];
 } {
@@ -28,8 +28,11 @@ function textSegments(root: HTMLElement): {
       const parent = node.parentElement;
       if (
         !parent ||
+        // Code used to be excluded from the searchable text, which made
+        // any quote containing inline code impossible to locate. It is
+        // included now; only our own layer, scripts and math stay out.
         parent.closest(
-          ".marginalia-bona-reading-margin-layer, code, pre, script, style, .math"
+          ".marginalia-bona-reading-margin-layer, script, style, .math"
         )
       ) {
         return NodeFilter.FILTER_REJECT;
@@ -120,7 +123,7 @@ function locateNeedle(
 }
 
 
-function highlightOccurrence(
+export function highlightOccurrence(
   root: HTMLElement,
   annotation: Annotation,
   plugin: MarginaliaPlugin
