@@ -51,6 +51,9 @@ export interface RestApiHost {
     schema: Record<string, unknown>,
     callback: McpToolCallback
   ): void;
+  /** Contributes {paths, components?, tags?} to the host's OpenAPI
+   *  document; paths and tags must not collide with existing ones. */
+  addOpenApiDescription?(description: unknown): void;
   unregister(): void;
 }
 

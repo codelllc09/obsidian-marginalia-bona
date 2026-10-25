@@ -8,6 +8,7 @@ import type {
 } from "./rest-bridge/types";
 import { AnnotationsApi } from "./rest-bridge/annotations-api";
 import { registerMcpTools } from "./rest-bridge/mcp-tools";
+import { openApiDescription } from "./rest-bridge/openapi";
 
 const SUBRESOURCE = "annotations";
 
@@ -81,6 +82,13 @@ export class RestBridge {
       router.post("/:id/reanchor", route((req) =>
         api.reanchor(req.vaultFile.path, req.params.id, req.body)
       ));
+      // The document describes exactly the mounted endpoints; collisions
+      // with the host or other extensions stay invisible.
+      try {
+        connection.api.addOpenApiDescription?.(openApiDescription());
+      } catch {
+        // Skip the contribution; the routes above still answer.
+      }
     }
     // Best-effort: hosts without an MCP server simply skip this, and a
     // failed registration never takes the REST sub-resource down.

@@ -5,6 +5,7 @@ import { MemoryAdapter } from "./memory-adapter";
 import { TFile } from "./obsidian-runtime-mock";
 import { AnnotationsApi } from "../src/rest-bridge/annotations-api";
 import { RestBridge } from "../src/rest-bridge";
+import { openApiDescription } from "../src/rest-bridge/openapi";
 import { registerMcpTools } from "../src/rest-bridge/mcp-tools";
 import type { McpToolCallback } from "../src/rest-bridge/types";
 import type MarginaliaPlugin from "../src/main";
@@ -280,6 +281,7 @@ type HostSpy = {
   routes: string[];
   mcpTools: string[];
   unregisterCount: number;
+  openApiPaths: string[] | null;
 };
 
 function makeBridge(settings: ChannelSettings) {
@@ -288,7 +290,8 @@ function makeBridge(settings: ChannelSettings) {
     subresourceNames: [],
     routes: [],
     mcpTools: [],
-    unregisterCount: 0
+    unregisterCount: 0,
+    openApiPaths: null
   };
   const host = {
     apiVersion: 3,
@@ -302,6 +305,9 @@ function makeBridge(settings: ChannelSettings) {
       };
     },
     addMcpTool: (name: string) => spy.mcpTools.push(name),
+    addOpenApiDescription: (description: { paths: Record<string, unknown> }) => {
+      spy.openApiPaths = Object.keys(description.paths);
+    },
     unregister: () => {
       spy.unregisterCount += 1;
     }
@@ -339,6 +345,13 @@ describe("agent channel toggles", () => {
     expect(spy.subresourceNames).toEqual(["annotations"]);
     expect(spy.routes).toHaveLength(9);
     expect(spy.mcpTools).toEqual([]);
+    expect(spy.openApiPaths).toEqual([
+      "/vault/{path}/annotations/",
+      "/vault/{path}/annotations/{id}",
+      "/vault/{path}/annotations/{id}/replies",
+      "/vault/{path}/annotations/{id}/replies/{replyId}",
+      "/vault/{path}/annotations/{id}/reanchor"
+    ]);
     bridge.disconnect();
   });
 
@@ -351,6 +364,7 @@ describe("agent channel toggles", () => {
     expect(spy.subresourceNames).toEqual([]);
     expect(spy.routes).toEqual([]);
     expect(spy.mcpTools).toHaveLength(9);
+    expect(spy.openApiPaths).toBeNull();
     bridge.disconnect();
     expect(spy.unregisterCount).toBe(1);
   });
@@ -640,5 +654,54 @@ describe("read / unread state", () => {
       })) as string
     ) as { readAt: string | null };
     expect(typeof got.readAt).toBe("string");
+  });
+});
+
+describe("openapi contribution", () => {
+  it("documents five paths with methods, tag, and error schema", () => {
+    const doc = openApiDescription() as {
+      paths: Record<string, Record<string, unknown>>;
+      tags: Array<{ name: string }>;
+      components: { schemas: Record<string, unknown> };
+    };
+    expect(Object.keys(doc.paths)).toHaveLength(5);
+    expect(doc.paths["/vault/{path}/annotations/"]).toHaveProperty("get");
+    expect(doc.paths["/vault/{path}/annotations/"]).toHaveProperty("post");
+    expect(doc.paths["/vault/{path}/annotations/{id}"]).toHaveProperty("patch");
+    expect(doc.paths["/vault/{path}/annotations/{id}"]).toHaveProperty("delete");
+    expect(doc.paths["/vault/{path}/annotations/{id}/replies/{replyId}"]).toHaveProperty("patch");
+    expect(doc.paths["/vault/{path}/annotations/{id}/replies/{replyId}"]).toHaveProperty("delete");
+    expect(doc.paths["/vault/{path}/annotations/{id}/reanchor"]).toHaveProperty("post");
+    expect(doc.tags[0].name).toBe("Marginalia annotations");
+    expect(doc.components.schemas.MarginaliaError).toBeTruthy();
+    // Namespace discipline: the host already declares generic names like
+    // "Error" - a collision makes addOpenApiDescription throw.
+    for (const name of Object.keys(doc.components.schemas)) {
+      expect(name.startsWith("Marginalia")).toBe(true);
+    }
+  });
+
+  it("passes the host's description validator rules", () => {
+    // Mirrors the host's assertValidDescription: paths must start with "/",
+    // path items and component sections must be objects, tags unique names.
+    const doc = openApiDescription() as Record<string, unknown>;
+    expect(() => {
+      if (typeof doc !== "object" || doc === null) throw new Error("not object");
+      const { paths, components, tags } = doc as Record<string, unknown>;
+      for (const [p, item] of Object.entries(paths as Record<string, unknown>)) {
+        if (!p.startsWith("/")) throw new Error(`path ${p} must start with /`);
+        if (typeof item !== "object" || item === null) throw new Error("bad item");
+      }
+      for (const [, entries] of Object.entries(
+        (components ?? {}) as Record<string, unknown>
+      )) {
+        if (typeof entries !== "object" || entries === null) throw new Error("bad section");
+      }
+      const seen = new Set<string>();
+      for (const tag of (tags ?? []) as Array<{ name: string }>) {
+        if (seen.has(tag.name)) throw new Error(`duplicate tag ${tag.name}`);
+        seen.add(tag.name);
+      }
+    }).not.toThrow();
   });
 });
