@@ -74,11 +74,30 @@
   justify-content: space-between;
   max-width: 100%;
   min-width: 0;
-  padding-inline: var(--size-4-2);
+  padding-inline: 0.45em;
   width: 100%;
 }
 
 .marginalia-dropdown-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05em;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+}
+
+.marginalia-dropdown-caption {
+  color: var(--text-faint);
+  font-size: 0.72em;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.marginalia-dropdown-value {
+  font-size: 0.86em;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

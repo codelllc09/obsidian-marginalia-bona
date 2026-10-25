@@ -587,7 +587,7 @@ export class MarginaliaSidebarView extends ItemView {
       filters,
       "Scope",
       [
-        { value: "current", label: "Current file" },
+        { value: "current", label: "This file" },
         { value: "vault", label: "Whole vault" }
       ],
       () => this.viewScope,
@@ -600,10 +600,10 @@ export class MarginaliaSidebarView extends ItemView {
       filters,
       "Sort",
       [
-        { value: "source", label: "Source order" },
-        { value: "created-desc", label: "Created newest" },
-        { value: "created-asc", label: "Created oldest" },
-        { value: "updated-desc", label: "Updated newest" }
+        { value: "source", label: "Source", title: "Sort: source order" },
+        { value: "created-desc", label: "Newest", title: "Sort: created, newest first" },
+        { value: "created-asc", label: "Oldest", title: "Sort: created, oldest first" },
+        { value: "updated-desc", label: "Updated", title: "Sort: recently updated" }
       ],
       () => this.sortMode,
       (value) => {
@@ -621,7 +621,7 @@ export class MarginaliaSidebarView extends ItemView {
   private renderDropdown<T extends string>(
     parent: HTMLElement,
     name: string,
-    options: ReadonlyArray<{ value: T; label: string }>,
+    options: ReadonlyArray<{ value: T; label: string; title?: string }>,
     get: () => T,
     set: (value: T) => void
   ): void {
@@ -630,7 +630,12 @@ export class MarginaliaSidebarView extends ItemView {
       cls: "marginalia-dropdown",
       attr: { "aria-haspopup": "menu", "aria-expanded": "false" }
     });
+    // Two lines: a tiny caption and the value. At sidebar widths the single
+    // line version truncated to "Status: ...", which hides the active filter.
     const label = button.createSpan({ cls: "marginalia-dropdown-label" });
+    const caption = label.createSpan({ cls: "marginalia-dropdown-caption" });
+    caption.setText(name);
+    const value = label.createSpan({ cls: "marginalia-dropdown-value" });
     const iconEl = button.createSpan({ cls: "marginalia-dropdown-icon" });
     setIcon(iconEl, "chevron-down");
 
@@ -659,9 +664,10 @@ export class MarginaliaSidebarView extends ItemView {
     const sync = () => {
       const current = options.find((option) => option.value === get());
       const text = `${name}: ${current?.label ?? ""}`;
-      label.setText(text);
-      button.setAttribute("aria-label", text);
-      button.title = text;
+      value.setText(current?.label ?? "");
+      const description = current?.title ?? text;
+      button.setAttribute("aria-label", description);
+      button.title = description;
       options.forEach((option, index) => {
         const selected = option.value === get();
         items[index].classList.toggle("is-selected", selected);
