@@ -19,6 +19,7 @@
     "dev": "node esbuild.config.mjs",
     "lint": "eslint .",
     "test": "vitest run",
+    "verify": "npm run typecheck && npm run lint && npm test",
     "typecheck": "tsc --noEmit",
     "deploy": "npm run build && mkdir -p \"$HOME/Documents/obsidian-notes/mynotes/.obsidian/plugins/marginalia-bona\" && cp main.js manifest.json styles.css \"$HOME/Documents/obsidian-notes/mynotes/.obsidian/plugins/marginalia-bona/\"",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
