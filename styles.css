@@ -225,6 +225,30 @@
   width: 100%;
 }
 
+/* Reserve a column for margin cards: narrowing the text beats hiding the
+   feature. The reserve is applied to the text column only, so the pane,
+   scrollbar and any theme padding stay untouched. */
+body.marginalia-reserve-margin {
+  --marginalia-reserve: calc(var(--marginalia-margin-width, 220px) + 3em);
+}
+
+body.marginalia-reserve-margin
+  .workspace-leaf-content[data-type="markdown"]
+  .markdown-preview-sizer {
+  margin-inline: auto;
+  max-width: min(
+    var(--file-line-width, 700px),
+    calc(100% - var(--marginalia-reserve))
+  ) !important;
+}
+
+body.marginalia-reserve-margin
+  .workspace-leaf-content[data-type="markdown"]
+  .cm-sizer {
+  max-width: calc(100% - var(--marginalia-reserve)) !important;
+  margin-inline: auto;
+}
+
 /* Landing pulse for sidebar -> passage jumps in Reading view: a ring around
    the marked span, whichever mark style it uses. */
 .marginalia-jump-target {

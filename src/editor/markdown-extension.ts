@@ -119,7 +119,10 @@ function choosePlacement(
         : "right"
       : plugin.settings.marginSide;
   const available = side === "left" ? leftWidth : rightWidth;
-  if (available < 72) return null;
+  if (available < 72) {
+    plugin.hintNoMarginRoom();
+    return null;
+  }
   // A missing/NaN setting must not produce a zero-width card.
   const configuredWidth =
     Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0

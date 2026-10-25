@@ -12,6 +12,7 @@ export interface MarginaliaSettings {
   marginSide: MarginSide;
   marginWidth: number;
   suppressMarginsWithSidebar: boolean;
+  reserveMarginSpace: boolean;
   /** Default color for annotations created without an explicit color. */
   highlightColor: string;
   highlightOpacity: number;
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   marginSide: "auto",
   marginWidth: 200,
   suppressMarginsWithSidebar: true,
+  reserveMarginSpace: false,
   highlightColor: "#ffd54f",
   highlightOpacity: 0.35,
   defaultMarkStyle: "highlight",
@@ -109,6 +111,19 @@ export class MarginaliaSettingTab extends PluginSettingTab {
           .setLimits(160, 420, 10)
           .setValue(this.plugin.settings.marginWidth)
           .onChange((value) => this.plugin.updateSettings({ marginWidth: value }))
+      );
+
+    new Setting(containerEl)
+      .setName("Reserve space for margin cards")
+      .setDesc(
+        "Narrows the text column so cards always have room. Needed when the theme (or a narrow pane) leaves no empty space beside the text - without it, cards only appear when the pane is wider than the line width."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.reserveMarginSpace)
+          .onChange((value) =>
+            this.plugin.updateSettings({ reserveMarginSpace: value })
+          )
       );
 
     new Setting(containerEl)

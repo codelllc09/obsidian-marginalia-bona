@@ -34,6 +34,7 @@ const counters = {
   skippedOwnUi: 0,
   noContainer: 0,
   deferredDetached: 0,
+  skippedForeignPane: 0,
   marksApplied: 0,
   marksFailed: 0
 };
@@ -348,6 +349,7 @@ function schedulePreview(state: PreviewState): void {
 function retryLater(state: PreviewState): void {
   if (state.retries >= 10) {
     state.plugin.scheduleDiagnosticsSnapshot();
+    if (state.lastPass?.reason === "no-gutter") state.plugin.hintNoMarginRoom();
     return;
   }
   state.retries += 1;
@@ -809,6 +811,13 @@ export function processReadingView(
   plugin: MarginaliaPlugin
 ): void {
   counters.passes += 1;
+  const leafContent = element.closest<HTMLElement>(".workspace-leaf-content");
+  if (leafContent && leafContent.dataset.type !== "markdown") {
+    // Markdown rendered inside another plugin's pane (chat panels, previews)
+    // is not a Reading view; treating it as one creates junk states.
+    counters.skippedForeignPane += 1;
+    return;
+  }
   if (element.closest(OWN_UI)) {
     counters.skippedOwnUi += 1;
     return;

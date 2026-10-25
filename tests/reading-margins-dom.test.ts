@@ -257,6 +257,7 @@ describe("Reading view margins: unknown container classes", () => {
     // names we used to depend on, only a scrolling wrapper.
     const leaf = document.createElement("div");
     leaf.className = "workspace-leaf-content";
+    leaf.dataset.type = "markdown";
     const root = document.createElement("div");
     root.className = "markdown-reading-root";
     // The scroller only reveals itself by its scroll range: no overflow

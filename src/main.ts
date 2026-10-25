@@ -426,6 +426,20 @@ export default class MarginaliaPlugin extends Plugin {
     );
   }
 
+  private hintedNoMarginRoom = false;
+
+  /** Called when a pane has no space for margin cards: say so once, with the
+   *  one setting that fixes it. Silence here looked like a broken feature. */
+  hintNoMarginRoom(): void {
+    if (this.hintedNoMarginRoom) return;
+    if (!this.settings.showMargins || this.settings.reserveMarginSpace) return;
+    this.hintedNoMarginRoom = true;
+    new Notice(
+      "No room for margin cards in this pane. Turn on “Reserve space for margin cards” in Settings → Marginalia Bona, or widen the pane.",
+      9000
+    );
+  }
+
   areMarginsSuppressed(): boolean {
     if (!this.settings.suppressMarginsWithSidebar) return false;
     return this.app.workspace.getLeavesOfType(MARGINALIA_VIEW_TYPE).some((leaf) => {
@@ -442,6 +456,23 @@ export default class MarginaliaPlugin extends Plugin {
     this.pdfAdapter.renderVisibleHighlights(id);
   }
 
+  /** The note's own leaf. Never `getLeaf(false)`: activating the sidebar
+   *  makes IT the active leaf, and the note would be opened inside the
+   *  sidebar - the whole workspace then reshuffles under the user. */
+  private markdownLeafFor(sourcePath: string): WorkspaceLeaf {
+    const existing = this.app.workspace
+      .getLeavesOfType("markdown")
+      .find(
+        (leaf) =>
+          leaf.view instanceof MarkdownView &&
+          leaf.view.file?.path === sourcePath
+      );
+    if (existing) return existing;
+    const recent = this.app.workspace.getMostRecentLeaf();
+    if (recent?.view instanceof MarkdownView) return recent;
+    return this.app.workspace.getLeaf("tab");
+  }
+
   async navigateToAnnotation(annotation: Annotation): Promise<void> {
     await this.activateAnnotation(annotation.id);
     if (annotation.sourceType === "pdf") {
@@ -453,8 +484,9 @@ export default class MarginaliaPlugin extends Plugin {
       new Notice(`Source note not found: ${annotation.sourcePath}`);
       return;
     }
-    const leaf = this.app.workspace.getLeaf(false);
+    const leaf = this.markdownLeafFor(annotation.sourcePath);
     await leaf.openFile(file);
+    this.app.workspace.setActiveLeaf(leaf, { focus: false });
     const view = leaf.view;
     if (view instanceof MarkdownView && annotation.anchor.kind === "markdown") {
       if (view.getMode() === "preview") {
@@ -486,7 +518,9 @@ export default class MarginaliaPlugin extends Plugin {
     const root = view.contentEl.querySelector<HTMLElement>(
       ".markdown-preview-view, .markdown-reading-view"
     );
-    const selector = `[data-marginalia-id="${annotation.id}"]`;
+    // Only the mark is a span: margin cards carry the same attribute and sit
+    // lower in the page, so matching them scrolled the passage out of view.
+    const selector = `span[data-marginalia-id="${annotation.id}"]`;
     const target = root?.querySelector<HTMLElement>(selector);
     if (!target) {
       if (attempt < 12) {
@@ -870,6 +904,14 @@ export default class MarginaliaPlugin extends Plugin {
     document.body.dataset.marginaliaMarginSide = this.settings.marginSide;
     document.body.dataset.marginaliaForceWordBreaks = String(
       this.settings.forceLongWordBreaks
+    );
+    document.body.toggleClass(
+      "marginalia-reserve-margin",
+      this.settings.reserveMarginSpace && this.settings.showMargins
+    );
+    document.body.style.setProperty(
+      "--marginalia-margin-width",
+      `${this.settings.marginWidth}px`
     );
   }
 
