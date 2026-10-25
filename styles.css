@@ -203,6 +203,31 @@
   width: 100%;
 }
 
+/* Landing pulse for highlight -> sidebar jumps: a ring plus a brief tint,
+   so the eye can find the card without hunting up and down the list. */
+@keyframes marginalia-card-flash {
+  0% {
+    background: var(--background-secondary-alt);
+    box-shadow: 0 0 0 0.15em var(--interactive-accent);
+  }
+  70% {
+    box-shadow: 0 0 0 0.15em var(--interactive-accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0.15em transparent;
+  }
+}
+
+.marginalia-card.is-flashing {
+  animation: marginalia-card-flash 1.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marginalia-card.is-flashing {
+    animation: none;
+  }
+}
+
 .marginalia-card:hover,
 .marginalia-card.is-active {
   background: var(--background-secondary-alt);

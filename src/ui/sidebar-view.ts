@@ -100,6 +100,7 @@ export class MarginaliaSidebarView extends ItemView {
   private query = "";
   private sortMode: SortMode = "source";
   private activeId: string | null = null;
+  private flashTimer: number | null = null;
   private draft:
     | ({ mode: "create"; input: NewAnnotation } & DraftState)
     | ({ mode: "edit"; annotation: Annotation } & DraftState)
@@ -163,11 +164,50 @@ export class MarginaliaSidebarView extends ItemView {
     this.containerEl
       .querySelectorAll(".marginalia-card.is-active")
       .forEach((element) => element.removeClass("is-active"));
-    if (id) {
-      const card = this.containerEl.querySelector(`[data-marginalia-id="${id}"]`);
-      card?.addClass("is-active");
-      card?.scrollIntoView({ block: "nearest" });
+    if (!id) return;
+    const annotation = this.plugin.store.get(id);
+    if (annotation) {
+      // A jump must land on readable content: expand the card, and widen
+      // filters that would hide the target entirely (a resolved annotation
+      // under the Open filter, a query that excludes it, another note).
+      this.collapseOverrides.set(id, false);
+      const hidden = !this.visibleAnnotations().some((item) => item.id === id);
+      if (hidden) {
+        this.status = "all";
+        this.query = "";
+        if (annotation.sourcePath !== this.app.workspace.getActiveFile()?.path) {
+          this.viewScope = "vault";
+        }
+        this.render();
+      }
     }
+    const card = this.containerEl.querySelector(
+      `[data-marginalia-id="${id}"]`
+    );
+    if (!(card instanceof HTMLElement)) return;
+    card.addClass("is-active");
+    // Only move the list when the card is not already fully visible, and
+    // then centre it: landing at the very top or bottom edge is what made
+    // jumps feel like nothing happened.
+    const scroller = this.listEl;
+    if (scroller) {
+      const cardRect = card.getBoundingClientRect();
+      const viewRect = scroller.getBoundingClientRect();
+      const fullyVisible =
+        cardRect.top >= viewRect.top && cardRect.bottom <= viewRect.bottom;
+      if (!fullyVisible) {
+        card.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }
+    // A short pulse tells the eye where the jump landed.
+    if (this.flashTimer !== null) window.clearTimeout(this.flashTimer);
+    card.removeClass("is-flashing");
+    // Restart the animation even when the same card is hit twice.
+    void card.offsetWidth;
+    card.addClass("is-flashing");
+    this.flashTimer = window.setTimeout(() => {
+      card.removeClass("is-flashing");
+    }, 1400);
   }
 
   beginCreate(input: NewAnnotation): void {

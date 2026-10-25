@@ -134,7 +134,7 @@ def card(drift, collapsed, resolved, orphan, replies, unread=False):
     return card_html
 
 
-def page(dark, open_which="", width=600):
+def page(dark, open_which="", width=600, flash=False):
     theme_vars = ("--text-normal:#ddd; --text-muted:#999; --text-faint:#666; --interactive-accent:#8b5cf6; "
                   "--background-primary:#262626; --background-secondary:#202020; "
                   "--background-secondary-alt:#2a2a2a; --background-modifier-border:#444;") if dark else \
@@ -160,7 +160,9 @@ def page(dark, open_which="", width=600):
             + '<h3>' + ('Dark' if dark else 'Light') + '</h3>\n'
             + '<div class="marginalia-sidebar" style="max-width:' + str(width) + 'px">' + toolbar(open_which)
             + '\n<div class="marginalia-body"><div class="marginalia-list">\n'
-            + card(True, False, False, False, 2)
+            + (card(True, False, False, False, 2).replace(
+                'class="marginalia-card', 'class="marginalia-card is-active is-flashing', 1)
+               if flash else card(True, False, False, False, 2))
             + card(False, True, False, False, 0, unread=True)
             + card(False, False, True, False, 1)
             + card(False, False, False, True, 0)
@@ -172,6 +174,7 @@ open(out + "-light.html", "w").write(page(False))
 open(out + "-dark.html", "w").write(page(True))
 open(out + "-light-menu.html", "w").write(page(False, "status"))
 open(out + "-dark-menu.html", "w").write(page(True, "status"))
+open(out + "-flash.html", "w").write(page(False, "", 600, flash=True))
 open(out + "-narrow-status.html", "w").write(page(False, "status", 380))
 open(out + "-narrow-sort.html", "w").write(page(False, "sort", 380))
 print("written 6 variants under " + out)
