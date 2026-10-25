@@ -33,7 +33,10 @@ export function attachmentPath(
   exists: (path: string) => boolean
 ): string {
   const stamp = now.toISOString().replace(/[:.]/g, "-");
-  const safeExt = (ext || "png").toLowerCase();
+  // Extensions come from paste/upload events; strip anything that could
+  // escape the folder (slashes, dots, separators) before joining.
+  const cleaned = (ext || "png").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const safeExt = cleaned || "png";
   let candidate = normalizePath(`${folder}/pasted-${stamp}.${safeExt}`);
   let attempt = 2;
   while (exists(candidate)) {

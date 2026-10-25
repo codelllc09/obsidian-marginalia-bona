@@ -18,6 +18,21 @@ import {
   threadPathFor
 } from "./annotation-paths";
 import { shardPathFor, rebuildIndex, writeShard } from "./annotation-index";
+import { assertAnnotation } from "../domain/annotation";
+
+/** Key-order-insensitive JSON comparison: in-memory annotations are built
+ *  by different code paths than parseAnnotation, so a plain stringify
+ *  would report every freshly created thread as externally "changed". */
+function stableStringify(value: unknown): string {
+  const replacer = (_key: string, item: unknown): unknown => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    const record = item as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(record).sort()) sorted[key] = record[key];
+    return sorted;
+  };
+  return JSON.stringify(value, replacer);
+}
 
 export const DEFAULT_ANNOTATION_DIRECTORY = ANNOTATIONS_DIRECTORY;
 export const DEFAULT_TRASH_DIRECTORY = ".marginalia-bona/trash";
@@ -199,6 +214,9 @@ export class AnnotationStore {
     if (this.byId.has(annotation.id)) {
       throw new Error(`Annotation ${annotation.id} already exists.`);
     }
+    // Validate before anything touches the disk: a bad anchor must fail
+    // with a clear error, not crash filename derivation mid-write.
+    assertAnnotation(annotation);
     await this.write(annotation);
     this.index(annotation);
     await this.syncShard(annotation.sourcePath);
@@ -221,6 +239,7 @@ export class AnnotationStore {
       ...changes,
       updatedAt: new Date().toISOString()
     };
+    assertAnnotation(updated);
     await this.write(updated);
     this.index(updated);
     await this.syncShard(updated.sourcePath);
@@ -268,7 +287,7 @@ export class AnnotationStore {
     const previousPath = this.paths.get(parsed.id);
     if (
       existing &&
-      JSON.stringify(existing) === JSON.stringify(parsed) &&
+      stableStringify(existing) === stableStringify(parsed) &&
       previousPath === path
     ) {
       return "unchanged";
@@ -280,6 +299,16 @@ export class AnnotationStore {
     if (existing) {
       affectedSources.add(existing.sourcePath);
       this.removeFromIndexes(existing.id);
+    }
+    // One file replaced wholesale by a different annotation (sync tools do
+    // this): the previous id must not stay live pointing at a file that no
+    // longer holds it.
+    for (const [knownId, knownPath] of this.paths) {
+      if (knownPath !== path || knownId === parsed.id) continue;
+      const stale = this.byId.get(knownId);
+      this.removeFromIndexes(knownId);
+      this.paths.delete(knownId);
+      if (stale) affectedSources.add(stale.sourcePath);
     }
     this.index(parsed);
     this.paths.set(parsed.id, path);
@@ -421,6 +450,13 @@ export class AnnotationStore {
         continue;
       }
       if (parsed.id !== id) continue;
+      if (this.byId.has(id)) {
+        // Restoring would fork the thread: the id is live on disk and a
+        // second file with the same id is unreadable state.
+        throw new Error(
+          `Cannot restore ${id}: an active annotation already uses this id.`
+        );
+      }
       const target = threadPathFor(this.directory, parsed);
       if (await adapter.exists(target)) {
         throw new Error(`Cannot restore ${id}: ${target} already exists.`);

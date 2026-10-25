@@ -127,35 +127,69 @@ function serializeReplies(replies: AnnotationReply[]): string[] {
   return [`${REPLIES_HEADING}\n\n${sections.join("\n\n")}`];
 }
 
+/** Match `### <id> | <createdAt>[ | <author>]`; null when the line is not
+ *  a machine-written reply heading (plain markdown H3s in bodies, fake
+ *  markers, malformed lines all return null and degrade to body text). */
+function replyHeadingParts(line: string): string[] | null {
+  const match = /^### (.+)$/.exec(line);
+  if (!match) return null;
+  const parts = match[1].split(" | ");
+  if (parts.length < 2) return null;
+  const [id, createdAt] = parts;
+  if (!id.trim() || Number.isNaN(Date.parse(createdAt))) return null;
+  return parts;
+}
+
 function parseReplies(source: string): AnnotationReply[] {
+  const replies: AnnotationReply[] = [];
+  let current: AnnotationReply | null = null;
   for (const line of source.split("\n")) {
-    if (
-      line.startsWith("###") &&
-      !line.startsWith("### ") &&
-      !line.startsWith("####")
-    ) {
-      throw new Error(`Annotation reply heading is malformed: ${line.trim()}`);
+    const parts = replyHeadingParts(line);
+    if (parts) {
+      if (current) replies.push(current);
+      const [id, createdAt, ...authorParts] = parts;
+      current = {
+        id: id.trim(),
+        createdAt,
+        ...(authorParts.length > 0 ? { author: authorParts.join(" | ") } : {}),
+        body: ""
+      };
+      continue;
+    }
+    if (current) {
+      current.body = current.body ? `${current.body}\n${line}` : line;
     }
   }
-  const replies: AnnotationReply[] = [];
-  const blocks = source.split(/^### /m).slice(1);
-  for (const block of blocks) {
-    const newline = block.indexOf("\n");
-    const heading = (newline < 0 ? block : block.slice(0, newline)).trim();
-    const body = newline < 0 ? "" : block.slice(newline + 1).trim();
-    const parts = heading.split(" | ");
-    const [id, createdAt] = parts;
-    if (!id) {
-      throw new Error(`Annotation reply heading is malformed: ${heading}`);
-    }
-    replies.push({
-      id,
-      createdAt: createdAt ?? "",
-      ...(parts.length > 2 ? { author: parts.slice(2).join(" | ") } : {}),
-      body: body.trimEnd()
-    });
+  if (current) replies.push(current);
+  for (const reply of replies) {
+    reply.body = reply.body.replace(/\s+$/, "");
   }
   return replies;
+}
+
+/** Locate the Replies section: the last `## Replies` marker whose section
+ *  actually opens with a valid reply heading. Bodies may legitimately
+ *  contain the marker text (quotes of the format), so a marker that is
+ *  not followed by a reply heading is part of the body, not a section. */
+function splitReplies(
+  bodySection: string
+): { body: string; replies: AnnotationReply[] } {
+  const marker = `\n${REPLIES_HEADING}`;
+  let from = bodySection.lastIndexOf(marker);
+  while (from >= 0) {
+    const section = bodySection
+      .slice(from + marker.length)
+      .replace(/^\s*\n/, "");
+    const firstLine = section.slice(0, section.indexOf("\n") < 0 ? undefined : section.indexOf("\n"));
+    if (replyHeadingParts(firstLine)) {
+      return {
+        body: bodySection.slice(0, from),
+        replies: parseReplies(section)
+      };
+    }
+    from = bodySection.lastIndexOf(marker, from - 1);
+  }
+  return { body: bodySection, replies: [] };
 }
 
 export function parseAnnotation(source: string): Annotation {
@@ -186,15 +220,8 @@ export function parseAnnotation(source: string): Annotation {
   }
 
   let bodySection = content.slice(heading.length).replace(/^\s*\n/, "");
-  let replies: AnnotationReply[] = [];
-  const repliesAt = bodySection.indexOf(`\n${REPLIES_HEADING}`);
-  if (repliesAt >= 0) {
-    const replySection = bodySection
-      .slice(repliesAt + `\n${REPLIES_HEADING}`.length)
-      .replace(/^\s*\n/, "");
-    replies = parseReplies(replySection);
-    bodySection = bodySection.slice(0, repliesAt);
-  }
+  const { body, replies } = splitReplies(bodySection);
+  bodySection = body;
 
   const annotation = {
     schemaVersion: Number(metadata["siden-schema"]),

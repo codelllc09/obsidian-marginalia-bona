@@ -21,11 +21,11 @@ function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation {
     anchor: {
       kind: "markdown",
       startOffset: 0,
-      endOffset: 4,
+      endOffset: 11,
       startLine: 0,
       startCharacter: 0,
       endLine: 0,
-      endCharacter: 4,
+      endCharacter: 11,
       quote: { exact: "edited text" },
       originalQuote: "original text"
     },
