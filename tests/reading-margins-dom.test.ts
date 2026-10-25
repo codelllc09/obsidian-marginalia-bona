@@ -71,6 +71,7 @@ function fakePlugin(annotations: Annotation[]): unknown {
       highlightColor: "#ffd54f",
       highlightOpacity: 0.5,
       marginSide: "auto",
+      marginWidth: 200,
       forceLongWordBreaks: false
     },
     store: { forSource: () => annotations },
@@ -136,5 +137,80 @@ describe("Reading view margins: layout race", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
+  });
+});
+
+describe("Reading view margins: repeat passes", () => {
+  it("replaces cards instead of duplicating them", () => {
+    const { preview } = buildPreview();
+    const element = preview.firstElementChild?.firstElementChild as HTMLElement;
+    const plugin = fakePlugin([annotation()]) as never;
+    processReadingView(element, { sourcePath: NOTE } as never, plugin);
+    processReadingView(element, { sourcePath: NOTE } as never, plugin);
+    processReadingView(element, { sourcePath: NOTE } as never, plugin);
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
+    expect(preview.querySelectorAll(".marginalia-reading-margin-layer")).toHaveLength(1);
+  });
+
+  it("positions the card inside the gutter, not over the text", () => {
+    const { preview } = buildPreview();
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      fakePlugin([annotation()]) as never
+    );
+    const card = preview.querySelector<HTMLElement>(".marginalia-margin-card");
+    expect(card).not.toBeNull();
+    const left = Number.parseFloat(card?.style.left ?? "NaN");
+    const width = Number.parseFloat(card?.style.width ?? "NaN");
+    // Gutter starts at the sizer's right edge (600) plus the 10px gap.
+    expect(left).toBe(610);
+    expect(width).toBeGreaterThanOrEqual(72);
+    expect(left + width).toBeLessThanOrEqual(800);
+  });
+
+  it("renders every located annotation, in document order", () => {
+    const { preview } = buildPreview();
+    const sizer = preview.firstElementChild as HTMLElement;
+    const first = sizer.firstElementChild as HTMLElement;
+    const second = document.createElement("p");
+    second.textContent = "评估指标从 P@10 换到 NDCG@10 之后，排序质量的分歧被掩盖了一部分。";
+    sizer.appendChild(second);
+    const annotations = [
+      annotation(),
+      {
+        ...annotation(),
+        id: "cccccccc-3333-4000-8000-000000000000",
+        anchor: {
+          ...annotation().anchor,
+          quote: {
+            exact: "评估指标从 `P@10` 换到 `NDCG@10` 之后，排序质量的分歧被掩盖了一部分"
+          },
+          originalQuote: "评估指标从 `P@10` 换到 `NDCG@10` 之后，排序质量的分歧被掩盖了一部分"
+        }
+      }
+    ];
+    const plugin = fakePlugin(annotations) as never;
+    processReadingView(first, { sourcePath: NOTE } as never, plugin);
+    processReadingView(second, { sourcePath: NOTE } as never, plugin);
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(2);
+  });
+});
+
+describe("Reading view margins: settings guards", () => {
+  it("falls back to a sane width when marginWidth is missing", () => {
+    const { preview } = buildPreview();
+    const plugin = fakePlugin([annotation()]) as { settings: Record<string, unknown> };
+    delete plugin.settings.marginWidth;
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      plugin as never
+    );
+    const card = preview.querySelector<HTMLElement>(".marginalia-margin-card");
+    expect(card).not.toBeNull();
+    const width = Number.parseFloat(card?.style.width ?? "NaN");
+    expect(Number.isFinite(width)).toBe(true);
+    expect(width).toBeGreaterThanOrEqual(72);
   });
 });

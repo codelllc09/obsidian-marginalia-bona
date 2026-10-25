@@ -120,7 +120,12 @@ function choosePlacement(
       : plugin.settings.marginSide;
   const available = side === "left" ? leftWidth : rightWidth;
   if (available < 72) return null;
-  const width = Math.min(plugin.settings.marginWidth, available);
+  // A missing/NaN setting must not produce a zero-width card.
+  const configuredWidth =
+    Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0
+      ? plugin.settings.marginWidth
+      : 200;
+  const width = Math.min(configuredWidth, available);
   return {
     side,
     width,

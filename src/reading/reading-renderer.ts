@@ -290,7 +290,12 @@ function measurePlacement(
       : plugin.settings.marginSide;
   const available = side === "left" ? leftWidth : rightWidth;
   if (available < 72) return null;
-  const width = Math.min(plugin.settings.marginWidth, available);
+  // A missing/NaN setting must not produce a zero-width card.
+  const configuredWidth =
+    Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0
+      ? plugin.settings.marginWidth
+      : 200;
+  const width = Math.min(configuredWidth, available);
   return {
     width,
     left:
@@ -354,8 +359,10 @@ function renderPreviewMargins(state: PreviewState): void {
     .sort((a, b) => a.desiredTop - b.desiredTop);
 
   if (entries.length === 0) {
-    // Marks may not exist yet in this pass; try again shortly.
-    retryLater(state);
+    // No annotations here: nothing to retry. Otherwise the marks may simply
+    // not exist yet in this pass, so try again shortly.
+    if (plugin.store.forSource(filePath).length === 0) state.retries = 0;
+    else retryLater(state);
     return;
   }
   state.retries = 0;
@@ -423,6 +430,12 @@ function renderPreviewMargins(state: PreviewState): void {
     });
   }
   stack();
+  // Self-heal: a theme (or another plugin) hiding the layer must not make
+  // annotations invisible. The class re-asserts the layout with higher
+  // specificity than the stylesheet rule that hid it.
+  if (layer.getClientRects().length === 0) {
+    layer.addClass("marginalia-reading-margin-layer-forced");
+  }
 }
 
 export function refreshReadingMargins(plugin: MarginaliaPlugin): void {
