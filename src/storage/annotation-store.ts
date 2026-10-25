@@ -50,6 +50,11 @@ export class AnnotationStore {
     private readonly onChange: () => void = () => undefined
   ) {}
 
+  /** Data root (first path segment), e.g. `.marginalia-bona`. */
+  get dataRoot(): string {
+    return this.directory.split("/")[0] ?? this.directory;
+  }
+
   async load(): Promise<void> {
     this.byId.clear();
     this.idsBySource.clear();
@@ -224,6 +229,84 @@ export class AnnotationStore {
     return this.update(id, { anchor, status: "open" });
   }
 
+  /**
+   * Ingest one annotation file written by an external agent (or moved/
+   * edited outside Obsidian). The disk is the source of truth: the parsed
+   * content replaces any in-memory state for the same id; unchanged
+   * content is a no-op. Unparseable files are never rewritten - they are
+   * recorded as diagnostics and reported as "invalid".
+   */
+  async ingestExternal(
+    path: string,
+    content: string
+  ): Promise<"added" | "changed" | "unchanged" | "invalid"> {
+    let parsed: Annotation;
+    try {
+      parsed = parseAnnotation(content);
+    } catch (error) {
+      this.diagnostics.push({
+        path,
+        message: error instanceof Error ? error.message : String(error)
+      });
+      return "invalid";
+    }
+    const existing = this.byId.get(parsed.id);
+    const previousPath = this.paths.get(parsed.id);
+    if (
+      existing &&
+      JSON.stringify(existing) === JSON.stringify(parsed) &&
+      previousPath === path
+    ) {
+      return "unchanged";
+    }
+
+    // External edit may have changed the source field: move the id between
+    // source buckets and refresh both shards.
+    const affectedSources = new Set<string>([parsed.sourcePath]);
+    if (existing) {
+      affectedSources.add(existing.sourcePath);
+      this.removeFromIndexes(existing.id);
+    }
+    this.index(parsed);
+    this.paths.set(parsed.id, path);
+    await this.syncShard(parsed.sourcePath);
+    for (const source of affectedSources) {
+      if (source !== parsed.sourcePath) await this.syncShard(source);
+    }
+    this.onChange();
+    return existing ? "changed" : "added";
+  }
+
+  /** Forget a thread file that was deleted externally. Returns false when
+   *  the path was not known to the store. */
+  async forgetExternal(path: string): Promise<boolean> {
+    let id: string | undefined;
+    for (const [knownId, knownPath] of this.paths) {
+      if (knownPath === path) {
+        id = knownId;
+        break;
+      }
+    }
+    if (!id) return false;
+    const annotation = this.byId.get(id);
+    this.removeFromIndexes(id);
+    this.paths.delete(id);
+    if (annotation) await this.syncShard(annotation.sourcePath);
+    this.onChange();
+    return true;
+  }
+
+  /** Drop an id from byId/idsBySource (caller updates paths and shards). */
+  private removeFromIndexes(id: string): void {
+    const current = this.byId.get(id);
+    this.byId.delete(id);
+    if (!current) return;
+    const ids = this.idsBySource.get(current.sourcePath);
+    if (!ids) return;
+    ids.delete(id);
+    if (ids.size === 0) this.idsBySource.delete(current.sourcePath);
+  }
+
   async deleteReply(id: string, replyId: string): Promise<Annotation> {
     const current = this.require(id);
     return this.update(id, {
@@ -292,7 +375,14 @@ export class AnnotationStore {
         anchor.startOffset,
         anchor.endOffset
       );
-      if (atStoredOffsets === anchor.quote.exact) continue;
+      if (atStoredOffsets === anchor.quote.exact) {
+        // Anchor is already correct: an orphaned annotation whose passage
+        // came back (e.g. fixed by an external agent) is open again.
+        if (annotation.status === "orphaned") {
+          await this.update(annotation.id, { status: "open" });
+        }
+        continue;
+      }
 
       const candidates: number[] = [];
       let cursor = 0;

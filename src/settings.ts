@@ -27,6 +27,12 @@ export interface MarginaliaSettings {
    *  Empty (default) follows Settings → Files & links. Must resolve to a
    *  non-hidden folder: dot folders are not indexed, embeds would break. */
   attachmentsFolder: string;
+  /** Expose annotation operations as MCP tools on the Local REST API host.
+   *  The guarded, default agent channel. */
+  agentMcpEnabled: boolean;
+  /** Expose the raw annotations REST endpoints for curl/scripts and agents
+   *  without MCP. Off by default: the schema-guarded MCP tools are preferred. */
+  agentRestEnabled: boolean;
   forceLongWordBreaks: boolean;
 }
 
@@ -44,6 +50,8 @@ export const DEFAULT_SETTINGS: MarginaliaSettings = {
   hoverPreview: "hover",
   userName: "user",
   attachmentsFolder: "",
+  agentMcpEnabled: true,
+  agentRestEnabled: false,
   forceLongWordBreaks: true
 };
 
@@ -225,6 +233,34 @@ export class MarginaliaSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.forceLongWordBreaks)
           .onChange((value) =>
             this.plugin.updateSettings({ forceLongWordBreaks: value })
+          )
+      );
+
+    new Setting(containerEl).setName("Agent access").setHeading();
+
+    new Setting(containerEl)
+      .setName("MCP tools for agents")
+      .setDesc(
+        "Expose annotation operations (list/create/get/reply/update/delete) as MCP tools - the guarded default agent channel. Requires the “Local REST API” community plugin to be installed and enabled: it hosts the MCP server."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.agentMcpEnabled)
+          .onChange((value) =>
+            this.plugin.updateSettings({ agentMcpEnabled: value })
+          )
+      );
+
+    new Setting(containerEl)
+      .setName("REST endpoints for agents")
+      .setDesc(
+        "Expose the raw annotations REST API for curl, scripts, and agents without MCP. Off by default - MCP tools are the recommended path. No effect unless “Local REST API” is enabled."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.agentRestEnabled)
+          .onChange((value) =>
+            this.plugin.updateSettings({ agentRestEnabled: value })
           )
       );
 
