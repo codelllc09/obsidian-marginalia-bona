@@ -117,7 +117,7 @@ server's `/mcp` endpoint.
 | `marginalia_get_annotation` | One thread by `source` and `id`, with its anchor, replies, and read state. |
 | `marginalia_update_annotation` | Edits `text` (`expected_text` refuses the write with a 409 when the thread changed since it was read), or sets `status`, `read`, `color`, `style`. |
 | `marginalia_delete_annotation` | Moves the thread to the recycle bin; the response names the trash file. |
-| `marginalia_add_reply` | Appends a reply to a thread. |
+| `marginalia_add_reply` | Appends a reply. Pass `parent_id` to answer a specific reply (nested); an unknown parent is refused. |
 | `marginalia_update_reply` | Edits one reply's text (and optionally its author). |
 | `marginalia_delete_reply` | Removes one reply. |
 | `marginalia_reanchor` | Attaches a thread to a new passage: same quote rules as create, `expected_quote` optional lock. Body and replies are kept. |
@@ -207,8 +207,9 @@ Agreed, but keep the totals in the text.
 ````
 
 Frontmatter carries identity, status, styling, and read state; the body is
-the root comment; replies follow under a `Replies` heading; the fenced JSON
-block at the end records the anchor. File names are minted when the thread is
+the root comment; replies follow under a `Replies` heading, and a reply that
+answers another one carries a `<!-- reply-to: <id> -->` line under its
+heading; the fenced JSON block at the end records the anchor. File names are minted when the thread is
 created and stay stable afterwards, even when the anchored text drifts.
 
 The `.marginalia-bona/index/` folder holds one JSONL shard per document — a

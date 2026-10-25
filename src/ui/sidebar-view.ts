@@ -111,6 +111,8 @@ export class MarginaliaSidebarView extends ItemView {
     | null = null;
   /** Annotation id whose reply box is expanded. */
   private replyFor: string | null = null;
+  /** When set, the open composer answers this reply instead of the root. */
+  private replyParent: string | null = null;
   private bodyEl: HTMLElement | null = null;
   /** When true, cards render as compact header-only rows. */
   private collapsed = false;
@@ -959,9 +961,7 @@ export class MarginaliaSidebarView extends ItemView {
       ).then(() => this.enhanceImages(body, annotation));
       if (annotation.replies.length > 0) {
         const replies = card.createDiv({ cls: "marginalia-replies" });
-        for (const reply of annotation.replies) {
-          this.renderReply(replies, annotation, reply);
-        }
+        this.renderReplyTree(replies, annotation);
       }
       if (this.replyFor === annotation.id) {
         this.renderReplyComposer(card, annotation);
@@ -990,6 +990,7 @@ export class MarginaliaSidebarView extends ItemView {
     replyButton.addEventListener("click", (event) => {
       event.stopPropagation();
       this.replyFor = annotation.id;
+      this.replyParent = null;
       this.renderBody();
     });
     footer.createDiv({ cls: "marginalia-card-footer-spacer" });
@@ -1143,12 +1144,40 @@ export class MarginaliaSidebarView extends ItemView {
     this.focusDraft();
   }
 
+  /** Replies render as a tree: every answer sits indented under the reply
+   *  it answers. Orphaned parent references fall back to the top level. */
+  private renderReplyTree(
+    parent: HTMLElement,
+    annotation: Annotation
+  ): void {
+    const known = new Set(annotation.replies.map((reply) => reply.id));
+    const children = new Map<string | null, AnnotationReply[]>();
+    for (const reply of annotation.replies) {
+      const key =
+        reply.parentId && known.has(reply.parentId) ? reply.parentId : null;
+      const bucket = children.get(key) ?? [];
+      bucket.push(reply);
+      children.set(key, bucket);
+    }
+    const renderLevel = (parentId: string | null, depth: number): void => {
+      for (const reply of children.get(parentId) ?? []) {
+        this.renderReply(parent, annotation, reply, depth);
+        renderLevel(reply.id, depth + 1);
+      }
+    };
+    renderLevel(null, 0);
+  }
+
   private renderReply(
     parent: HTMLElement,
     annotation: Annotation,
-    reply: AnnotationReply
+    reply: AnnotationReply,
+    depth = 0
   ): void {
-    const container = parent.createDiv({ cls: "marginalia-reply" });
+    const container = parent.createDiv({
+      cls: `marginalia-reply${depth > 0 ? " is-nested" : ""}`
+    });
+    container.style.setProperty("--marginalia-reply-depth", String(depth));
     const head = container.createDiv({ cls: "marginalia-reply-head" });
     const author = head.createSpan({ cls: "marginalia-reply-author" });
     author.setText(reply.author ?? "user");
@@ -1156,6 +1185,17 @@ export class MarginaliaSidebarView extends ItemView {
     time.setText(formatReplyTime(reply.createdAt));
     time.title = reply.createdAt;
     const meta = head.createDiv({ cls: "marginalia-reply-actions" });
+    const answer = meta.createEl("button", {
+      cls: "clickable-icon marginalia-reply-answer",
+      attr: { "aria-label": "Reply to this reply" }
+    });
+    setIcon(answer, "corner-down-right");
+    answer.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.replyFor = annotation.id;
+      this.replyParent = reply.id;
+      this.renderBody();
+    });
     const copyReply = meta.createEl("button", {
       cls: "clickable-icon marginalia-reply-copy",
       attr: { "aria-label": "Copy reply" }
@@ -1195,6 +1235,19 @@ export class MarginaliaSidebarView extends ItemView {
   ): void {
     if (this.replyFor !== annotation.id) return;
     const composer = card.createDiv({ cls: "marginalia-reply-composer" });
+    const answering = this.replyParent
+      ? annotation.replies.find((reply) => reply.id === this.replyParent)
+      : undefined;
+    if (answering) {
+      const hint = composer.createDiv({ cls: "marginalia-reply-composer-hint" });
+      hint.createSpan({ cls: "marginalia-reply-composer-target" });
+      const target = hint.querySelector(".marginalia-reply-composer-target");
+      target?.setText(`Reply to ${answering.author ?? "user"}: `);
+      hint.createSpan({
+        cls: "marginalia-reply-composer-quote",
+        text: answering.body.split("\n")[0]?.slice(0, 60) ?? ""
+      });
+    }
     const textarea = composer.createEl("textarea", {
       cls: "marginalia-reply-textarea",
       attr: {
@@ -1208,6 +1261,7 @@ export class MarginaliaSidebarView extends ItemView {
       if (event.key === "Escape") {
         event.preventDefault();
         this.replyFor = null;
+        this.replyParent = null;
         this.renderBody();
         return;
       }
@@ -1221,6 +1275,7 @@ export class MarginaliaSidebarView extends ItemView {
     cancel.addEventListener("click", (event) => {
       event.stopPropagation();
       this.replyFor = null;
+      this.replyParent = null;
       this.renderBody();
     });
     const send = actions.createEl("button", {
@@ -1252,7 +1307,8 @@ export class MarginaliaSidebarView extends ItemView {
       await this.plugin.store.addReply(
         id,
         body,
-        this.plugin.settings.userName
+        this.plugin.settings.userName,
+        this.replyParent ?? undefined
       );
     } catch (error) {
       new Notice(
@@ -1261,6 +1317,7 @@ export class MarginaliaSidebarView extends ItemView {
       return;
     }
     this.replyFor = null;
+    this.replyParent = null;
     this.plugin.refresh();
   }
 

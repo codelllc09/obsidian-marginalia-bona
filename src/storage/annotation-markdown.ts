@@ -122,7 +122,13 @@ function serializeReplies(replies: AnnotationReply[]): string[] {
     const heading = reply.author
       ? `### ${reply.id} | ${reply.createdAt} | ${reply.author}`
       : `### ${reply.id} | ${reply.createdAt}`;
-    return `${heading}\n\n${reply.body.trimEnd()}`;
+    // Nested replies record their parent in an HTML comment: invisible when
+    // rendered, unambiguous to parse, and tolerated as body text by older
+    // readers of this format.
+    const parent = reply.parentId
+      ? `<!-- reply-to: ${reply.parentId} -->\n`
+      : "";
+    return `${heading}\n${parent}\n${reply.body.trimEnd()}`;
   });
   return [`${REPLIES_HEADING}\n\n${sections.join("\n\n")}`];
 }
@@ -143,6 +149,8 @@ function replyHeadingParts(line: string): string[] | null {
 function parseReplies(source: string): AnnotationReply[] {
   const replies: AnnotationReply[] = [];
   let current: AnnotationReply | null = null;
+  // The line right after a heading may carry the parent reference.
+  let parentSlot = false;
   for (const line of source.split("\n")) {
     const parts = replyHeadingParts(line);
     if (parts) {
@@ -154,7 +162,16 @@ function parseReplies(source: string): AnnotationReply[] {
         ...(authorParts.length > 0 ? { author: authorParts.join(" | ") } : {}),
         body: ""
       };
+      parentSlot = true;
       continue;
+    }
+    if (current && parentSlot) {
+      const match = /^<!--\s*reply-to:\s*([^\s>]+)\s*-->$/.exec(line.trim());
+      parentSlot = false;
+      if (match) {
+        current.parentId = match[1];
+        continue;
+      }
     }
     if (current) {
       current.body = current.body ? `${current.body}\n${line}` : line;

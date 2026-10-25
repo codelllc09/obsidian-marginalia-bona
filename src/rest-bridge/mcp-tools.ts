@@ -158,18 +158,27 @@ export function registerMcpTools(
 
   add(
     "marginalia_add_reply",
-    "Append a reply to an annotation thread.",
+    "Append a reply to an annotation thread. Pass parent_id to answer a " +
+      "specific reply (nested reply); omit it to answer the annotation " +
+      "itself. An unknown parent_id is refused rather than silently " +
+      "attached to the root.",
     {
       ...SOURCE_SHAPE,
       id: z.string().describe("Annotation id"),
       text: z.string().describe("Reply text"),
-      author: z.string().optional().describe("Defaults to Agent")
+      author: z.string().optional().describe("Defaults to Agent"),
+      parent_id: z
+        .string()
+        .optional()
+        .describe("Reply id being answered; omit for a top-level reply")
     },
     async (args) =>
       render(
         await api.addReply(String(args.source), String(args.id), {
           text: String(args.text),
-          author: typeof args.author === "string" ? args.author : undefined
+          author: typeof args.author === "string" ? args.author : undefined,
+          parent_id:
+            typeof args.parent_id === "string" ? args.parent_id : undefined
         })
       )
   );

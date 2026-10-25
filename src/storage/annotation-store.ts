@@ -41,11 +41,16 @@ export const TRASH_RETENTION_DAYS = 30;
 /** Pre-rename data roots, migrated wholesale on first load. */
 const LEGACY_DATA_ROOTS = [".siden-plus", ".marginalia"];
 
-function newReply(body: string, author?: string): AnnotationReply {
+function newReply(
+  body: string,
+  author?: string,
+  parentId?: string
+): AnnotationReply {
   return {
     id: crypto.randomUUID().slice(0, 8),
     createdAt: new Date().toISOString(),
     ...(author ? { author } : {}),
+    ...(parentId ? { parentId } : {}),
     body: body.trim()
   };
 }
@@ -247,11 +252,22 @@ export class AnnotationStore {
     return updated;
   }
 
-  async addReply(id: string, body: string, author?: string): Promise<Annotation> {
+  async addReply(
+    id: string,
+    body: string,
+    author?: string,
+    parentId?: string
+  ): Promise<Annotation> {
     if (!body.trim()) throw new Error("Reply body must not be empty.");
     const current = this.require(id);
+    if (
+      parentId !== undefined &&
+      !current.replies.some((reply) => reply.id === parentId)
+    ) {
+      throw new Error(`Unknown reply to answer: ${parentId}`);
+    }
     return this.update(id, {
-      replies: [...current.replies, newReply(body, author)]
+      replies: [...current.replies, newReply(body, author, parentId)]
     });
   }
 
@@ -350,10 +366,21 @@ export class AnnotationStore {
     if (ids.size === 0) this.idsBySource.delete(current.sourcePath);
   }
 
+  /** Remove one reply. Its children are re-attached to its parent (or to
+   *  the thread root) so no reply is lost and no parent reference dangles. */
   async deleteReply(id: string, replyId: string): Promise<Annotation> {
     const current = this.require(id);
+    const replacement = current.replies.find(
+      (reply) => reply.id === replyId
+    )?.parentId;
     return this.update(id, {
-      replies: current.replies.filter((reply) => reply.id !== replyId)
+      replies: current.replies
+        .filter((reply) => reply.id !== replyId)
+        .map((reply) => {
+          if (reply.parentId !== replyId) return reply;
+          const { parentId: _dropped, ...rest } = reply;
+          return replacement ? { ...rest, parentId: replacement } : rest;
+        })
     });
   }
 

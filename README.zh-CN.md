@@ -81,7 +81,7 @@ Marginalia Bona 可以通过 [Local REST API](https://github.com/coddingtonbear/
 | `marginalia_get_annotation` | 按 `source` 与 `id` 取一条线程，含锚点、回复与已读状态。 |
 | `marginalia_update_annotation` | 编辑 `text`（传 `expected_text` 可在线程被读过又变化时以 409 拒绝写入），或设置 `status`、`read`、`color`、`style`。 |
 | `marginalia_delete_annotation` | 把线程移入回收站，响应中给出回收站文件路径。 |
-| `marginalia_add_reply` | 向线程追加一条回复。 |
+| `marginalia_add_reply` | 追加回复。传 `parent_id` 可回复某一条回复（嵌套）；未知父级会被拒绝。 |
 | `marginalia_update_reply` | 编辑某条回复的文字（可一并改作者）。 |
 | `marginalia_delete_reply` | 删除某条回复。 |
 | `marginalia_reanchor` | 把线程锚到新段落：与创建相同的引文规则，可选 `expected_quote` 乐观锁。正文与回复原样保留。 |
