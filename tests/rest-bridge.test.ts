@@ -193,7 +193,9 @@ describe("annotations MCP tools", () => {
         "marginalia_delete_reply",
         "marginalia_get_annotation",
         "marginalia_list_annotations",
+        "marginalia_list_trash",
         "marginalia_reanchor",
+        "marginalia_restore_annotation",
         "marginalia_update_annotation",
         "marginalia_update_reply"
       ]
@@ -366,7 +368,7 @@ describe("agent channel toggles", () => {
     bridge.connect();
     expect(spy.subresourceNames).toEqual([]);
     expect(spy.routes).toEqual([]);
-    expect(spy.mcpTools).toHaveLength(9);
+    expect(spy.mcpTools).toHaveLength(11);
     expect(spy.openApiPaths).toBeNull();
     bridge.disconnect();
     expect(spy.unregisterCount).toBe(1);
@@ -379,7 +381,7 @@ describe("agent channel toggles", () => {
     });
     bridge.connect();
     expect(spy.routes).toHaveLength(9);
-    expect(spy.mcpTools).toHaveLength(9);
+    expect(spy.mcpTools).toHaveLength(11);
     bridge.disconnect();
   });
 });

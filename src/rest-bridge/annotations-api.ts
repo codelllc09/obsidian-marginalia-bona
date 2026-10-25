@@ -85,6 +85,24 @@ export interface CreatePayload {
 export class AnnotationsApi {
   constructor(private readonly plugin: MarginaliaPlugin) {}
 
+  /** Recycle-bin listing: soft-deleted threads awaiting restore or purge. */
+  async listTrash(): Promise<RouteResult> {
+    return { status: 200, body: { trash: await this.plugin.store.listTrash() } };
+  }
+
+  async restoreFromTrash(id: string): Promise<RouteResult> {
+    try {
+      const annotation = await this.plugin.store.restoreFromTrash(id);
+      return { status: 200, body: this.threadPayload(annotation) };
+    } catch (error) {
+      return err(
+        404,
+        ERROR_CODES.unknownAnnotation,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
   private noteFile(notePath: string): TFile | null {
     const file = this.plugin.app.vault.getAbstractFileByPath(notePath);
     return file instanceof TFile && file.extension === "md" ? file : null;
@@ -338,10 +356,10 @@ export class AnnotationsApi {
     }
     if (annotation.replies.some((reply) => reply.id === id)) {
       await this.plugin.store.deleteReply(annotation.id, id);
-    } else {
-      await this.plugin.store.delete(id);
+      return { status: 200, body: { deleted: true } };
     }
-    return { status: 200, body: { deleted: true } };
+    const trashPath = await this.plugin.store.delete(id);
+    return { status: 200, body: { deleted: true, trash: trashPath } };
   }
 
   /** Attach an existing annotation to a new passage: the agent-side fix
