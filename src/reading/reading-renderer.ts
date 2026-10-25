@@ -2,6 +2,7 @@ import { Component, MarkdownPostProcessorContext, MarkdownRenderer } from "obsid
 import type MarginaliaPlugin from "../main";
 import { Annotation } from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
+import { logEvent, reportError } from "../diagnostics";
 
 interface TextSegment {
   node: Text;
@@ -19,6 +20,7 @@ interface PreviewState {
    *  out (or before annotations are marked), so a failed pass retries. */
   retries: number;
   retryTimer: number;
+  lastPass: Record<string, unknown> | null;
 }
 
 const previewStates = new Set<PreviewState>();
@@ -230,7 +232,8 @@ function ensurePreviewState(
     observer: new ResizeObserver(() => schedulePreview(state)),
     frame: 0,
     retries: 0,
-    retryTimer: 0
+    retryTimer: 0,
+    lastPass: null
   };
   state.observer.observe(preview);
   previewStates.add(state);
@@ -249,7 +252,15 @@ function destroyPreviewState(state: PreviewState): void {
 function schedulePreview(state: PreviewState): void {
   window.cancelAnimationFrame(state.frame);
   window.clearTimeout(state.retryTimer);
-  state.frame = window.requestAnimationFrame(() => renderPreviewMargins(state));
+  state.frame = window.requestAnimationFrame(() => {
+    try {
+      renderPreviewMargins(state);
+    } catch (error) {
+      reportError("reading-margins", error, {
+        source: state.preview.dataset.marginaliaSourcePath ?? ""
+      });
+    }
+  });
 }
 
 /** Retry a pass that could not place cards yet: the preview may not have
@@ -258,15 +269,22 @@ function retryLater(state: PreviewState): void {
   if (state.retries >= 10) return;
   state.retries += 1;
   window.clearTimeout(state.retryTimer);
-  state.retryTimer = window.setTimeout(
-    () => renderPreviewMargins(state),
-    80 * state.retries
-  );
+  state.retryTimer = window.setTimeout(() => {
+    try {
+      renderPreviewMargins(state);
+    } catch (error) {
+      reportError("reading-margins", error, {
+        source: state.preview.dataset.marginaliaSourcePath ?? ""
+      });
+    }
+  }, 80 * state.retries);
 }
 
-function measurePlacement(
-  state: PreviewState
-): { left: number; width: number } | null {
+function measurePlacement(state: PreviewState): {
+  placement: { left: number; width: number } | null;
+  available: number;
+  side: string;
+} {
   const { preview, plugin } = state;
   const previewRect = preview.getBoundingClientRect();
   const sizer =
@@ -289,7 +307,7 @@ function measurePlacement(
         : "right"
       : plugin.settings.marginSide;
   const available = side === "left" ? leftWidth : rightWidth;
-  if (available < 72) return null;
+  if (available < 72) return { placement: null, available, side };
   // A missing/NaN setting must not produce a zero-width card.
   const configuredWidth =
     Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0
@@ -297,11 +315,15 @@ function measurePlacement(
       : 200;
   const width = Math.min(configuredWidth, available);
   return {
-    width,
-    left:
-      side === "left"
-        ? contentRect.left - previewRect.left - gap - width
-        : contentRect.right - previewRect.left + gap
+    available,
+    side,
+    placement: {
+      width,
+      left:
+        side === "left"
+          ? contentRect.left - previewRect.left - gap - width
+          : contentRect.right - previewRect.left + gap
+    }
   };
 }
 
@@ -309,24 +331,46 @@ const marginComponents = new WeakMap<HTMLElement, Component>();
 
 function renderPreviewMargins(state: PreviewState): void {
   const { preview, layer, plugin } = state;
+  const previousReason = state.lastPass?.reason;
+  const record = (reason: string, extra?: Record<string, unknown>): void => {
+    state.lastPass = {
+      at: new Date().toISOString(),
+      reason,
+      ...extra
+    };
+    // Log only transitions: retries would otherwise flood the report.
+    if (previousReason !== reason) {
+      const source = preview.dataset.marginaliaSourcePath ?? "";
+      logEvent("info", "reading", `${reason} ${source}`.trim(), extra);
+    }
+  };
   if (!preview.isConnected) {
+    record("detached");
     destroyPreviewState(state);
     return;
   }
   layer.empty();
   layer.style.height = `${preview.scrollHeight}px`;
-  if (!plugin.settings.showMargins || plugin.areMarginsSuppressed()) {
+  if (!plugin.settings.showMargins) {
     state.retries = 0;
+    record("margins-disabled");
     return;
   }
-  const placement = measurePlacement(state);
+  if (plugin.areMarginsSuppressed()) {
+    state.retries = 0;
+    record("suppressed-sidebar-open");
+    return;
+  }
+  const { placement, available, side } = measurePlacement(state);
   if (!placement) {
     // No gutter yet (layout not ready, or pane too narrow): try again shortly.
+    record("no-gutter", { available: Math.round(available), side });
     retryLater(state);
     return;
   }
   const filePath = preview.dataset.marginaliaSourcePath;
   if (!filePath) {
+    record("no-source-path");
     retryLater(state);
     return;
   }
@@ -361,7 +405,9 @@ function renderPreviewMargins(state: PreviewState): void {
   if (entries.length === 0) {
     // No annotations here: nothing to retry. Otherwise the marks may simply
     // not exist yet in this pass, so try again shortly.
-    if (plugin.store.forSource(filePath).length === 0) state.retries = 0;
+    const stored = plugin.store.forSource(filePath).length;
+    record("no-located-anchors", { stored, retries: state.retries });
+    if (stored === 0) state.retries = 0;
     else retryLater(state);
     return;
   }
@@ -430,12 +476,42 @@ function renderPreviewMargins(state: PreviewState): void {
     });
   }
   stack();
+  record("rendered", {
+    cards: stacked.length,
+    left: Math.round(placement.left),
+    width: Math.round(placement.width),
+    available: Math.round(available),
+    side
+  });
   // Self-heal: a theme (or another plugin) hiding the layer must not make
   // annotations invisible. The class re-asserts the layout with higher
   // specificity than the stylesheet rule that hid it.
   if (layer.getClientRects().length === 0) {
     layer.addClass("marginalia-reading-margin-layer-forced");
   }
+}
+
+/** State of every Reading view preview we manage, for the diagnostics report. */
+export function describeReadingMargins(
+  plugin: MarginaliaPlugin
+): Array<Record<string, unknown>> {
+  const rows: Array<Record<string, unknown>> = [];
+  for (const state of previewStates) {
+    if (state.plugin !== plugin) continue;
+    rows.push({
+      source: state.preview.dataset.marginaliaSourcePath ?? "",
+      containerClass: state.preview.className.slice(0, 120),
+      connected: state.preview.isConnected,
+      cards: state.layer.childElementCount,
+      layerVisible: state.layer.getClientRects().length > 0,
+      layerForced: state.layer.classList.contains(
+        "marginalia-reading-margin-layer-forced"
+      ),
+      retries: state.retries,
+      lastPass: state.lastPass
+    });
+  }
+  return rows;
 }
 
 export function refreshReadingMargins(plugin: MarginaliaPlugin): void {
@@ -450,7 +526,11 @@ export function processReadingView(
   plugin: MarginaliaPlugin
 ): void {
   if (element.closest(OWN_UI)) return;
-  processReadingViewInner(element, context, plugin);
+  try {
+    processReadingViewInner(element, context, plugin);
+  } catch (error) {
+    reportError("reading", error, { source: context.sourcePath });
+  }
 }
 
 function processReadingViewInner(
@@ -472,7 +552,10 @@ function processReadingViewInner(
       highlightOccurrence(element, annotation, plugin);
     } catch (error) {
       // A single block must never abort the whole Reading view pass.
-      console.warn("Marginalia: could not mark a passage in Reading view", error);
+      reportError("reading-mark", error, {
+        source: context.sourcePath,
+        annotation: annotation.id
+      });
     }
   }
   const preview = readingContainerFor(element);

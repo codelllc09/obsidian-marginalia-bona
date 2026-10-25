@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { processReadingView } from "../src/reading/reading-renderer";
+import { describeReadingMargins, processReadingView } from "../src/reading/reading-renderer";
 import { installDom } from "./dom-setup";
 import type { Annotation } from "../src/domain/annotation";
 
@@ -212,5 +212,41 @@ describe("Reading view margins: settings guards", () => {
     const width = Number.parseFloat(card?.style.width ?? "NaN");
     expect(Number.isFinite(width)).toBe(true);
     expect(width).toBeGreaterThanOrEqual(72);
+  });
+});
+
+describe("Reading view margins: diagnostics", () => {
+  it("records the reason a pass placed no cards", () => {
+    const { preview, sizer } = buildPreview();
+    const zero = () => ({
+      left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0,
+      toJSON: () => ({})
+    });
+    preview.getBoundingClientRect = zero;
+    sizer.getBoundingClientRect = zero;
+    const plugin = fakePlugin([annotation()]);
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      plugin as never
+    );
+    const rows = describeReadingMargins(plugin as never);
+    expect(rows).toHaveLength(1);
+    expect((rows[0]?.lastPass as { reason?: string }).reason).toBe("no-gutter");
+    expect(rows[0]?.cards).toBe(0);
+  });
+
+  it("records a rendered pass with geometry", () => {
+    const { preview } = buildPreview();
+    const plugin = fakePlugin([annotation()]);
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      plugin as never
+    );
+    const rows = describeReadingMargins(plugin as never);
+    const pass = rows[0]?.lastPass as { reason?: string; cards?: number };
+    expect(pass.reason).toBe("rendered");
+    expect(pass.cards).toBe(1);
   });
 });

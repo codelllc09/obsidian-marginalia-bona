@@ -21,9 +21,17 @@ import { registerHoverPreview } from "./hover/hover-preview";
 import { RestBridge } from "./rest-bridge";
 import { PdfAdapter } from "./pdf/pdf-adapter";
 import {
+  describeReadingMargins,
   processReadingView,
   refreshReadingMargins
 } from "./reading/reading-renderer";
+import {
+  clearDiagnostics,
+  diagnosticsReport,
+  logEvent,
+  reportError,
+  setSnapshotProvider
+} from "./diagnostics";
 import {
   DEFAULT_SETTINGS,
   MarginaliaSettings,
@@ -165,6 +173,7 @@ export default class MarginaliaPlugin extends Plugin {
     this.pdfAdapter = new PdfAdapter(this);
     this.pdfAdapter.start();
 
+    setSnapshotProvider(() => this.diagnosticsSnapshot());
     this.registerView(
       MARGINALIA_VIEW_TYPE,
       (leaf) => new MarginaliaSidebarView(leaf, this)
@@ -228,6 +237,11 @@ export default class MarginaliaPlugin extends Plugin {
         if (!checking) this.beginPdfAnnotation(captured);
         return true;
       }
+    });
+    this.addPluginCommand({
+      id: "copy-diagnostics",
+      name: "Copy diagnostics report",
+      callback: () => void this.copyDiagnostics()
     });
     this.addPluginCommand({
       id: "rebuild-annotation-index",
@@ -428,6 +442,11 @@ export default class MarginaliaPlugin extends Plugin {
     await leaf.openFile(file);
     const view = leaf.view;
     if (view instanceof MarkdownView && annotation.anchor.kind === "markdown") {
+      if (view.getMode() === "preview") {
+        // Reading view has no editor to scroll: find the marked span instead.
+        this.revealInReadingView(view, annotation);
+        return;
+      }
       view.editor.setSelection(
         view.editor.offsetToPos(annotation.anchor.startOffset),
         view.editor.offsetToPos(annotation.anchor.endOffset)
@@ -440,6 +459,93 @@ export default class MarginaliaPlugin extends Plugin {
         true
       );
     }
+  }
+
+  /** Land a jump in Reading view by scrolling the marked passage into view.
+   *  The preview may still be rendering right after openFile, so retry. */
+  private revealInReadingView(
+    view: MarkdownView,
+    annotation: Annotation,
+    attempt = 0
+  ): void {
+    const root = view.contentEl.querySelector<HTMLElement>(
+      ".markdown-preview-view, .markdown-reading-view"
+    );
+    const selector = `[data-marginalia-id="${annotation.id}"]`;
+    const target = root?.querySelector<HTMLElement>(selector);
+    if (!target) {
+      if (attempt < 12) {
+        window.setTimeout(
+          () => this.revealInReadingView(view, annotation, attempt + 1),
+          90
+        );
+      } else {
+        logEvent("warn", "jump", "no marked passage in Reading view", {
+          source: annotation.sourcePath,
+          annotation: annotation.id
+        });
+        new Notice("Could not find the marked passage. Try Re-anchor.");
+      }
+      return;
+    }
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    target.addClass("marginalia-jump-target");
+    window.setTimeout(() => target.removeClass("marginalia-jump-target"), 1400);
+    logEvent("info", "jump", "landed in Reading view", {
+      source: annotation.sourcePath
+    });
+  }
+
+  private diagnosticsSnapshot(): Record<string, unknown> {
+    const active = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const all = this.store.all();
+    const byStatus: Record<string, number> = {};
+    for (const annotation of all) {
+      byStatus[annotation.status] = (byStatus[annotation.status] ?? 0) + 1;
+    }
+    let storeIssues: unknown[] = [];
+    try {
+      storeIssues = this.store.getDiagnostics().slice(0, 5);
+    } catch (error) {
+      reportError("diagnostics", error);
+    }
+    return {
+      activeMode: active ? active.getMode() : "(no markdown view)",
+      activeFile: active?.file?.path ?? "",
+      settings: {
+        showHighlights: this.settings.showHighlights,
+        showMargins: this.settings.showMargins,
+        showResolved: this.settings.showResolved,
+        marginSide: this.settings.marginSide,
+        marginWidth: this.settings.marginWidth,
+        defaultMarkStyle: this.settings.defaultMarkStyle
+      },
+      annotations: {
+        total: all.length,
+        notes: new Set(all.map((annotation) => annotation.sourcePath)).size,
+        byStatus
+      },
+      marginsSuppressed: this.areMarginsSuppressed(),
+      reading: describeReadingMargins(this),
+      storeIssues
+    };
+  }
+
+  /** Entry point for the Settings tab button. */
+  copyDiagnosticsFromSettings(): Promise<void> {
+    return this.copyDiagnostics();
+  }
+
+  private async copyDiagnostics(): Promise<void> {
+    const report = diagnosticsReport(this.manifest.version);
+    try {
+      await navigator.clipboard.writeText(report);
+      new Notice("Diagnostics copied to clipboard");
+    } catch (error) {
+      reportError("diagnostics", error);
+      new Notice("Could not copy diagnostics; see the developer console");
+    }
+    logEvent("info", "diagnostics", "report generated");
   }
 
   refresh(): void {

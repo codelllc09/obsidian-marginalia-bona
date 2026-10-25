@@ -225,6 +225,20 @@
   width: 100%;
 }
 
+/* Landing pulse for sidebar -> passage jumps in Reading view: a ring around
+   the marked span, whichever mark style it uses. */
+.marginalia-jump-target {
+  border-radius: 0.15em;
+  box-shadow: 0 0 0 0.18em var(--interactive-accent) !important;
+  transition: box-shadow 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marginalia-jump-target {
+    transition: none;
+  }
+}
+
 /* Landing pulse for highlight -> sidebar jumps: a ring plus a brief tint,
    so the eye can find the card without hunting up and down the list. */
 @keyframes marginalia-card-flash {

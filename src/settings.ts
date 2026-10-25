@@ -264,6 +264,18 @@ export class MarginaliaSettingTab extends PluginSettingTab {
           )
       );
 
+    new Setting(containerEl).setName("Troubleshooting").setHeading();
+    new Setting(containerEl)
+      .setName("Diagnostics report")
+      .setDesc(
+        "Copies what the plugin currently sees: settings, annotation counts, Reading-view margin state, and recent render decisions. Nothing is sent anywhere - paste it where you need it."
+      )
+      .addButton((button) =>
+        button.setButtonText("Copy report").onClick(() => {
+          void this.plugin.copyDiagnosticsFromSettings();
+        })
+      );
+
     new Setting(containerEl).setName("Commands").setHeading();
     containerEl
       .createEl("p", {
