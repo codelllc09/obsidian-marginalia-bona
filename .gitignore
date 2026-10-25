@@ -8,3 +8,6 @@ AGENT.md
 .pi/
 docs/
 !README.md
+
+# local dev tooling (sandbox + CDP helpers)
+.dev/
