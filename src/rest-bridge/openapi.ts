@@ -35,7 +35,10 @@ function op(
     description,
     tags: [TAG],
     responses: {
-      "4XX": { description: "Error envelope.", content: { "application/json": { schema: ERROR_REF } } }
+      default: {
+        description: "Error envelope.",
+        content: { "application/json": { schema: ERROR_REF } }
+      }
     },
     ...extra
   };
