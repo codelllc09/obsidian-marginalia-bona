@@ -7,6 +7,7 @@ import {
   type Annotation,
   type MarkStyle
 } from "../domain/annotation";
+import type { AnnotationQuery } from "../storage/query";
 import { buildAnchor, findPassage } from "./anchor";
 import type { RouteResult, VaultRouteContext } from "./types";
 
@@ -123,32 +124,66 @@ export class AnnotationsApi {
     };
   }
 
-  list(notePath: string, query: Record<string, string>): RouteResult {
-    if (!this.noteFile(notePath)) {
+  list(notePath: string | undefined, query: Record<string, string>): RouteResult {
+    if (notePath !== undefined && !this.noteFile(notePath)) {
       return err(404, ERROR_CODES.notANote, `No Markdown note at ${notePath}`);
     }
-    let threads = this.plugin.store.forSource(notePath);
-    const status = query.status;
+    // Legacy aliases: status=drifted / status=unread stay accepted and map
+    // onto the engine's orthogonal booleans.
+    let status: string | undefined = query.status;
+    let drifted: boolean | undefined;
+    let unread: boolean | undefined;
     if (status === "drifted") {
-      threads = threads.filter((a) => anchorDrift(a) !== null);
-    } else if (status && status !== "all") {
-      threads = threads.filter((a) => a.status === status);
+      drifted = true;
+      status = undefined;
+    } else if (status === "unread") {
+      unread = true;
+      status = undefined;
+    } else if (status === "all") {
+      status = undefined;
+    } else if (
+      status !== undefined &&
+      status !== "open" &&
+      status !== "resolved" &&
+      status !== "orphaned"
+    ) {
+      return err(
+        400,
+        ERROR_CODES.invalidBody,
+        "status must be open/resolved/orphaned (drifted/unread accepted as aliases), or all"
+      );
     }
-    const author = query.author;
-    if (author) {
-      threads = threads.filter((a) => (a.author ?? "user") === author);
-    }
-    // "true"/"false" strings: the REST query arrives stringified, the MCP
-    // query builder stringifies booleans before passing them on.
-    const read = query.read;
-    if (read === "true") {
-      threads = threads.filter((a) => a.readAt !== undefined);
-    } else if (read === "false") {
-      threads = threads.filter((a) => a.readAt === undefined);
-    }
+    const threads = this.plugin.store.query({
+      source: notePath,
+      status: status as AnnotationQuery["status"] | undefined,
+      drifted,
+      unread,
+      author: query.author || undefined,
+      read:
+        query.read === "true"
+          ? true
+          : query.read === "false"
+            ? false
+            : undefined,
+      q: query.q || undefined,
+      sort: query.sort as AnnotationQuery["sort"] | undefined,
+      dir: query.dir as AnnotationQuery["dir"] | undefined
+    });
+    // Output cap for whole-vault queries; total lets callers report what
+    // the cap cut away.
+    const total = threads.length;
+    const parsedLimit =
+      query.limit !== undefined ? Number.parseInt(query.limit, 10) : NaN;
+    const limit =
+      Number.isNaN(parsedLimit) || parsedLimit <= 0
+        ? 200
+        : Math.min(parsedLimit, 200);
     return {
       status: 200,
-      body: { threads: threads.map((a) => this.threadPayload(a)) }
+      body: {
+        total,
+        threads: threads.slice(0, limit).map((a) => this.threadPayload(a))
+      }
     };
   }
 

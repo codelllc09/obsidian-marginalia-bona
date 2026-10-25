@@ -26,6 +26,9 @@ type Scope = "current" | "vault";
  *  "unread" selects annotations without a read timestamp. */
 type StatusFilter = "open" | "resolved" | "orphaned" | "drifted" | "unread" | "all";
 
+/** Sidebar sort presets; source = document order (grouped by note). */
+type SortMode = "source" | "created-desc" | "created-asc" | "updated-desc";
+
 interface DraftState {
   body: string;
   markStyle: MarkStyle;
@@ -80,6 +83,7 @@ export class MarginaliaSidebarView extends ItemView {
   private viewScope: Scope = "current";
   private status: StatusFilter = "open";
   private query = "";
+  private sortMode: SortMode = "source";
   private activeId: string | null = null;
   private draft:
     | ({ mode: "create"; input: NewAnnotation } & DraftState)
@@ -505,6 +509,21 @@ export class MarginaliaSidebarView extends ItemView {
         this.renderBody();
       }
     );
+    this.renderDropdown(
+      toolbar,
+      "Sort",
+      [
+        { value: "source", label: "Source order" },
+        { value: "created-desc", label: "Created newest" },
+        { value: "created-asc", label: "Created oldest" },
+        { value: "updated-desc", label: "Updated newest" }
+      ],
+      () => this.sortMode,
+      (value) => {
+        this.sortMode = value;
+        this.renderBody();
+      }
+    );
   }
 
   /** Dropdown-style toolbar button: "Name: option" + chevron, opens an
@@ -553,45 +572,26 @@ export class MarginaliaSidebarView extends ItemView {
 
   private visibleAnnotations(): Annotation[] {
     const activePath = this.app.workspace.getActiveFile()?.path;
-    let annotations =
-      this.viewScope === "current" && activePath
-        ? this.plugin.store.forSource(activePath)
-        : this.plugin.store.all();
-    if (this.status === "drifted") {
-      // Review view: passages whose text changed after annotating.
-      annotations = annotations.filter((item) => anchorDrift(item) !== null);
-    } else if (this.status === "unread") {
-      annotations = annotations.filter((item) => item.readAt === undefined);
-    } else if (this.status !== "all") {
-      annotations = annotations.filter((item) => item.status === this.status);
-    }
-    const query = this.query.trim().toLocaleLowerCase();
-    if (query) {
-      annotations = annotations.filter((item) => {
-        const quote = item.anchor.kind === "document" ? "" : item.anchor.quote.exact;
-        const replies = item.replies.map((reply) => reply.body).join("\n");
-        return `${item.body}\n${replies}\n${quote}\n${item.sourcePath}`
-          .toLocaleLowerCase()
-          .includes(query);
-      });
-    }
-    return annotations.sort((a, b) => {
-      if (a.sourcePath !== b.sourcePath) {
-        return a.sourcePath.localeCompare(b.sourcePath);
-      }
-      const aPosition =
-        a.anchor.kind === "markdown"
-          ? a.anchor.startOffset
-          : a.anchor.kind === "pdf"
-            ? a.anchor.page
-            : 0;
-      const bPosition =
-        b.anchor.kind === "markdown"
-          ? b.anchor.startOffset
-          : b.anchor.kind === "pdf"
-            ? b.anchor.page
-            : 0;
-      return aPosition - bPosition;
+    const sort =
+      this.sortMode === "source"
+        ? { sort: "source" as const }
+        : this.sortMode === "created-asc"
+          ? { sort: "created" as const, dir: "asc" as const }
+          : this.sortMode === "created-desc"
+            ? { sort: "created" as const, dir: "desc" as const }
+            : { sort: "updated" as const, dir: "desc" as const };
+    return this.plugin.store.query({
+      source: this.viewScope === "current" ? activePath : undefined,
+      status:
+        this.status === "all" ||
+        this.status === "drifted" ||
+        this.status === "unread"
+          ? undefined
+          : this.status,
+      drifted: this.status === "drifted" || undefined,
+      unread: this.status === "unread" || undefined,
+      q: this.query.trim() || undefined,
+      ...sort
     });
   }
 

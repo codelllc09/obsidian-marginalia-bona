@@ -10,6 +10,7 @@ import {
   parseAnnotation,
   serializeAnnotation
 } from "./annotation-markdown";
+import { queryAnnotations, type AnnotationQuery } from "./query";
 import {
   ANNOTATIONS_DIRECTORY,
   annotationFolderFor,
@@ -152,6 +153,12 @@ export class AnnotationStore {
 
   all(): Annotation[] {
     return [...this.byId.values()];
+  }
+
+  /** Filter + order annotations through the shared query engine - the
+   *  single source of filter/sort semantics for sidebar and agents. */
+  query(options: AnnotationQuery): Annotation[] {
+    return queryAnnotations(this.all(), options);
   }
 
   forSource(sourcePath: string): Annotation[] {

@@ -28,6 +28,7 @@ def toolbar():
             "    <div class=\"marginalia-toolbar-spacer\"></div>\n"
             "    <button class=\"marginalia-dropdown\"><span class=\"marginalia-dropdown-label\">Status: Open</span><span class=\"marginalia-dropdown-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"m6 9 6 6 6-6\"/></svg></span></button>\n"
             "    <button class=\"marginalia-dropdown\"><span class=\"marginalia-dropdown-label\">Scope: Current file</span><span class=\"marginalia-dropdown-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"m6 9 6 6 6-6\"/></svg></span></button>\n"
+            "    <button class=\"marginalia-dropdown\"><span class=\"marginalia-dropdown-label\">Sort: Source order</span><span class=\"marginalia-dropdown-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"m6 9 6 6 6-6\"/></svg></span></button>\n"
             "  </div>")
 
 
