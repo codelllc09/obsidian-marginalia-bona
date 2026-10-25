@@ -12,6 +12,8 @@ later. Markdown annotations can also appear beside the text as margin cards.
 Annotations are plain Markdown files inside your vault, and other tools —
 AI agents included — can read and write them directly.
 
+![Reading view with margin cards and a reply thread](media/reading-view.jpg)
+
 ## Features
 
 - Select text to annotate; the passage is highlighted in place
@@ -24,6 +26,8 @@ AI agents included — can read and write them directly.
   its comment
 - Each annotation can have its own color and mark style (highlight,
   underline, wavy, strikethrough, bold)
+
+![Five mark styles, each with its own colour and margin card](media/mark-styles.jpg)
 - Reply directly under an annotation to form a thread
 - Read/unread state: an unread filter, a "mark all read" command, and an
   unread count on the ribbon icon; content written by others turns a thread
@@ -41,6 +45,8 @@ AI agents included — can read and write them directly.
 - Source notes are never modified
 - An agent bridge: MCP tools and REST endpoints over the Local REST API
   plugin, so AI agents can create and edit annotations safely
+
+![The sidebar: filters, a reply thread, and an unread badge on the ribbon](media/sidebar.jpg)
 
 ## Installation
 
