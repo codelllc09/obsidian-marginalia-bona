@@ -204,6 +204,11 @@ function splitReplies(
         replies: parseReplies(section)
       };
     }
+    // An empty section from an older writer: the marker terminates the body
+    // and nothing follows it. Quoted format text mid-body keeps the marker.
+    if (section.trim() === "") {
+      return { body: bodySection.slice(0, from), replies: [] };
+    }
     from = bodySection.lastIndexOf(marker, from - 1);
   }
   return { body: bodySection, replies: [] };

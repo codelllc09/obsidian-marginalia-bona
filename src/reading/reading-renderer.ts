@@ -13,7 +13,6 @@ interface TextSegment {
 interface PreviewState {
   plugin: MarginaliaPlugin;
   preview: HTMLElement;
-  layer: HTMLElement;
   observer: ResizeObserver;
   frame: number;
   /** Placement can be measured before Obsidian finishes laying the preview
@@ -34,7 +33,9 @@ const counters = {
   statesCreated: 0,
   skippedOwnUi: 0,
   noContainer: 0,
-  deferredDetached: 0
+  deferredDetached: 0,
+  marksApplied: 0,
+  marksFailed: 0
 };
 
 const loggedNoContainer = new Set<string>();
@@ -164,13 +165,14 @@ export function highlightOccurrence(
   plugin: MarginaliaPlugin
 ): HTMLElement | null {
   if (annotation.anchor.kind !== "markdown") return null;
-  const existing = root.querySelector<HTMLElement>(
-    `[data-marginalia-id="${annotation.id}"]`
-  );
+  const existing = markSpanFor(root, annotation.id);
   if (existing) return existing;
   const { text, segments } = textSegments(root);
   const start = locateQuote(text, annotation.anchor.quote);
-  if (start < 0) return null;
+  if (start < 0) {
+    noteMarkFailure(annotation, text);
+    return null;
+  }
   const exact = annotation.anchor.quote.exact;
   const end =
     start +
@@ -207,13 +209,26 @@ export function highlightOccurrence(
   return firstMark;
 }
 
+function unwrapElement(element: HTMLElement): void {
+  const parent = element.parentNode;
+  if (!parent) return;
+  while (element.firstChild) parent.insertBefore(element.firstChild, element);
+  element.remove();
+  parent.normalize();
+}
+
+/** Only the mark is a `span`; margin cards carry the same attribute, so an
+ *  unrestricted lookup would mistake a card for the passage (and then place a
+ *  card relative to itself). */
+function markSpanFor(root: HTMLElement, id: string): HTMLElement | null {
+  return root.querySelector<HTMLElement>(`span[data-marginalia-id="${id}"]`);
+}
+
 function findAnchor(
   root: HTMLElement,
   annotation: Annotation
 ): HTMLElement | null {
-  const highlighted = root.querySelector<HTMLElement>(
-    `[data-marginalia-id="${annotation.id}"]`
-  );
+  const highlighted = markSpanFor(root, annotation.id);
   if (highlighted) return highlighted;
   if (annotation.anchor.kind !== "markdown") return null;
   const { text, segments } = textSegments(root);
@@ -255,6 +270,17 @@ function scrollHostFor(element: HTMLElement): HTMLElement | null {
   return best;
 }
 
+/** One canonical container per leaf: the preview view if the leaf has one,
+ *  otherwise the nearest match. Without this, a block outside the preview
+ *  (for example the inline title) would create a second, nested container
+ *  with its own layer and duplicate every card. */
+function canonicalPreviewFor(element: HTMLElement): HTMLElement | null {
+  const leaf = element.closest<HTMLElement>(".workspace-leaf-content");
+  const inner = leaf?.querySelector<HTMLElement>(".markdown-preview-view");
+  if (inner) return inner;
+  return readingContainerFor(element);
+}
+
 function readingContainerFor(element: HTMLElement): HTMLElement | null {
   const direct = element.closest<HTMLElement>(
     ".markdown-preview-view, .markdown-reading-view"
@@ -279,11 +305,9 @@ function ensurePreviewState(
   );
   if (existing) return existing;
   preview.addClass("marginalia-reading-preview");
-  const layer = preview.createDiv({ cls: "marginalia-reading-margin-layer" });
   const state: PreviewState = {
     plugin,
     preview,
-    layer,
     observer: new ResizeObserver(() => schedulePreview(state)),
     frame: 0,
     retries: 0,
@@ -302,7 +326,6 @@ function destroyPreviewState(state: PreviewState): void {
   cancelAnimationFrame(state.frame);
   window.clearTimeout(state.retryTimer);
   state.observer.disconnect();
-  state.layer.remove();
   previewStates.delete(state);
 }
 
@@ -311,7 +334,7 @@ function schedulePreview(state: PreviewState): void {
   window.clearTimeout(state.retryTimer);
   state.frame = window.requestAnimationFrame(() => {
     try {
-      renderPreviewMargins(state);
+      renderPreviewPass(state);
     } catch (error) {
       reportError("reading-margins", error, {
         source: state.preview.dataset.marginaliaSourcePath ?? ""
@@ -331,13 +354,29 @@ function retryLater(state: PreviewState): void {
   window.clearTimeout(state.retryTimer);
   state.retryTimer = window.setTimeout(() => {
     try {
-      renderPreviewMargins(state);
+      renderPreviewPass(state);
     } catch (error) {
       reportError("reading-margins", error, {
         source: state.preview.dataset.marginaliaSourcePath ?? ""
       });
     }
   }, 80 * state.retries);
+}
+
+/** Height of the rendered document, excluding our own margin layer. */
+function contentHeight(state: PreviewState): number {
+  const { preview, sample } = state;
+  const sizer =
+    preview.querySelector<HTMLElement>(".markdown-preview-sizer") ??
+    (sample.isConnected && preview.contains(sample) ? sample : null);
+  if (sizer) {
+    const rect = sizer.getBoundingClientRect();
+    const previewRect = preview.getBoundingClientRect();
+    const top = rect.top - previewRect.top + preview.scrollTop;
+    // A little slack keeps a card next to the last paragraph from clipping.
+    return Math.ceil(top + rect.height + 120);
+  }
+  return preview.scrollHeight;
 }
 
 function measurePlacement(state: PreviewState): {
@@ -392,8 +431,86 @@ function measurePlacement(state: PreviewState): {
 
 const marginComponents = new WeakMap<HTMLElement, Component>();
 
+/** Marks are applied here as well as in the post-processor: Obsidian may
+ *  replace the rendered section right after the post-processor ran, and then
+ *  the marks would live in a discarded tree. This pass runs on the attached
+ *  preview and is retried by the same schedule as the margin cards. */
+function markAnnotationsInPreview(
+  preview: HTMLElement,
+  plugin: MarginaliaPlugin
+): void {
+  if (!plugin.settings.showHighlights) return;
+  const filePath = preview.dataset.marginaliaSourcePath;
+  if (!filePath) return;
+  for (const annotation of plugin.store.forSource(filePath)) {
+    if (annotation.anchor.kind !== "markdown") continue;
+    if (annotation.status === "orphaned") continue;
+    if (annotation.status === "resolved" && !plugin.settings.showResolved) {
+      continue;
+    }
+    try {
+      const marks = Array.from(
+        preview.querySelectorAll<HTMLElement>(
+          `span[data-marginalia-id="${annotation.id}"]`
+        )
+      );
+      // Obsidian installs a clone of the rendered tree; our spans come along
+      // and would double up. Identical text means a duplicate, so rebuild.
+      if (marks.length > 1) {
+        const texts = new Set(marks.map((mark) => mark.textContent ?? ""));
+        if (texts.size === 1) {
+          for (const mark of marks) unwrapElement(mark);
+        }
+      }
+      const remaining = preview.querySelectorAll<HTMLElement>(
+        `span[data-marginalia-id="${annotation.id}"]`
+      ).length;
+      if (remaining > 0) continue;
+      highlightOccurrence(preview, annotation, plugin);
+    } catch (error) {
+      reportError("reading-mark", error, {
+        source: filePath,
+        annotation: annotation.id
+      });
+    }
+  }
+}
+
+function renderPreviewPass(state: PreviewState): void {
+  if (!state.preview.isConnected) {
+    destroyPreviewState(state);
+    return;
+  }
+  resetOwnNodes(state);
+  try {
+    markAnnotationsInPreview(state.preview, state.plugin);
+  } catch (error) {
+    reportError("reading-mark", error, {
+      source: state.preview.dataset.marginaliaSourcePath ?? ""
+    });
+  }
+  renderPreviewMargins(state);
+}
+
+/** Our own nodes are rebuilt every pass. Obsidian clones rendered sections,
+ *  and a clone carries a copy of every node we injected, so keeping them
+ *  across passes is what produced duplicated cards and double marks. */
+function resetOwnNodes(state: PreviewState): void {
+  const { preview } = state;
+  const leaf = preview.closest<HTMLElement>(".workspace-leaf-content");
+  const scope = leaf ?? preview;
+  scope
+    .querySelectorAll<HTMLElement>(".marginalia-reading-margin-layer")
+    .forEach((layer) => layer.remove());
+  scope.querySelectorAll<HTMLElement>("span[data-marginalia-id]").forEach((span) => {
+    if (!preview.contains(span)) return;
+    unwrapElement(span);
+  });
+}
+
 function renderPreviewMargins(state: PreviewState): void {
-  const { preview, layer, plugin } = state;
+  const { preview, plugin } = state;
+  const layer = preview.createDiv({ cls: "marginalia-reading-margin-layer" });
   const previousReason = state.lastPass?.reason;
   const record = (reason: string, extra?: Record<string, unknown>): void => {
     state.lastPass = {
@@ -413,7 +530,12 @@ function renderPreviewMargins(state: PreviewState): void {
     return;
   }
   layer.empty();
-  layer.style.height = `${preview.scrollHeight}px`;
+  // The layer is absolutely positioned INSIDE the scroller, so its own height
+  // counts towards scrollHeight: measuring scrollHeight here would feed the
+  // previous height back in and inflate the scroll area on every pass (the
+  // document then renders blank). Measure the content sizer instead.
+  const height = contentHeight(state);
+  layer.style.setProperty("height", `${height}px`);
   if (!plugin.settings.showMargins) {
     state.retries = 0;
     record("margins-disabled");
@@ -555,6 +677,52 @@ function renderPreviewMargins(state: PreviewState): void {
   }
 }
 
+function firstBlockIn(preview: HTMLElement): HTMLElement {
+  return (
+    preview.querySelector<HTMLElement>(
+      ".markdown-preview-sizer > div, .markdown-preview-sizer > p"
+    ) ?? preview
+  );
+}
+
+/**
+ * Process every Reading view that is actually on screen. The Markdown
+ * post-processor is not enough: Obsidian renders a section off-document and
+ * then installs a copy, so the nodes handed to the post-processor may never
+ * be attached - marks and cards would be written into a discarded tree.
+ * Called on layout/file events instead, this always works on live DOM.
+ */
+export function refreshReadingViews(plugin: MarginaliaPlugin): void {
+  plugin.app.workspace.iterateAllLeaves((leaf) => {
+    const view = leaf.view as unknown as {
+      getMode?: () => string;
+      contentEl?: HTMLElement;
+      file?: { path: string } | null;
+    };
+    if (typeof view.getMode !== "function" || !view.contentEl) return;
+    if (view.getMode() !== "preview") return;
+    const filePath = view.file?.path ?? "";
+    if (!filePath || filePath.startsWith(".marginalia-bona/")) return;
+    const container = view.contentEl;
+    const preview =
+      container.querySelector<HTMLElement>(
+        ".markdown-preview-view, .markdown-reading-view"
+      ) ??
+      container.querySelector<HTMLElement>(".markdown-preview-sizer")
+        ?.parentElement ??
+      scrollHostFor(container.firstElementChild as HTMLElement) ??
+      null;
+    if (!preview) {
+      counters.noContainer += 1;
+      return;
+    }
+    if (preview.dataset.marginaliaSourcePath !== filePath) {
+      preview.dataset.marginaliaSourcePath = filePath;
+    }
+    schedulePreview(ensurePreviewState(preview, plugin, firstBlockIn(preview)));
+  });
+}
+
 /** State of every Reading view preview we manage, for the diagnostics report. */
 export function describeReadingMargins(
   plugin: MarginaliaPlugin
@@ -566,11 +734,14 @@ export function describeReadingMargins(
       source: state.preview.dataset.marginaliaSourcePath ?? "",
       containerClass: state.preview.className.slice(0, 120),
       connected: state.preview.isConnected,
-      cards: state.layer.childElementCount,
-      layerVisible: state.layer.getClientRects().length > 0,
-      layerForced: state.layer.classList.contains(
-        "marginalia-reading-margin-layer-forced"
-      ),
+      cards: state.preview.querySelectorAll(".marginalia-margin-card").length,
+      marks: state.preview.querySelectorAll("span[data-marginalia-id]").length,
+      layers: state.preview.querySelectorAll(".marginalia-reading-margin-layer")
+        .length,
+      layerVisible:
+        (state.preview.querySelector<HTMLElement>(
+          ".marginalia-reading-margin-layer"
+        )?.getClientRects().length ?? 0) > 0,
       retries: state.retries,
       lastPass: state.lastPass
     });
@@ -582,6 +753,23 @@ export function refreshReadingMargins(plugin: MarginaliaPlugin): void {
   for (const state of previewStates) {
     if (state.plugin === plugin) schedulePreview(state);
   }
+}
+
+const reportedMarkFailures = new Set<string>();
+
+/** Record why a quote could not be located: the block text and the quote are
+ *  enough to see the mismatch without a debugger. */
+function noteMarkFailure(annotation: Annotation, blockText: string): void {
+  const key = `${annotation.sourcePath}:${annotation.id}`;
+  if (reportedMarkFailures.has(key)) return;
+  reportedMarkFailures.add(key);
+  const quote =
+    annotation.anchor.kind === "markdown" ? annotation.anchor.quote.exact : "";
+  logEvent("warn", "reading-mark", "quote not found in this block", {
+    annotation: annotation.id,
+    quote: quote.slice(0, 120),
+    block: blockText.replace(/\s+/g, " ").slice(0, 200)
+  });
 }
 
 const pendingAttached = new WeakSet<HTMLElement>();
@@ -656,7 +844,8 @@ function processReadingViewInner(
   for (const annotation of annotations) {
     if (!plugin.settings.showHighlights) continue;
     try {
-      highlightOccurrence(element, annotation, plugin);
+      if (highlightOccurrence(element, annotation, plugin)) counters.marksApplied += 1;
+      else counters.marksFailed += 1;
     } catch (error) {
       // A single block must never abort the whole Reading view pass.
       reportError("reading-mark", error, {
@@ -665,7 +854,7 @@ function processReadingViewInner(
       });
     }
   }
-  const preview = readingContainerFor(element);
+  const preview = canonicalPreviewFor(element);
   if (!preview) {
     counters.noContainer += 1;
     if (!loggedNoContainer.has(context.sourcePath)) {

@@ -25,7 +25,8 @@ import {
   describeReadingMargins,
   processReadingView,
   readingRunStats,
-  refreshReadingMargins
+  refreshReadingMargins,
+  refreshReadingViews
 } from "./reading/reading-renderer";
 import {
   clearDiagnostics,
@@ -176,6 +177,17 @@ export default class MarginaliaPlugin extends Plugin {
     this.pdfAdapter.start();
 
     setSnapshotProvider(() => this.diagnosticsSnapshot());
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => this.scheduleReadingRefresh())
+    );
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => this.scheduleReadingRefresh())
+    );
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () =>
+        this.scheduleReadingRefresh()
+      )
+    );
     this.registerView(
       MARGINALIA_VIEW_TYPE,
       (leaf) => new MarginaliaSidebarView(leaf, this)
@@ -499,7 +511,17 @@ export default class MarginaliaPlugin extends Plugin {
     });
   }
 
+  private readingRefreshTimer: number | null = null;
   private diagnosticsTimer: number | null = null;
+
+  /** Debounced: a layout change fires several times per mode switch. */
+  scheduleReadingRefresh(): void {
+    if (this.readingRefreshTimer !== null) return;
+    this.readingRefreshTimer = window.setTimeout(() => {
+      this.readingRefreshTimer = null;
+      refreshReadingViews(this);
+    }, 120);
+  }
 
   private diagnosticsSnapshot(): Record<string, unknown> {
     const active = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -603,6 +625,7 @@ export default class MarginaliaPlugin extends Plugin {
       cm?.dispatch({});
     });
     this.pdfAdapter?.renderVisibleHighlights();
+    refreshReadingViews(this);
     refreshReadingMargins(this);
   }
 
