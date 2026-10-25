@@ -414,6 +414,7 @@ export default class MarginaliaPlugin extends Plugin {
   }
 
   areMarginsSuppressed(): boolean {
+    if (!this.settings.suppressMarginsWithSidebar) return false;
     return this.app.workspace.getLeavesOfType(MARGINALIA_VIEW_TYPE).some((leaf) => {
       const element = leaf.view.containerEl;
       return element.isConnected && element.getClientRects().length > 0;
@@ -527,6 +528,13 @@ export default class MarginaliaPlugin extends Plugin {
         byStatus
       },
       marginsSuppressed: this.areMarginsSuppressed(),
+      suppressMarginsWithSidebar: this.settings.suppressMarginsWithSidebar,
+      sidebarLeaves: this.app.workspace
+        .getLeavesOfType(MARGINALIA_VIEW_TYPE)
+        .map((leaf) => ({
+          connected: leaf.view.containerEl.isConnected,
+          rects: leaf.view.containerEl.getClientRects().length
+        })),
       readingRuns: readingRunStats(),
       reading: describeReadingMargins(this),
       storeIssues
@@ -806,9 +814,6 @@ export default class MarginaliaPlugin extends Plugin {
       String(this.settings.highlightOpacity)
     );
     document.body.dataset.marginaliaMarginSide = this.settings.marginSide;
-    document.body.dataset.marginaliaNarrowThreshold = String(
-      this.settings.narrowPaneThreshold
-    );
     document.body.dataset.marginaliaForceWordBreaks = String(
       this.settings.forceLongWordBreaks
     );

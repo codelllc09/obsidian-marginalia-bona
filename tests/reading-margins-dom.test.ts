@@ -250,3 +250,45 @@ describe("Reading view margins: diagnostics", () => {
     expect(pass.cards).toBe(1);
   });
 });
+
+describe("Reading view margins: unknown container classes", () => {
+  it("finds the scroll host when Obsidian renames its classes", () => {
+    // Obsidian's class names are not a stable API: this DOM has none of the
+    // names we used to depend on, only a scrolling wrapper.
+    const leaf = document.createElement("div");
+    leaf.className = "workspace-leaf-content";
+    const root = document.createElement("div");
+    root.className = "markdown-reading-root";
+    // The scroller only reveals itself by its scroll range: no overflow
+    // declaration, no recognisable class name.
+    Object.defineProperty(root, "scrollHeight", { value: 2400, configurable: true });
+    Object.defineProperty(root, "clientHeight", { value: 900, configurable: true });
+    root.getBoundingClientRect = () => ({
+      left: 0, right: 800, top: 0, bottom: 900, width: 800, height: 900, x: 0, y: 0,
+      toJSON: () => ({})
+    });
+    const body = document.createElement("div");
+    body.className = "preview-body";
+    const block = document.createElement("p");
+    block.className = "preview-block";
+    block.textContent = "Maxwell's electrodynamics leads to asymmetries in moving bodies.";
+    block.getBoundingClientRect = () => ({
+      left: 200, right: 600, top: 100, bottom: 160, width: 400, height: 60, x: 200, y: 100,
+      toJSON: () => ({})
+    });
+    body.appendChild(block);
+    root.appendChild(body);
+    leaf.appendChild(root);
+    document.body.appendChild(leaf);
+
+    processReadingView(
+      block,
+      { sourcePath: NOTE } as never,
+      fakePlugin([annotation()]) as never
+    );
+
+    const layer = root.querySelector(".marginalia-reading-margin-layer");
+    expect(layer).not.toBeNull();
+    expect(root.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
+  });
+});

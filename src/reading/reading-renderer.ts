@@ -21,12 +21,28 @@ interface PreviewState {
   retries: number;
   retryTimer: number;
   lastPass: Record<string, unknown> | null;
+  /** First block seen inside this preview: a class-name-free way to measure
+   *  the content column when the sizer element cannot be found. */
+  sample: HTMLElement;
 }
 
 const previewStates = new Set<PreviewState>();
 
 /** Counters answering "did the Reading-view pipeline even run?". */
 const counters = { passes: 0, statesCreated: 0, skippedOwnUi: 0, noContainer: 0 };
+
+const loggedNoContainer = new Set<string>();
+
+function ancestorSignature(element: HTMLElement): string[] {
+  const chain: string[] = [];
+  let node: HTMLElement | null = element;
+  for (let depth = 0; node && depth < 8; depth += 1) {
+    const cls = node.className.toString().trim().replace(/\s+/g, ".");
+    chain.push(`${node.tagName.toLowerCase()}${cls ? `.${cls}` : ""}`);
+    node = node.parentElement;
+  }
+  return chain;
+}
 
 export function readingRunStats(): Record<string, number> {
   return { ...counters, previewStates: previewStates.size };
@@ -211,6 +227,28 @@ const OWN_UI =
 /** The scroll container of a Reading view, found without relying on one
  *  class name (Obsidian has used .markdown-preview-view and
  *  .markdown-reading-view; extensions/embeds may sit above either). */
+/** Class-name independent: the reading view is whatever ancestor actually
+ *  scrolls the document. Obsidian's class names are not a stable API. */
+function scrollHostFor(element: HTMLElement): HTMLElement | null {
+  let node = element.parentElement;
+  let best: HTMLElement | null = null;
+  let bestDelta = 8;
+  while (node && node !== document.body) {
+    const overflow = window.getComputedStyle(node).overflowY;
+    // Either the stylesheet says it scrolls, or it demonstrably does. The
+    // second test survives builds that scroll without declaring overflow;
+    // the largest overflow wins, which is the outermost scroller.
+    if (overflow === "auto" || overflow === "scroll") return node;
+    const delta = node.scrollHeight - node.clientHeight;
+    if (node.clientHeight > 0 && delta > bestDelta) {
+      best = node;
+      bestDelta = delta;
+    }
+    node = node.parentElement;
+  }
+  return best;
+}
+
 function readingContainerFor(element: HTMLElement): HTMLElement | null {
   const direct = element.closest<HTMLElement>(
     ".markdown-preview-view, .markdown-reading-view"
@@ -219,12 +257,16 @@ function readingContainerFor(element: HTMLElement): HTMLElement | null {
   const sizer = element.closest<HTMLElement>(".markdown-preview-sizer");
   if (sizer?.parentElement) return sizer.parentElement;
   const section = element.closest<HTMLElement>(".markdown-preview-section");
-  return section?.parentElement ?? null;
+  if (section?.parentElement) return section.parentElement;
+  const host = scrollHostFor(element);
+  if (host) return host;
+  return element.closest<HTMLElement>(".workspace-leaf-content");
 }
 
 function ensurePreviewState(
   preview: HTMLElement,
-  plugin: MarginaliaPlugin
+  plugin: MarginaliaPlugin,
+  sample: HTMLElement
 ): PreviewState {
   const existing = [...previewStates].find(
     (state) => state.preview === preview
@@ -240,7 +282,8 @@ function ensurePreviewState(
     frame: 0,
     retries: 0,
     retryTimer: 0,
-    lastPass: null
+    lastPass: null,
+    sample
   };
   state.observer.observe(preview);
   previewStates.add(state);
@@ -296,7 +339,10 @@ function measurePlacement(state: PreviewState): {
   const { preview, plugin } = state;
   const previewRect = preview.getBoundingClientRect();
   const sizer =
-    preview.querySelector<HTMLElement>(".markdown-preview-sizer") ?? preview;
+    preview.querySelector<HTMLElement>(".markdown-preview-sizer") ??
+    (state.sample.isConnected && preview.contains(state.sample)
+      ? state.sample
+      : preview);
   const contentRect = sizer.getBoundingClientRect();
   const gap = 10;
   const edge = 8;
@@ -573,8 +619,15 @@ function processReadingViewInner(
   const preview = readingContainerFor(element);
   if (!preview) {
     counters.noContainer += 1;
+    if (!loggedNoContainer.has(context.sourcePath)) {
+      loggedNoContainer.add(context.sourcePath);
+      logEvent("warn", "reading", "no preview container found", {
+        source: context.sourcePath,
+        ancestors: ancestorSignature(element)
+      });
+    }
     return;
   }
   preview.dataset.marginaliaSourcePath = context.sourcePath;
-  schedulePreview(ensurePreviewState(preview, plugin));
+  schedulePreview(ensurePreviewState(preview, plugin, element));
 }
