@@ -21,6 +21,7 @@ import { getExportFormat } from "./export";
 import { registerHoverPreview } from "./hover/hover-preview";
 import { RestBridge } from "./rest-bridge";
 import { PdfAdapter } from "./pdf/pdf-adapter";
+import { minGutterFor, planColumnCap } from "./domain/layout";
 import {
   describeReadingMargins,
   processReadingView,
@@ -592,7 +593,6 @@ export default class MarginaliaPlugin extends Plugin {
    *  which case there is simply no room. */
   private syncColumnCaps(): void {
     const enabled = this.settings.reserveMarginSpace && this.settings.showMargins;
-    const cardSpace = this.settings.marginWidth + 18;
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (!(leaf.view instanceof MarkdownView)) return;
       const content = leaf.view.containerEl;
@@ -608,8 +608,7 @@ export default class MarginaliaPlugin extends Plugin {
         : content.querySelector<HTMLElement>(".cm-line");
       const fontSize =
         Number.parseFloat(window.getComputedStyle(pane).fontSize) || 16;
-      const minGutter = Math.max(72, Math.round(fontSize * 8));
-      const minColumn = Math.round(fontSize * 34);
+      const minGutter = minGutterFor(fontSize);
 
       // Measure with our own cap removed, or the cap would justify itself.
       const hadCap = content.hasClass("marginalia-column-cap");
@@ -621,17 +620,17 @@ export default class MarginaliaPlugin extends Plugin {
         const outer = pane.getBoundingClientRect();
         gutter = Math.max(text.left - outer.left, outer.right - text.right);
       }
-      // Respect the configured reading width (Obsidian's "readable line
-      // length") and only shrink further if a full card does not fit beside
-      // it. Using the same width in both modes keeps the cards aligned.
       const configured =
         Number.parseFloat(
           window.getComputedStyle(pane).getPropertyValue("--file-line-width")
         ) || 700;
-      const ideal = Math.round(
-        Math.min(configured, pane.clientWidth - 2 * cardSpace)
-      );
-      const cap = enabled && gutter < minGutter && ideal >= minColumn ? ideal : 0;
+      const decision = planColumnCap({
+        paneWidth: pane.clientWidth,
+        cardWidth: this.settings.marginWidth,
+        fontSize,
+        configuredLineWidth: configured
+      });
+      const cap = enabled && gutter < minGutter ? (decision.cap ?? 0) : 0;
       content.toggleClass("marginalia-column-cap", cap > 0);
       if (cap > 0) {
         content.style.setProperty("--marginalia-column-cap", `${cap}px`);

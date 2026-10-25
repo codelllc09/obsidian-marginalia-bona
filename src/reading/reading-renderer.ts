@@ -3,6 +3,12 @@ import type MarginaliaPlugin from "../main";
 import { Annotation } from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
 import { logEvent, reportError } from "../diagnostics";
+import {
+  EDGE,
+  GAP,
+  minGutterFor,
+  planPlacement
+} from "../domain/layout";
 
 interface TextSegment {
   node: Text;
@@ -394,51 +400,34 @@ function measurePlacement(state: PreviewState): {
       ? state.sample
       : preview);
   const contentRect = sizer.getBoundingClientRect();
-  const gap = 10;
-  const edge = 8;
-  const leftWidth = Math.max(
-    0,
-    contentRect.left - previewRect.left - gap - edge
-  );
-  const rightWidth = Math.max(
-    0,
-    previewRect.right - contentRect.right - gap - edge
-  );
-  // Thresholds are relative to the text size: a 2K screen at 200% scaling and
-  // a 1080p screen at 100% both work, and so do larger editor fonts.
   const fontSize =
     Number.parseFloat(window.getComputedStyle(preview).fontSize) || 16;
-  // "auto" means the right margin unless it is too narrow: a few pixels of
-  // scrollbar gutter used to flip the cards to the left, which reads as a bug.
-  const MIN_ROOM = Math.max(72, Math.round(fontSize * 8));
+  const placement = planPlacement({
+    paneWidth: previewRect.width,
+    columnLeft: contentRect.left - previewRect.left,
+    columnWidth: contentRect.width,
+    cardWidth: plugin.settings.marginWidth,
+    fontSize,
+    preferred: plugin.settings.marginSide
+  });
+  const minRoom = minGutterFor(fontSize);
+  const available = Math.max(
+    0,
+    Math.max(
+      contentRect.left - previewRect.left - GAP - EDGE,
+      previewRect.right - contentRect.right - GAP - EDGE
+    )
+  );
   const side =
-    plugin.settings.marginSide === "auto"
-      ? rightWidth >= MIN_ROOM
-        ? "right"
-        : leftWidth >= MIN_ROOM
-          ? "left"
-          : leftWidth > rightWidth
-            ? "left"
-            : "right"
-      : plugin.settings.marginSide;
-  const available = side === "left" ? leftWidth : rightWidth;
-  if (available < MIN_ROOM) return { placement: null, available, side };
-  // A missing/NaN setting must not produce a zero-width card.
-  const configuredWidth =
-    Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0
-      ? plugin.settings.marginWidth
-      : 200;
-  const width = Math.min(configuredWidth, available);
+    placement?.side ??
+    (available < minRoom ? "right" : plugin.settings.marginSide);
+  if (!placement) {
+    return { placement: null, available, side };
+  }
   return {
-    available,
-    side,
-    placement: {
-      width,
-      left:
-        side === "left"
-          ? contentRect.left - previewRect.left - gap - width
-          : contentRect.right - previewRect.left + gap
-    }
+    available: placement.available,
+    side: placement.side,
+    placement: { left: placement.left, width: placement.width }
   };
 }
 

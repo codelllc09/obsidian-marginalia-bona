@@ -8,6 +8,7 @@ import {
 } from "@codemirror/view";
 import { Component, MarkdownRenderer, MarkdownView } from "obsidian";
 import type MarginaliaPlugin from "../main";
+import { planPlacement } from "../domain/layout";
 import {
   Annotation,
   MarkdownAnchor,
@@ -89,12 +90,44 @@ function measureContentColumn(view: EditorView): DOMRect {
   // Themes such as Minimal constrain each rendered line (`.cm-line`) instead
   // of the sizer, so measuring `.cm-sizer` reports "no gutter" on a page that
   // visibly has one. Prefer a real line, fall back to the sizer.
-  const line = view.contentDOM.querySelector<HTMLElement>(".cm-line");
-  const sizer =
-    line ??
-    view.dom.querySelector<HTMLElement>(".cm-sizer") ??
-    view.contentDOM;
-  const sizerRect = sizer.getBoundingClientRect();
+  const lines = Array.from(
+    view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")
+  ).slice(0, 24);
+  // A single short line would understate the column: take the widest of the
+  // first screenful instead.
+  let sizerRect: DOMRect;
+  const editorBox = view.dom.getBoundingClientRect();
+  const rects = lines
+    .map((line) => line.getBoundingClientRect())
+    .filter((rect) => rect.width > 40 && rect.width <= editorBox.width);
+  if (rects.length > 0) {
+    // Use the most common line width: a wide table row or a short heading
+    // would otherwise misreport where the text column actually is.
+    const buckets = new Map<number, DOMRect[]>();
+    for (const rect of rects) {
+      const key = Math.round(rect.width / 8);
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(rect);
+      else buckets.set(key, [rect]);
+    }
+    const groups = Array.from(buckets.values()).sort(
+      (a, b) => b.length - a.length
+    );
+    const group = groups[0] ?? rects;
+    const typical = group.sort((a, b) => a.left - b.left)[
+      Math.floor(group.length / 2)
+    ] ?? rects[0];
+    sizerRect = new DOMRect(
+      typical.left,
+      typical.top,
+      typical.width,
+      typical.height
+    );
+  } else {
+    const fallback =
+      view.dom.querySelector<HTMLElement>(".cm-sizer") ?? view.contentDOM;
+    sizerRect = fallback.getBoundingClientRect();
+  }
   const editorRect = view.dom.getBoundingClientRect();
   return new DOMRect(
     Math.max(editorRect.left, sizerRect.left),
@@ -111,48 +144,24 @@ function choosePlacement(
 ): MarginPlacement | null {
   const editorRect = view.dom.getBoundingClientRect();
   const contentRect = measureContentColumn(view);
-  const gap = 10;
-  const edge = 8;
-  const leftWidth = Math.max(0, contentRect.left - editorRect.left - gap - edge);
-  const rightWidth = Math.max(
-    0,
-    editorRect.right - contentRect.right - gap - edge
-  );
-  // Thresholds are relative to the text size: a 2K screen at 200% scaling and
-  // a 1080p screen at 100% both work, and so do larger editor fonts.
   const fontSize =
     Number.parseFloat(window.getComputedStyle(view.dom).fontSize) || 16;
-  // "auto" means the right margin unless it is too narrow: a few pixels of
-  // scrollbar gutter used to flip the cards to the left, which reads as a bug.
-  const MIN_ROOM = Math.max(72, Math.round(fontSize * 8));
-  const side =
-    plugin.settings.marginSide === "auto"
-      ? rightWidth >= MIN_ROOM
-        ? "right"
-        : leftWidth >= MIN_ROOM
-          ? "left"
-          : leftWidth > rightWidth
-            ? "left"
-            : "right"
-      : plugin.settings.marginSide;
-  const available = side === "left" ? leftWidth : rightWidth;
-  if (available < 72) {
+  const placement = planPlacement({
+    paneWidth: editorRect.width,
+    columnLeft: contentRect.left - editorRect.left,
+    columnWidth: contentRect.width,
+    cardWidth: plugin.settings.marginWidth,
+    fontSize,
+    preferred: plugin.settings.marginSide
+  });
+  if (!placement) {
     plugin.hintNoMarginRoom();
     return null;
   }
-  // A missing/NaN setting must not produce a zero-width card.
-  const configuredWidth =
-    Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0
-      ? plugin.settings.marginWidth
-      : 200;
-  const width = Math.min(configuredWidth, available);
   return {
-    side,
-    width,
-    left:
-      side === "left"
-        ? contentRect.left - editorRect.left - gap - width
-        : contentRect.right - editorRect.left + gap
+    side: placement.side,
+    width: placement.width,
+    left: placement.left
   };
 }
 

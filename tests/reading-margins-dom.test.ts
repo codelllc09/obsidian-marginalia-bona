@@ -354,3 +354,54 @@ describe("Reading view margins: marks survive a replaced section", () => {
     expect(preview.querySelectorAll("span[data-marginalia-id]")).toHaveLength(1);
   });
 });
+
+describe("Reading view margins: geometry matrix", () => {
+  const PANES = [1400, 1100, 900, 760];
+  const FONTS = [14, 16, 20];
+  const CARDS = [160, 200, 260];
+
+  it("places every card inside the pane across widths, fonts and card sizes", () => {
+    for (const paneWidth of PANES) {
+      for (const fontSize of FONTS) {
+        for (const cardWidth of CARDS) {
+          const { preview, sizer } = buildPreview();
+          preview.style.fontSize = `${fontSize}px`;
+          preview.getBoundingClientRect = () => ({
+            left: 0, right: paneWidth, top: 0, bottom: 900,
+            width: paneWidth, height: 900, x: 0, y: 0, toJSON: () => ({})
+          });
+          const column = Math.min(700, paneWidth - 2 * (cardWidth + 18));
+          const left = (paneWidth - column) / 2;
+          sizer.getBoundingClientRect = () => ({
+            left, right: left + column, top: 0, bottom: 900,
+            width: column, height: 900, x: left, y: 0, toJSON: () => ({})
+          });
+          const plugin = fakePlugin([annotation()]) as {
+            settings: { marginWidth: number };
+          };
+          plugin.settings.marginWidth = cardWidth;
+
+          processReadingView(
+            preview.firstElementChild?.firstElementChild as HTMLElement,
+            { sourcePath: NOTE } as never,
+            plugin as never
+          );
+
+          const cards = Array.from(
+            preview.querySelectorAll<HTMLElement>(".marginalia-margin-card")
+          );
+          for (const card of cards) {
+            const cardLeft = Number.parseFloat(card.style.left);
+            const cardRight = cardLeft + Number.parseFloat(card.style.width);
+            expect(Number.isFinite(cardLeft)).toBe(true);
+            expect(cardLeft).toBeGreaterThanOrEqual(0);
+            expect(cardRight).toBeLessThanOrEqual(paneWidth);
+            expect(Number.parseFloat(card.style.width)).toBeLessThanOrEqual(
+              cardWidth
+            );
+          }
+        }
+      }
+    }
+  });
+});
