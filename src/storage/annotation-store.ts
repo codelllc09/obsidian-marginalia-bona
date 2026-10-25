@@ -21,6 +21,8 @@ import { shardPathFor, rebuildIndex, writeShard } from "./annotation-index";
 
 export const DEFAULT_ANNOTATION_DIRECTORY = ANNOTATIONS_DIRECTORY;
 export const DEFAULT_TRASH_DIRECTORY = ".marginalia-bona/trash";
+/** Trash files older than this are purged on load. */
+export const TRASH_RETENTION_DAYS = 30;
 /** Pre-rename data roots, migrated wholesale on first load. */
 const LEGACY_DATA_ROOTS = [".siden-plus", ".marginalia"];
 
@@ -70,6 +72,11 @@ export class AnnotationStore {
       await rebuildIndex(this.app.vault.adapter, this.all());
     } catch (error) {
       console.warn("Marginalia index rebuild failed", error);
+    }
+    try {
+      await this.purgeTrash();
+    } catch (error) {
+      console.warn("Marginalia trash purge failed", error);
     }
     this.onChange();
   }
@@ -329,7 +336,7 @@ export class AnnotationStore {
     return this.setStatus(id, "open");
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string): Promise<string> {
     const annotation = this.require(id);
     await ensureDirectoryPath(this.app.vault.adapter, DEFAULT_TRASH_DIRECTORY);
     const trashPath = normalizePath(
@@ -348,6 +355,113 @@ export class AnnotationStore {
     this.unindex(annotation);
     await this.syncShard(sourcePath);
     this.onChange();
+    return trashPath;
+  }
+
+  /** Entries in the recycle bin: parsed frontmatter where readable, plus
+   *  the file's modification time as the deletion proxy. */
+  async listTrash(): Promise<
+    Array<{
+      name: string;
+      id: string | null;
+      source: string | null;
+      body: string;
+      trashedAt: number;
+    }>
+  > {
+    const adapter = this.app.vault.adapter;
+    if (!(await adapter.exists(DEFAULT_TRASH_DIRECTORY))) return [];
+    const { files } = await adapter.list(DEFAULT_TRASH_DIRECTORY);
+    const entries: Array<{
+      name: string;
+      id: string | null;
+      source: string | null;
+      body: string;
+      trashedAt: number;
+    }> = [];
+    for (const path of files) {
+      // adapter.list returns full vault-relative paths - never re-prefix.
+      const stat = await adapter.stat(path);
+      let id: string | null = null;
+      let source: string | null = null;
+      let body = "(unparseable)";
+      try {
+        const parsed = parseAnnotation(await adapter.read(path));
+        id = parsed.id;
+        source = parsed.sourcePath;
+        body = parsed.body.slice(0, 80);
+      } catch {
+        // Unparseable trash stays listed but cannot be restored by id.
+      }
+      entries.push({
+        name: path.slice(path.lastIndexOf("/") + 1),
+        id,
+        source,
+        body,
+        trashedAt: stat?.mtime ?? 0
+      });
+    }
+    return entries;
+  }
+
+  /** Move a trash file back to its canonical annotations location and
+   *  re-ingest it. The original note path comes from the file itself. */
+  async restoreFromTrash(id: string): Promise<Annotation> {
+    const adapter = this.app.vault.adapter;
+    if (!(await adapter.exists(DEFAULT_TRASH_DIRECTORY))) {
+      throw new Error(`No trash entry for ${id}`);
+    }
+    const { files } = await adapter.list(DEFAULT_TRASH_DIRECTORY);
+    for (const path of files) {
+      const content = await adapter.read(path);
+      let parsed: Annotation;
+      try {
+        parsed = parseAnnotation(content);
+      } catch {
+        continue;
+      }
+      if (parsed.id !== id) continue;
+      const target = threadPathFor(this.directory, parsed);
+      if (await adapter.exists(target)) {
+        throw new Error(`Cannot restore ${id}: ${target} already exists.`);
+      }
+      await adapter.rename(path, target);
+      await this.ingestExternal(target, content);
+      // The note may have changed while the thread sat in the bin: run the
+      // same anchor reconciliation an external edit would trigger, so a
+      // lost passage comes back ORPHANED instead of silently stale.
+      const restored = this.require(id);
+      if (restored.anchor.kind !== "document") {
+        // Adapter-only file access: the store never reaches into vault APIs.
+        if (await adapter.exists(restored.sourcePath)) {
+          await this.reconcileMarkdownSource(
+            restored.sourcePath,
+            await adapter.read(restored.sourcePath)
+          );
+        } else if (restored.status !== "orphaned") {
+          await this.update(id, { status: "orphaned" });
+        }
+      }
+      return this.require(id);
+    }
+    throw new Error(`No trash entry for ${id}`);
+  }
+
+  /** Remove trash files whose modification time precedes `cutoff`.
+   *  Called on load with the retention window; returns the count. */
+  async purgeTrash(cutoff = Date.now() - TRASH_RETENTION_DAYS * 86_400_000): Promise<number> {
+    const adapter = this.app.vault.adapter;
+    if (!(await adapter.exists(DEFAULT_TRASH_DIRECTORY))) return 0;
+    const { files } = await adapter.list(DEFAULT_TRASH_DIRECTORY);
+    let purged = 0;
+    for (const path of files) {
+      const stat = await adapter.stat(path);
+      if (stat && stat.mtime < cutoff) {
+        await adapter.remove(path);
+        purged += 1;
+      }
+    }
+    return purged;
   }
 
   async renameSource(oldPath: string, newPath: string): Promise<void> {

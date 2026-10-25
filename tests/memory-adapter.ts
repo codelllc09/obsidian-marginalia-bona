@@ -5,6 +5,7 @@
 export class MemoryAdapter {
   files = new Map<string, string>();
   directories = new Set<string>();
+  mtimes = new Map<string, number>();
 
   async exists(path: string): Promise<boolean> {
     return this.files.has(path) || this.directories.has(path);
@@ -43,6 +44,12 @@ export class MemoryAdapter {
 
   async write(path: string, value: string): Promise<void> {
     this.files.set(path, value);
+  }
+
+  /** Obsidian-compatible stat; tests override mtimes via the map. */
+  async stat(path: string): Promise<{ mtime: number } | null> {
+    if (!this.files.has(path)) return null;
+    return { mtime: this.mtimes.get(path) ?? Date.now() };
   }
 
   async remove(path: string): Promise<void> {

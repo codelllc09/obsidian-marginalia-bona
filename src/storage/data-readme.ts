@@ -79,7 +79,12 @@ file rules below are the fallback when neither is available.**
    即可被拾取；\`status\` 用 \`open\`，\`author\` 写你的名字（如 Pi/Codex）。
    **quote 必须带 prefix/suffix 上下文**（前后各 ~64 字符）：空上下文在重复
    文本时会无法唯一定位，批注会被判为 orphaned。
-6. 删除文件 = 删除该批注（含回复线程），插件会同步索引。
+6. 删除文件 = 软删除：文件移入 \`.marginalia-bona/trash/\`（保留 30 天后
+   自动清理）。恢复：\`marginalia_restore_annotation\` 工具按 id 恢复，或
+   手动把 trash 文件移回 \`annotations/\` 原路径（插件会自动拾取）。
+   Deleting a file soft-deletes it into \`.marginalia-bona/trash/\` (kept
+   30 days, then purged on load). Restore via the restore tool or by
+   moving the file back into \`annotations/\`.
 `;
 
 /** Create the data-directory README when it does not exist yet. Never

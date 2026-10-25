@@ -297,6 +297,27 @@ export function registerMcpTools(
   );
 
   add(
+    "marginalia_list_trash",
+    "List annotations in the recycle bin (soft-deleted). Entries keep their " +
+      "original id and source; restore by id. Unparseable entries cannot be " +
+      "restored by id.",
+    {},
+    async () => render(await api.listTrash())
+  );
+
+  add(
+    "marginalia_restore_annotation",
+    "Restore a soft-deleted annotation from the recycle bin back to its " +
+      "original note location. The anchor, body, and replies come back " +
+      "exactly as they were at deletion time.",
+    {
+      id: z.string().describe("Annotation id (from marginalia_list_trash)")
+    },
+    async (args) =>
+      render(await api.restoreFromTrash(String(args.id)))
+  );
+
+  add(
     "marginalia_delete_annotation",
     "Delete an annotation thread permanently.",
     { ...SOURCE_SHAPE, id: z.string().describe("Annotation id") },

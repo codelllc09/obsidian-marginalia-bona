@@ -7,6 +7,9 @@ import { AnnotationsApi } from "../src/rest-bridge/annotations-api";
 import { RestBridge } from "../src/rest-bridge";
 import { openApiDescription } from "../src/rest-bridge/openapi";
 import { registerMcpTools } from "../src/rest-bridge/mcp-tools";
+import { parseAnnotation } from "../src/storage/annotation-markdown";
+import { buildAnchor } from "../src/rest-bridge/anchor";
+import { threadPathFor } from "../src/storage/annotation-paths";
 import type { McpToolCallback } from "../src/rest-bridge/types";
 import type MarginaliaPlugin from "../src/main";
 
@@ -193,7 +196,9 @@ describe("annotations MCP tools", () => {
         "marginalia_delete_reply",
         "marginalia_get_annotation",
         "marginalia_list_annotations",
+        "marginalia_list_trash",
         "marginalia_reanchor",
+        "marginalia_restore_annotation",
         "marginalia_update_annotation",
         "marginalia_update_reply"
       ]
@@ -366,7 +371,7 @@ describe("agent channel toggles", () => {
     bridge.connect();
     expect(spy.subresourceNames).toEqual([]);
     expect(spy.routes).toEqual([]);
-    expect(spy.mcpTools).toHaveLength(9);
+    expect(spy.mcpTools).toHaveLength(11);
     expect(spy.openApiPaths).toBeNull();
     bridge.disconnect();
     expect(spy.unregisterCount).toBe(1);
@@ -379,7 +384,7 @@ describe("agent channel toggles", () => {
     });
     bridge.connect();
     expect(spy.routes).toHaveLength(9);
-    expect(spy.mcpTools).toHaveLength(9);
+    expect(spy.mcpTools).toHaveLength(11);
     bridge.disconnect();
   });
 });
@@ -463,7 +468,7 @@ describe("per-annotation styling and author filters", () => {
         quote: "lazy dog",
         color: "#00bcd4",
         style: "bold"
-      })) as string
+      }))
     ) as { color: string; markStyle: string };
     expect(created.color).toBe("#00bcd4");
     expect(created.markStyle).toBe("bold");
@@ -566,32 +571,32 @@ describe("reply editing and reanchoring", () => {
         source: NOTE,
         text: "Root.",
         quote: "lazy dog"
-      })) as string
+      }))
     ) as { id: string };
     const reply = JSON.parse(
       (await tools.get("marginalia_add_reply")!.callback({
         source: NOTE, id: created.id, text: "First.", author: "Pi"
-      })) as string
+      }))
     ) as { replies: Array<{ id: string }> };
 
     const reanchored = JSON.parse(
       (await tools.get("marginalia_reanchor")!.callback({
         source: NOTE, id: created.id, quote: "Second line"
-      })) as string
+      }))
     ) as { anchor: { quote: { exact: string } } };
     expect(reanchored.anchor.quote.exact).toBe("Second line");
 
     const edited = JSON.parse(
       (await tools.get("marginalia_update_reply")!.callback({
         source: NOTE, id: created.id, replyId: reply.replies[0].id, text: "Edited."
-      })) as string
+      }))
     ) as { replies: Array<{ body: string }> };
     expect(edited.replies[0].body).toBe("Edited.");
 
     const afterDelete = JSON.parse(
       (await tools.get("marginalia_delete_reply")!.callback({
         source: NOTE, id: created.id, replyId: reply.replies[0].id
-      })) as string
+      }))
     ) as { replies: unknown[] };
     expect(afterDelete.replies).toHaveLength(0);
   });
@@ -646,7 +651,7 @@ describe("read / unread state", () => {
     const created = JSON.parse(
       (await tools.get("marginalia_create_annotation")!.callback({
         source: NOTE, text: "Root.", quote: "lazy dog"
-      })) as string
+      }))
     ) as { id: string };
     await tools.get("marginalia_update_annotation")!.callback({
       source: NOTE, id: created.id, read: true
@@ -654,7 +659,7 @@ describe("read / unread state", () => {
     const got = JSON.parse(
       (await tools.get("marginalia_get_annotation")!.callback({
         source: NOTE, id: created.id
-      })) as string
+      }))
     ) as { readAt: string | null };
     expect(typeof got.readAt).toBe("string");
   });
@@ -687,10 +692,10 @@ describe("openapi contribution", () => {
   it("passes the host's description validator rules", () => {
     // Mirrors the host's assertValidDescription: paths must start with "/",
     // path items and component sections must be objects, tags unique names.
-    const doc = openApiDescription() as Record<string, unknown>;
+    const doc = openApiDescription();
     expect(() => {
       if (typeof doc !== "object" || doc === null) throw new Error("not object");
-      const { paths, components, tags } = doc as Record<string, unknown>;
+      const { paths, components, tags } = doc;
       for (const [p, item] of Object.entries(paths as Record<string, unknown>)) {
         if (!p.startsWith("/")) throw new Error(`path ${p} must start with /`);
         if (typeof item !== "object" || item === null) throw new Error("bad item");
@@ -723,26 +728,24 @@ describe("query engine surfaces", () => {
     const whole = JSON.parse(
       (await tools.get("marginalia_list_annotations")!.callback({
         q: "lazy dog"
-      })) as string
+      }))
     ) as { total: number; threads: Array<{ source: string }> };
     expect(whole.total).toBe(2);
     expect(whole.threads.map((t) => t.source).sort()).toEqual([NOTE, OTHER].sort());
   });
 
   it("filters with q, sorts by created desc, and caps with limit", async () => {
-    const { api } = makeApi();
-    await api.createFromText(NOTE, NOTE_TEXT, {
-      text: "first", quote: "lazy dog", author: "Pi"
-    });
-    // createdAt has millisecond resolution: separate the two writes so the
-    // created-desc assertion is deterministic.
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await api.createFromText(OTHER, OTHER_TEXT, {
-      text: "second", quote: "lazy dog passage", author: "Pi"
-    });
-    await api.createFromText(OTHER, OTHER_TEXT, {
-      text: "third", quote: "And more.", author: "user"
-    });
+    const { api, store } = makeApi();
+    // Explicit createdAt values: no clock dependency in the ordering.
+    const mk = async (source: string, text: string, quote: string, createdAt: string, author: string) =>
+      store.create({
+        sourcePath: source, sourceType: "markdown", status: "open",
+        body: text, author, createdAt,
+        anchor: buildAnchor(source === NOTE ? NOTE_TEXT : OTHER_TEXT, quote, (source === NOTE ? NOTE_TEXT : OTHER_TEXT).indexOf(quote))
+      });
+    await mk(NOTE, "first", "lazy dog", "2026-01-01T00:00:00.000Z", "Pi");
+    await mk(OTHER, "second", "lazy dog passage", "2026-02-01T00:00:00.000Z", "Pi");
+    await mk(OTHER, "third", "And more.", "2026-03-01T00:00:00.000Z", "user");
 
     const searched = api.list(undefined, { q: "second" }) as {
       body: { total: number; threads: Array<{ source: string }> };
@@ -782,5 +785,113 @@ describe("query engine surfaces", () => {
   it("rejects an unknown status with 400", () => {
     const { api } = makeApi();
     expect((api.list(NOTE, { status: "sparkle" }) as { status: number }).status).toBe(400);
+  });
+});
+
+describe("trash / recycle bin", () => {
+  it("lists parsed entries and restores by id", async () => {
+    const { api, store } = makeApi();
+    await (store as unknown as {
+      app: { vault: { adapter: { write: (p: string, v: string) => Promise<void> } } }
+    }).app.vault.adapter.write(NOTE, NOTE_TEXT);
+    const created = (await api.create(NOTE, {
+      text: "Soft delete me.",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    const id = created.body.id;
+    const removed = await api.remove(NOTE, id);
+    expect((removed.body as { trash: string }).trash).toContain("trash/");
+    expect(api.get(NOTE, id).status).toBe(404);
+
+    const trash = await store.listTrash();
+    const entry = trash.find((e) => e.id === id);
+    expect(entry).toBeTruthy();
+    expect(entry?.source).toBe(NOTE);
+    expect(entry?.body).toContain("Soft delete me.");
+
+    const restored = await api.restoreFromTrash(id);
+    expect(restored.status).toBe(200);
+    const body = restored.body as { body: string; status: string };
+    expect(body.body).toBe("Soft delete me.");
+    expect(body.status).toBe("open");
+    expect(api.get(NOTE, id).status).toBe(200);
+    expect((await store.listTrash()).find((e) => e.id === id)).toBeUndefined();
+  });
+
+  it("purges trash older than the cutoff", async () => {
+    const { api, store } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "Purge me.",
+      quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    await api.remove(NOTE, created.body.id);
+    expect((await store.listTrash()).length).toBe(1);
+    // Cutoff in the future: everything counts as expired.
+    await store.purgeTrash(Date.now() + 60_000);
+    expect(await store.listTrash()).toHaveLength(0);
+  });
+});
+
+describe("restore anchor scenarios", () => {
+  it("restore after the passage was rewritten lands orphaned", async () => {
+    const { api, store } = makeApi();
+    const adapter = (store as unknown as { app: { vault: { adapter: { write: (p: string, v: string) => Promise<void>; remove: (p: string) => Promise<void> } } } }).app.vault.adapter;
+    const created = (await api.create(OTHER, {
+      text: "x", quote: "lazy dog passage"
+    })) as { status: number; body: { id: string } };
+    // The note exists until the rewrite below.
+    await adapter.write(OTHER, OTHER_TEXT);
+    await api.remove(OTHER, created.body.id);
+    // The note gets rewritten while the thread sits in the bin.
+    await adapter.write(
+      OTHER,
+      "The note was rewritten; the old passage is gone."
+    );
+    const restored = await api.restoreFromTrash(created.body.id);
+    const body = restored.body as { status: string };
+    expect(body.status).toBe("orphaned");
+  });
+
+  it("restore after the note itself was deleted lands orphaned", async () => {
+    const { api, store } = makeApi();
+    const adapter = (store as unknown as { app: { vault: { adapter: { write: (p: string, v: string) => Promise<void>; remove: (p: string) => Promise<void> } } } }).app.vault.adapter;
+    const created = (await api.create(OTHER, {
+      text: "x", quote: "lazy dog passage"
+    })) as { status: number; body: { id: string } };
+    await adapter.write(OTHER, OTHER_TEXT);
+    await api.remove(OTHER, created.body.id);
+    await adapter.remove(OTHER);
+    const restored = await api.restoreFromTrash(created.body.id);
+    expect((restored.body as { status: string }).status).toBe("orphaned");
+  });
+
+  it("restore refuses a live target path and keeps the trash entry", async () => {
+    const { api, store } = makeApi();
+    const created = (await api.create(NOTE, {
+      text: "x", quote: "lazy dog"
+    })) as { status: number; body: { id: string } };
+    await api.remove(NOTE, created.body.id);
+    // Someone already occupies the canonical target path (derived from
+    // the trash file itself, the way restore does).
+    const adapter = (store as unknown as {
+      app: { vault: { adapter: {
+        list: (p: string) => Promise<{ files: string[] }>;
+        read: (p: string) => Promise<string>;
+        write: (p: string, v: string) => Promise<void>;
+      } } }
+    }).app.vault.adapter;
+    const trashFile = (await adapter.list(".marginalia-bona/trash")).files[0];
+    const parsedTrash = parseAnnotation(await adapter.read(trashFile));
+    const target = threadPathFor(".marginalia-bona/annotations", parsedTrash);
+    await adapter.write(target, "placeholder");
+    const refused = await api.restoreFromTrash(created.body.id);
+    expect(refused.status).toBe(404);
+    expect(
+      (refused.body as { message: string }).message
+    ).toMatch(/already exists/);
+    // The trash entry survives untouched.
+    expect(
+      (await store.listTrash()).find((e) => e.id === created.body.id)
+    ).toBeTruthy();
   });
 });
