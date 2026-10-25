@@ -66,12 +66,20 @@ export class AnnotationStore {
   /** Current on-disk path of each thread file (file names are minted once). */
   private readonly paths = new Map<string, string>();
   private diagnostics: AnnotationDiagnostic[] = [];
+  /** Author name of the plugin's own user. Content written by anyone else
+   *  counts as new information and re-marks the annotation unread. */
+  private userName = "user";
 
   constructor(
     private readonly app: App,
     private readonly directory = DEFAULT_ANNOTATION_DIRECTORY,
     private readonly onChange: () => void = () => undefined
   ) {}
+
+  /** Keep the "who is the user" answer in sync with the settings. */
+  setUserName(name: string): void {
+    this.userName = name.trim() || "user";
+  }
 
   /** Data root (first path segment), e.g. `.marginalia-bona`. */
   get dataRoot(): string {
@@ -266,8 +274,14 @@ export class AnnotationStore {
     ) {
       throw new Error(`Unknown reply to answer: ${parentId}`);
     }
+    // A reply from somebody else is new information: the thread becomes
+    // unread again so the sidebar (and its dot) surfaces it.
+    const fromOther = (author ?? "user") !== this.userName;
     return this.update(id, {
-      replies: [...current.replies, newReply(body, author, parentId)]
+      replies: [...current.replies, newReply(body, author, parentId)],
+      ...(fromOther && current.readAt !== undefined
+        ? { readAt: undefined }
+        : {})
     });
   }
 
@@ -328,12 +342,29 @@ export class AnnotationStore {
     }
     this.index(parsed);
     this.paths.set(parsed.id, path);
+    // External edits by someone else un-read the thread (and persist that,
+    // so a reload does not resurrect the read mark from frontmatter).
+    if (existing && this.changedByOther(existing, parsed)) {
+      await this.update(parsed.id, { readAt: undefined });
+    }
     await this.syncShard(parsed.sourcePath);
     for (const source of affectedSources) {
       if (source !== parsed.sourcePath) await this.syncShard(source);
     }
     this.onChange();
     return existing ? "changed" : "added";
+  }
+
+  /** True when an incoming external version carries content the user has
+   *  not seen: new replies or a rewritten body authored by somebody else. */
+  private changedByOther(existing: Annotation, incoming: Annotation): boolean {
+    if (incoming.readAt === undefined) return false;
+    const otherAuthor = (author?: string): boolean =>
+      (author ?? "user") !== this.userName;
+    if (incoming.replies.slice(existing.replies.length).some((reply) => otherAuthor(reply.author))) {
+      return true;
+    }
+    return incoming.body !== existing.body && otherAuthor(incoming.author);
   }
 
   /** Forget a thread file that was deleted externally. Returns false when

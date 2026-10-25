@@ -48,6 +48,10 @@ export default class MarginaliaPlugin extends Plugin {
   /** Annotation waiting for the user to pick its new passage (re-anchor). */
   private pendingReanchor: { id: string } | null = null;
   private readonly restBridge = new RestBridge(this);
+  /** Ribbon entry point, kept so it can carry the unread badge. */
+  private ribbonIcon: HTMLElement | null = null;
+  /** Ids already known to the UI, for "new annotation" notices. */
+  private knownAnnotationIds: Set<string> | null = null;
 
   pendingReanchorId(): string | null {
     return this.pendingReanchor?.id ?? null;
@@ -145,6 +149,7 @@ export default class MarginaliaPlugin extends Plugin {
     };
     this.applyCssSettings();
     this.store = new AnnotationStore(this.app, undefined, () => this.refresh());
+    this.store.setUserName(this.settings.userName);
     await this.store.load();
     await ensureDataReadme(this.app.vault.adapter, this.store.dataRoot);
     registerExternalIngest(this, this.store, this.store.dataRoot + "/annotations");
@@ -170,9 +175,12 @@ export default class MarginaliaPlugin extends Plugin {
       processReadingView(element, context, this)
     );
     this.addSettingTab(new MarginaliaSettingTab(this.app, this));
-    this.addRibbonIcon("message-square-text", "Open Marginalia Bona annotations", () =>
-      void this.openSidebar()
+    this.ribbonIcon = this.addRibbonIcon(
+      "message-square-text",
+      "Open Marginalia Bona annotations",
+      () => void this.openSidebar()
     );
+    this.ribbonIcon.addClass("marginalia-ribbon-icon");
 
     this.addPluginCommand({
       id: "open-annotations",
@@ -333,6 +341,7 @@ export default class MarginaliaPlugin extends Plugin {
 
   async updateSettings(changes: Partial<MarginaliaSettings>): Promise<void> {
     this.settings = { ...this.settings, ...changes };
+    if ("userName" in changes) this.store.setUserName(this.settings.userName);
     await this.saveData(this.settings);
     this.applyCssSettings();
     this.refresh();
@@ -355,6 +364,38 @@ export default class MarginaliaPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
     this.refresh();
     return leaf.view instanceof MarginaliaSidebarView ? leaf.view : null;
+  }
+
+  /** Ribbon badge: how many threads are waiting to be read. */
+  private updateUnreadBadge(): void {
+    if (!this.ribbonIcon) return;
+    const unread = this.store.query({ unread: true }).length;
+    this.ribbonIcon.setAttribute("data-unread", String(unread));
+    this.ribbonIcon.setAttribute(
+      "aria-label",
+      unread > 0
+        ? `Open Marginalia Bona annotations (${unread} unread)`
+        : "Open Marginalia Bona annotations"
+    );
+  }
+
+  /** Announce annotations that appeared from outside while the sidebar is
+   *  closed, so agent activity is not missed. */
+  private announceNewAnnotations(): void {
+    const ids = this.store.all().map((annotation) => annotation.id);
+    if (this.knownAnnotationIds === null) {
+      this.knownAnnotationIds = new Set(ids);
+      return;
+    }
+    const fresh = ids.filter((id) => !this.knownAnnotationIds?.has(id));
+    for (const id of ids) this.knownAnnotationIds.add(id);
+    if (fresh.length === 0 || this.areMarginsSuppressed()) return;
+    const count = fresh.length;
+    new Notice(
+      count === 1
+        ? "New annotation arrived."
+        : `${count} new annotations arrived.`
+    );
   }
 
   areMarginsSuppressed(): boolean {
@@ -403,6 +444,8 @@ export default class MarginaliaPlugin extends Plugin {
 
   refresh(): void {
     this.editorRevision += 1;
+    this.updateUnreadBadge();
+    this.announceNewAnnotations();
     for (const leaf of this.app.workspace.getLeavesOfType(MARGINALIA_VIEW_TYPE)) {
       if (leaf.view instanceof MarginaliaSidebarView) leaf.view.refresh();
     }
