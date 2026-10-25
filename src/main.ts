@@ -499,6 +499,8 @@ export default class MarginaliaPlugin extends Plugin {
     });
   }
 
+  private diagnosticsTimer: number | null = null;
+
   private diagnosticsSnapshot(): Record<string, unknown> {
     const active = this.app.workspace.getActiveViewOfType(MarkdownView);
     const all = this.store.all();
@@ -545,6 +547,16 @@ export default class MarginaliaPlugin extends Plugin {
   /** Entry point for the Settings tab button. */
   copyDiagnosticsFromSettings(): Promise<void> {
     return this.copyDiagnostics();
+  }
+
+  /** Debounced snapshot: rendering writes one report per burst, so the file
+   *  on disk always reflects the latest state without spamming the vault. */
+  scheduleDiagnosticsSnapshot(): void {
+    if (this.diagnosticsTimer !== null) return;
+    this.diagnosticsTimer = window.setTimeout(() => {
+      this.diagnosticsTimer = null;
+      void this.writeDiagnosticsToVault();
+    }, 4000);
   }
 
   /** Write the report into the plugin's data folder so it can be read

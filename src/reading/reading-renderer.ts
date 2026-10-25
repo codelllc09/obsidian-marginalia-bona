@@ -323,7 +323,10 @@ function schedulePreview(state: PreviewState): void {
 /** Retry a pass that could not place cards yet: the preview may not have
  *  been laid out (gutter measured as zero) or the marks may not exist. */
 function retryLater(state: PreviewState): void {
-  if (state.retries >= 10) return;
+  if (state.retries >= 10) {
+    state.plugin.scheduleDiagnosticsSnapshot();
+    return;
+  }
   state.retries += 1;
   window.clearTimeout(state.retryTimer);
   state.retryTimer = window.setTimeout(() => {
@@ -424,7 +427,7 @@ function renderPreviewMargins(state: PreviewState): void {
   const { placement, available, side } = measurePlacement(state);
   if (!placement) {
     // No gutter yet (layout not ready, or pane too narrow): try again shortly.
-    record("no-gutter", { available: Math.round(available), side });
+      record("no-gutter", { available: Math.round(available), side });
     retryLater(state);
     return;
   }
@@ -543,6 +546,7 @@ function renderPreviewMargins(state: PreviewState): void {
     available: Math.round(available),
     side
   });
+  plugin.scheduleDiagnosticsSnapshot();
   // Self-heal: a theme (or another plugin) hiding the layer must not make
   // annotations invisible. The class re-asserts the layout with higher
   // specificity than the stylesheet rule that hid it.
