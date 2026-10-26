@@ -2,8 +2,8 @@
   "id": "marginalia-bona",
   "name": "Marginalia Bona",
   "version": "0.3.0",
-  "minAppVersion": "1.7.2",
-  "description": "Annotate Markdown and PDF with margin notes, reply threads and per-note styles. Fork of Siden by Giuseppe.",
+  "minAppVersion": "1.13.7",
+  "description": "Annotate Markdown notes with margin comments, reply threads and per-note styles. Fork of Siden by Giuseppe.",
   "author": "codelllc09",
   "authorUrl": "https://github.com/codelllc09",
   "isDesktopOnly": false
