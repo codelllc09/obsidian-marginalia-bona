@@ -654,7 +654,6 @@
   min-inline-size: 0 !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
-  word-break: break-all !important;
 }
 
 .marginalia-sidebar .marginalia-card pre,
@@ -884,7 +883,6 @@
   min-inline-size: 0 !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
-  word-break: break-all !important;
 }
 
 .marginalia-margin-card:hover,
