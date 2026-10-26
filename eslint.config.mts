@@ -11,6 +11,7 @@ export default defineConfig([
       "eslint.config.mts",
       "esbuild.config.mjs",
       "version-bump.mjs",
+      ".dev/**",
       "scripts/**",
       "vitest.config.ts",
     ],
