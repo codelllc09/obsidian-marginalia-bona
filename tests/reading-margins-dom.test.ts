@@ -405,3 +405,38 @@ describe("Reading view margins: geometry matrix", () => {
     }
   });
 });
+
+describe("Reading view margins: the margin-cards switch", () => {
+  it("keeps highlights but builds no cards when margins are off", () => {
+    const { preview } = buildPreview();
+    const plugin = fakePlugin([annotation()]) as {
+      settings: { showMargins: boolean };
+    };
+    plugin.settings.showMargins = false;
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      plugin as never
+    );
+    expect(preview.querySelectorAll("span[data-marginalia-id]")).toHaveLength(1);
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(0);
+  });
+
+  it("brings the cards back when the switch is flipped on", () => {
+    const { preview } = buildPreview();
+    const plugin = fakePlugin([annotation()]) as {
+      settings: { showMargins: boolean };
+    };
+    plugin.settings.showMargins = false;
+    processReadingView(
+      preview.firstElementChild?.firstElementChild as HTMLElement,
+      { sourcePath: NOTE } as never,
+      plugin as never
+    );
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(0);
+
+    plugin.settings.showMargins = true;
+    refreshReadingMargins(plugin as never);
+    expect(preview.querySelectorAll(".marginalia-margin-card")).toHaveLength(1);
+  });
+});
