@@ -10,7 +10,9 @@ Marginalia Bona 为 Obsidian 的 Markdown 笔记提供批注能力。
 
 ![阅读视图中的边注卡片与三层回复线程](media/reading-view.jpg)
 
-[看演示（24 秒，MP4）](media/demo.mp4)：滚动时边注卡片跟着正文走，悬停高亮弹出批注，选中一段文字直接标注（自选样式与颜色），侧栏里排序、回复，再跳回原文。
+https://github.com/user-attachments/assets/1f062ed0-60a9-4612-a936-050a2bbebdb9
+
+24 秒操作导览：滚动时卡片跟着正文走，悬停高亮弹出批注，选中文字直接标注（自选样式与颜色），侧栏里排序、回复，再跳回原文。
 
 ## 功能
 
