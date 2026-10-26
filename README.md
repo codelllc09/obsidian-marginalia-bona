@@ -126,8 +126,7 @@ plugin.
 
 ### Setup
 
-Only the first two steps need you in Obsidian; your agent can write its own
-client config.
+Your agent can help with these steps.
 
 1. Install and enable **Local REST API with MCP**.
 2. Open its settings, copy the API key, and check the ports: HTTPS on 27124 by
@@ -139,10 +138,6 @@ client config.
 4. Paste the client config from the MCP section below into your agent's MCP
    settings, then have it call `marginalia_list_annotations`. If annotations come
    back, the bridge works.
-
-> **Note:** with a Local REST API build that predates its extension API,
-> Marginalia registers nothing. You get no tools and no routes, and no error
-> explaining why.
 
 ### MCP
 
@@ -164,8 +159,6 @@ header:
 The server certificate is signed by a CA that Local REST API generates itself.
 Download the CA from `/obsidian-local-rest-api.crt` on the same host and trust
 it, or enable the HTTP port and use `http://127.0.0.1:27123/mcp/` instead.
-Claude Code, Claude Desktop and Cursor snippets are in the host plugin's
-README.
 
 The agent gets eleven `marginalia_*` tools on top of the vault tools the server
 already provides:
@@ -188,7 +181,15 @@ already provides:
 
 Off by default. With **REST endpoints** on, the same operations are available
 under `/vault/<note path>/annotations/`, documented field by field in the
-host's `/openapi.yaml`:
+host's `/openapi.yaml`.
+
+`<note path>` is the annotated note's path inside the vault, not the path of the
+annotation file. Threads are stored under `.marginalia-bona/annotations/`, and
+the route is addressed per note: `Projects/Plan.md` asks for the threads of that
+note, and the plugin finds them in its own folder. Encode spaces —
+`Demo/Field notes.md` becomes `Demo/Field%20notes.md`. An unknown note answers
+404. There is no vault-wide REST route; use the MCP tool
+`marginalia_list_annotations` without `source` for that.
 
 | Route | Does |
 |---|---|

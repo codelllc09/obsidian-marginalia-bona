@@ -87,7 +87,7 @@ Agent 访问批注有两条通道：MCP 工具和普通 HTTP 接口，二者都�
 
 ### 配置
 
-只有前两步需要你在 Obsidian 里点，客户端配置那步可以让你的 Agent 自己写。
+以下步骤可以让 Agent 协助完成。
 
 1. 安装并启用 **Local REST API with MCP**。
 2. 打开它的设置页，复制 API key，顺便确认端口：HTTPS 默认 27124，明文 HTTP 27123
@@ -96,9 +96,6 @@ Agent 访问批注有两条通道：MCP 工具和普通 HTTP 接口，二者都�
    只有需要用脚本直接调 HTTP 接口时，才打开 **REST 端点**。
 4. 把 MCP 一节的客户端配置写进 Agent 的 MCP 设置，连上后让它调一次
    `marginalia_list_annotations`；能列出批注就说明通了。
-
-> **注意：** 如果装的 Local REST API 版本太旧、没有扩展 API，Marginalia 什么都
-> 不会注册。你既看不到工具，也看不到路由，而且不会有报错说明原因。
 
 ### MCP
 
@@ -118,8 +115,7 @@ Agent 访问批注有两条通道：MCP 工具和普通 HTTP 接口，二者都�
 
 服务器证书由 Local REST API 自己生成的 CA 签发。从同一服务器的
 `/obsidian-local-rest-api.crt` 下载 CA 并信任它，或者打开 HTTP 端口改用
-`http://127.0.0.1:27123/mcp/`。Claude Code、Claude Desktop、Cursor 的配置示例写在
-宿主插件的 README 里。
+`http://127.0.0.1:27123/mcp/`。
 
 Agent 会在服务器原有工具之外，多拿到十一个 `marginalia_*` 工具：
 
@@ -140,7 +136,13 @@ Agent 会在服务器原有工具之外，多拿到十一个 `marginalia_*` 工�
 ### HTTP
 
 默认关闭。打开 **REST 端点** 后，同样的操作挂在 `/vault/<笔记路径>/annotations/`
-下面，字段细节见宿主的 `/openapi.yaml`：
+下面，字段细节见宿主的 `/openapi.yaml`。
+
+这里的 `<笔记路径>` 指的是被批注的那篇笔记在库里的相对路径，不是批注文件自己的路径。
+批注文件在 `.marginalia-bona/annotations/` 下，而接口是按笔记挂的：路径写
+`Projects/Plan.md`，取的就是这篇笔记的批注，插件自己去它的批注目录里找。空格要编码，
+`Demo/Field notes.md` 写成 `Demo/Field%20notes.md`。笔记不存在时返回 404；全库列表没有
+对应的 REST 路由，用 MCP 的 `marginalia_list_annotations`（不传 `source`）代替。
 
 | 路由 | 作用 |
 |---|---|
