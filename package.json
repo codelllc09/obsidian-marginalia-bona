@@ -1,6 +1,6 @@
 {
   "name": "marginalia-bona",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Annotate Markdown and PDF text with highlights, margin notes, and a review sidebar.",
   "author": "Giuseppe",
