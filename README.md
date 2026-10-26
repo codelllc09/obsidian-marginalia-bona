@@ -119,24 +119,26 @@ Exports are written to `.marginalia-bona/exports/`.
 
 ## Agent access
 
-Agents can read annotations with no setup at all: they are Markdown files in
-the vault. Writing is different. An annotation has to be anchored to a quote
-and has to keep a specific file layout, so writes go through the plugin.
-
-Both channels — MCP tools and a plain HTTP API — come from the
+Agents reach annotations through two channels: MCP tools and a plain HTTP API.
+Both need the
 [Local REST API with MCP](https://github.com/coddingtonbear/obsidian-local-rest-api)
-plugin. Marginalia adds no server of its own: it registers its tools and routes
-with that plugin, so you keep one key and one port.
+plugin.
 
 ### Setup
 
-Install and enable **Local REST API with MCP** first. Its settings tab shows
-the API key, the HTTPS port (27124 by default) and an optional HTTP port
-(27123, off by default). Agents connect to whichever address you configure
-there.
+Only the first two steps need you in Obsidian; your agent can write its own
+client config.
 
-In **Settings → Marginalia Bona → Agent access**, leave **MCP tools** on. Turn
-on **REST endpoints** only if you want to call the HTTP API from a script.
+1. Install and enable **Local REST API with MCP**.
+2. Open its settings, copy the API key, and check the ports: HTTPS on 27124 by
+   default, plain HTTP on 27123 switched off. Agents use whatever address you
+   configure there.
+3. In **Settings → Marginalia Bona → Agent access**, make sure **MCP tools** is
+   on — it is by default. Turn on **REST endpoints** only for scripts that call
+   the HTTP API.
+4. Paste the client config from the MCP section below into your agent's MCP
+   settings, then have it call `marginalia_list_annotations`. If annotations come
+   back, the bridge works.
 
 > **Note:** with a Local REST API build that predates its extension API,
 > Marginalia registers nothing. You get no tools and no routes, and no error

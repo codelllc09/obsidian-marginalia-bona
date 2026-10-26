@@ -81,22 +81,21 @@ https://github.com/user-attachments/assets/1f062ed0-60a9-4612-a936-050a2bbebdb9
 
 ## Agent 访问
 
-Agent 读批注不需要任何配置：批注就是库里的 Markdown 文件。写入不一样，批注得锚在
-原文的某句话上，还要保持固定的文件结构，所以写入交给插件处理。
-
-两条通道——MCP 工具和普通 HTTP 接口——都来自
+Agent 访问批注有两条通道：MCP 工具和普通 HTTP 接口，二者都需要借助
 [Local REST API with MCP](https://github.com/coddingtonbear/obsidian-local-rest-api)
-插件。Marginalia 不另起服务器，只把工具和路由注册到那个插件里，所以你只需要维护
-一个 key、一个端口。
+插件。
 
 ### 配置
 
-先安装并启用 **Local REST API with MCP**。它的设置页里有 API key、HTTPS 端口
-（默认 27124）和可选的 HTTP 端口（27123，默认关闭）。Agent 连哪个地址，取决于你
-在那里填的端口。
+只有前两步需要你在 Obsidian 里点，客户端配置那步可以让你的 Agent 自己写。
 
-然后到 **设置 → Marginalia Bona → Agent 访问**，**MCP 工具**保持开启。只有要用脚本
-调 HTTP 接口时，才打开 **REST 端点**。
+1. 安装并启用 **Local REST API with MCP**。
+2. 打开它的设置页，复制 API key，顺便确认端口：HTTPS 默认 27124，明文 HTTP 27123
+   默认关闭。Agent 用的地址以这里为准。
+3. 到 **设置 → Marginalia Bona → Agent 访问**，确认 **MCP 工具**是开着的（默认就开）。
+   只有需要用脚本直接调 HTTP 接口时，才打开 **REST 端点**。
+4. 把 MCP 一节的客户端配置写进 Agent 的 MCP 设置，连上后让它调一次
+   `marginalia_list_annotations`；能列出批注就说明通了。
 
 > **注意：** 如果装的 Local REST API 版本太旧、没有扩展 API，Marginalia 什么都
 > 不会注册。你既看不到工具，也看不到路由，而且不会有报错说明原因。
