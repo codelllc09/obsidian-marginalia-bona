@@ -119,44 +119,101 @@ Exports are written to `.marginalia-bona/exports/`.
 
 ## Agent access
 
-Marginalia Bona can let AI agents read and write annotations through the
-[Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api)
-plugin. Install it and keep it running on `127.0.0.1` to use either channel.
+Agents can read annotations with no setup at all: they are Markdown files in
+the vault. Writing is different. An annotation has to be anchored to a quote
+and has to keep a specific file layout, so writes go through the plugin.
 
-**MCP tools** (enabled by default): eleven tools on the Local REST API
-server's `/mcp` endpoint.
+Both channels — MCP tools and a plain HTTP API — come from the
+[Local REST API with MCP](https://github.com/coddingtonbear/obsidian-local-rest-api)
+plugin. Marginalia adds no server of its own: it registers its tools and routes
+with that plugin, so you keep one key and one port.
+
+### Setup
+
+Install and enable **Local REST API with MCP** first. Its settings tab shows
+the API key, the HTTPS port (27124 by default) and an optional HTTP port
+(27123, off by default). Agents connect to whichever address you configure
+there.
+
+In **Settings → Marginalia Bona → Agent access**, leave **MCP tools** on. Turn
+on **REST endpoints** only if you want to call the HTTP API from a script.
+
+> **Note:** with a Local REST API build that predates its extension API,
+> Marginalia registers nothing. You get no tools and no routes, and no error
+> explaining why.
+
+### MCP
+
+Connect your client to `/mcp/` on the Local REST API server. With default
+settings that is `https://127.0.0.1:27124/mcp/`, and the key goes in a bearer
+header:
+
+```json
+{
+  "mcpServers": {
+    "obsidian": {
+      "url": "https://127.0.0.1:27124/mcp/",
+      "headers": { "Authorization": "Bearer <your API key>" }
+    }
+  }
+}
+```
+
+The server certificate is signed by a CA that Local REST API generates itself.
+Download the CA from `/obsidian-local-rest-api.crt` on the same host and trust
+it, or enable the HTTP port and use `http://127.0.0.1:27123/mcp/` instead.
+Claude Code, Claude Desktop and Cursor snippets are in the host plugin's
+README.
+
+The agent gets eleven `marginalia_*` tools on top of the vault tools the server
+already provides:
 
 | Tool | Does |
 |---|---|
-| `marginalia_list_annotations` | Lists threads. `source` scopes to one note; without it the whole vault is searched. Filters: `status`, `author`, `read`, `q`; ordering with `sort` and `dir`; `limit` caps output. |
-| `marginalia_create_annotation` | Anchors `quote` in `source` and stores `text`. A quote matching several passages is rejected with the match count until `occurrence` (1-based) says which one. `author`, `color` (hex), `style` optional. |
-| `marginalia_get_annotation` | One thread by `source` and `id`, with its anchor, replies, and read state. |
-| `marginalia_update_annotation` | Edits `text` (`expected_text` refuses the write with a 409 when the thread changed since it was read), or sets `status`, `read`, `color`, `style`. |
-| `marginalia_delete_annotation` | Moves the thread to the recycle bin; the response names the trash file. |
-| `marginalia_add_reply` | Appends a reply. Pass `parent_id` to answer a specific reply (nested); an unknown parent is refused. |
-| `marginalia_update_reply` | Edits one reply's text (and optionally its author). |
-| `marginalia_delete_reply` | Removes one reply. |
-| `marginalia_reanchor` | Attaches a thread to a new passage: same quote rules as create, `expected_quote` optional lock. Body and replies are kept. |
-| `marginalia_list_trash` | Lists recycle-bin entries with id, source, and body preview. |
-| `marginalia_restore_annotation` | Moves a trash entry back to its annotations folder and reconciles the anchor against the note as it is now. |
+| `marginalia_list_annotations` | List threads. Filter by `status`, `author`, `read`, `q`; sort with `sort` and `dir`; cap with `limit` |
+| `marginalia_create_annotation` | Create a thread anchored to a quote; refuses a quote that occurs more than once unless `occurrence` is given |
+| `marginalia_get_annotation` | Read one thread with its replies and read state |
+| `marginalia_update_annotation` | Edit the text, status, read state, colour or style; `expected_text` guards the write |
+| `marginalia_delete_annotation` | Move a thread to the recycle bin |
+| `marginalia_add_reply` | Reply to a thread, or to one reply with `parent_id` |
+| `marginalia_update_reply` | Edit one reply |
+| `marginalia_delete_reply` | Delete one reply |
+| `marginalia_reanchor` | Attach a thread to a different passage, keeping body and replies |
+| `marginalia_list_trash` | List recycle-bin entries |
+| `marginalia_restore_annotation` | Restore one, re-checking the anchor against the note |
 
-**REST endpoints** (off by default): the same operations as plain HTTP under
-`/vault/<note path>/annotations/`, described in the `/openapi.yaml` that the
-Local REST API server already serves. For example:
+### HTTP
+
+Off by default. With **REST endpoints** on, the same operations are available
+under `/vault/<note path>/annotations/`, documented field by field in the
+host's `/openapi.yaml`:
+
+| Route | Does |
+|---|---|
+| `GET`, `POST` `.../annotations/` | List this note's threads, create one. Query: `status`, `author`, `read`, `q`, `sort`, `dir`, `limit` |
+| `GET`, `PATCH`, `DELETE` `.../annotations/{id}` | Read, edit, or bin one thread |
+| `POST` `.../annotations/{id}/replies` | Append a reply; `parent_id` nests it |
+| `PATCH`, `DELETE` `.../annotations/{id}/replies/{replyId}` | Edit or delete one reply |
+| `POST` `.../annotations/{id}/reanchor` | Attach the thread to another passage |
 
 ```sh
-curl -k -X POST -H "Authorization: Bearer <api key>" -H "Content-Type: application/json" \
+curl -k -X POST -H "Authorization: Bearer <your API key>" -H "Content-Type: application/json" \
   --data '{"text": "Consider a table here", "quote": "the three options", "author": "Pi"}' \
   "https://127.0.0.1:27124/vault/Projects/Plan.md/annotations/"
 ```
 
-Reading annotation files directly from disk is always safe and often fastest;
-the bridge exists so that writes go through the plugin, which builds anchors
-and keeps the index consistent.
+A quote that occurs more than once is refused (40902) until `occurrence` says
+which one. An edit whose `expected_text` no longer matches is refused with 409
+instead of overwriting a change it never saw.
 
-Writing under an author other than the configured user name marks the
-thread unread, so the user sees the agent's work. Pass `parent_id` to
-answer a reply and the answer nests under it.
+> **Note:** if the routes answer `40054` ("valid target types are heading,
+> block, frontmatter"), the REST toggle is still off. The server never saw
+> them.
+
+Threads written under another author turn unread, so an agent's edits show up
+in the unread filter and on the ribbon icon. Deleted threads stay in the
+recycle bin for 30 days; `marginalia_list_trash` and
+`marginalia_restore_annotation` list and restore them.
 
 ## Settings
 
