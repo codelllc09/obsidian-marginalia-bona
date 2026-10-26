@@ -14,10 +14,11 @@ AI agents included — can read and write them directly.
 
 ![Reading view with margin cards and a reply thread](media/reading-view.jpg)
 
-[Watch the demo (24 seconds, MP4)](media/demo.mp4): the cards follow the
-text as you scroll, hovering a highlight opens its comment, a selection gets
-annotated with its own style and colour, and the sidebar sorts, threads and
-jumps back to the passage.
+https://github.com/user-attachments/assets/1f062ed0-60a9-4612-a936-050a2bbebdb9
+
+A 24-second tour: the cards follow the text as you scroll, hovering a
+highlight opens its comment, a selection gets annotated with its own style and
+colour, and the sidebar sorts, threads and jumps back to the passage.
 
 ## Features
 
