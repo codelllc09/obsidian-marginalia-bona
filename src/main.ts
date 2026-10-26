@@ -21,6 +21,7 @@ import { getExportFormat } from "./export";
 import { registerHoverPreview } from "./hover/hover-preview";
 import { RestBridge } from "./rest-bridge";
 import { PdfAdapter } from "./pdf/pdf-adapter";
+import { minGutterFor, planColumnCap } from "./domain/layout";
 import {
   describeReadingMargins,
   processReadingView,
@@ -426,6 +427,20 @@ export default class MarginaliaPlugin extends Plugin {
     );
   }
 
+  private hintedNoMarginRoom = false;
+
+  /** Called when a pane has no space for margin cards: say so once, with the
+   *  one setting that fixes it. Silence here looked like a broken feature. */
+  hintNoMarginRoom(): void {
+    if (this.hintedNoMarginRoom) return;
+    if (!this.settings.showMargins || this.settings.reserveMarginSpace) return;
+    this.hintedNoMarginRoom = true;
+    new Notice(
+      "No room for margin cards in this pane. Turn on “Reserve space for margin cards” in Settings → Marginalia Bona, or widen the pane.",
+      9000
+    );
+  }
+
   areMarginsSuppressed(): boolean {
     if (!this.settings.suppressMarginsWithSidebar) return false;
     return this.app.workspace.getLeavesOfType(MARGINALIA_VIEW_TYPE).some((leaf) => {
@@ -442,6 +457,23 @@ export default class MarginaliaPlugin extends Plugin {
     this.pdfAdapter.renderVisibleHighlights(id);
   }
 
+  /** The note's own leaf. Never `getLeaf(false)`: activating the sidebar
+   *  makes IT the active leaf, and the note would be opened inside the
+   *  sidebar - the whole workspace then reshuffles under the user. */
+  private markdownLeafFor(sourcePath: string): WorkspaceLeaf {
+    const existing = this.app.workspace
+      .getLeavesOfType("markdown")
+      .find(
+        (leaf) =>
+          leaf.view instanceof MarkdownView &&
+          leaf.view.file?.path === sourcePath
+      );
+    if (existing) return existing;
+    const recent = this.app.workspace.getMostRecentLeaf();
+    if (recent?.view instanceof MarkdownView) return recent;
+    return this.app.workspace.getLeaf("tab");
+  }
+
   async navigateToAnnotation(annotation: Annotation): Promise<void> {
     await this.activateAnnotation(annotation.id);
     if (annotation.sourceType === "pdf") {
@@ -453,8 +485,9 @@ export default class MarginaliaPlugin extends Plugin {
       new Notice(`Source note not found: ${annotation.sourcePath}`);
       return;
     }
-    const leaf = this.app.workspace.getLeaf(false);
+    const leaf = this.markdownLeafFor(annotation.sourcePath);
     await leaf.openFile(file);
+    this.app.workspace.setActiveLeaf(leaf, { focus: false });
     const view = leaf.view;
     if (view instanceof MarkdownView && annotation.anchor.kind === "markdown") {
       if (view.getMode() === "preview") {
@@ -486,7 +519,9 @@ export default class MarginaliaPlugin extends Plugin {
     const root = view.contentEl.querySelector<HTMLElement>(
       ".markdown-preview-view, .markdown-reading-view"
     );
-    const selector = `[data-marginalia-id="${annotation.id}"]`;
+    // Only the mark is a span: margin cards carry the same attribute and sit
+    // lower in the page, so matching them scrolled the passage out of view.
+    const selector = `span[data-marginalia-id="${annotation.id}"]`;
     const target = root?.querySelector<HTMLElement>(selector);
     if (!target) {
       if (attempt < 12) {
@@ -503,7 +538,28 @@ export default class MarginaliaPlugin extends Plugin {
       }
       return;
     }
-    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    // Scroll the preview only: scrollIntoView also scrolls every ancestor,
+    // which dragged the collapsed sidebars into view and re-tiled the layout.
+    const scroller = (() => {
+      let node: HTMLElement | null = target.parentElement;
+      while (node) {
+        const overflow = getComputedStyle(node).overflowY;
+        if (overflow === "auto" || overflow === "scroll") return node;
+        node = node.parentElement;
+      }
+      return root;
+    })();
+    if (scroller) {
+      const targetRect = target.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const offset =
+        targetRect.top -
+        scrollerRect.top +
+        scroller.scrollTop -
+        scroller.clientHeight / 2 +
+        targetRect.height / 2;
+      scroller.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+    }
     target.addClass("marginalia-jump-target");
     window.setTimeout(() => target.removeClass("marginalia-jump-target"), 1400);
     logEvent("info", "jump", "landed in Reading view", {
@@ -520,7 +576,71 @@ export default class MarginaliaPlugin extends Plugin {
     this.readingRefreshTimer = window.setTimeout(() => {
       this.readingRefreshTimer = null;
       refreshReadingViews(this);
+      this.syncColumnCaps();
+      // Themes apply their line width after the leaf is laid out; a second
+      // pass catches panes that still had no gutter on the first look.
+      window.setTimeout(() => this.syncColumnCaps(), 500);
+      window.setTimeout(() => this.syncColumnCaps(), 1500);
     }, 120);
+  }
+
+  /** Make room for margin cards ourselves instead of asking the theme for it.
+   *
+   *  Measure what the theme actually renders (its line width, not the sizer),
+   *  and only when the natural gutter is too small, cap the text column at
+   *  "pane minus one card" - centred, so both modes agree on where the cards
+   *  sit. The cap is skipped when it would squeeze the text below ~40em, in
+   *  which case there is simply no room. */
+  private syncColumnCaps(): void {
+    const enabled = this.settings.reserveMarginSpace && this.settings.showMargins;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (!(leaf.view instanceof MarkdownView)) return;
+      const content = leaf.view.containerEl;
+      // A Reading leaf keeps a hidden `.cm-editor` for instant switching, so
+      // pick the pane by mode - otherwise we measure a zero-width element.
+      const reading = leaf.view.getMode() !== "source";
+      const pane = reading
+        ? (content.querySelector<HTMLElement>(".markdown-preview-view") ??
+          content)
+        : (content.querySelector<HTMLElement>(".cm-editor") ?? content);
+      const textColumn = reading
+        ? content.querySelector<HTMLElement>(".markdown-preview-sizer")
+        : content.querySelector<HTMLElement>(".cm-line");
+      const fontSize =
+        Number.parseFloat(window.getComputedStyle(pane).fontSize) || 16;
+      const minGutter = minGutterFor(fontSize);
+
+      // Measure with our own cap removed, or the cap would justify itself.
+      const hadCap = content.hasClass("marginalia-column-cap");
+      if (hadCap) content.removeClass("marginalia-column-cap");
+
+      let gutter = 0;
+      if (textColumn) {
+        const text = textColumn.getBoundingClientRect();
+        const outer = pane.getBoundingClientRect();
+        gutter = Math.max(text.left - outer.left, outer.right - text.right);
+      }
+      const configured =
+        Number.parseFloat(
+          window.getComputedStyle(pane).getPropertyValue("--file-line-width")
+        ) || 700;
+      const decision = planColumnCap({
+        paneWidth: pane.clientWidth,
+        cardWidth: this.settings.marginWidth,
+        fontSize,
+        configuredLineWidth: configured
+      });
+      const cap = enabled && gutter < minGutter ? (decision.cap ?? 0) : 0;
+      content.toggleClass("marginalia-column-cap", cap > 0);
+      if (cap > 0) {
+        content.style.setProperty("--marginalia-column-cap", `${cap}px`);
+      } else {
+        content.style.removeProperty("--marginalia-column-cap");
+      }
+      if (enabled && cap === 0 && gutter < minGutter && textColumn) {
+        this.hintNoMarginRoom();
+      }
+    });
   }
 
   private diagnosticsSnapshot(): Record<string, unknown> {
@@ -627,6 +747,7 @@ export default class MarginaliaPlugin extends Plugin {
     this.pdfAdapter?.renderVisibleHighlights();
     refreshReadingViews(this);
     refreshReadingMargins(this);
+    this.syncColumnCaps();
   }
 
   private beginMarkdownAnnotation(editor: Editor, view: MarkdownView): void {
@@ -870,6 +991,10 @@ export default class MarginaliaPlugin extends Plugin {
     document.body.dataset.marginaliaMarginSide = this.settings.marginSide;
     document.body.dataset.marginaliaForceWordBreaks = String(
       this.settings.forceLongWordBreaks
+    );
+    document.body.style.setProperty(
+      "--marginalia-margin-width",
+      `${this.settings.marginWidth}px`
     );
   }
 

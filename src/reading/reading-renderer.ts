@@ -3,6 +3,12 @@ import type MarginaliaPlugin from "../main";
 import { Annotation } from "../domain/annotation";
 import { markPresentation } from "../domain/marks";
 import { logEvent, reportError } from "../diagnostics";
+import {
+  EDGE,
+  GAP,
+  minGutterFor,
+  planPlacement
+} from "../domain/layout";
 
 interface TextSegment {
   node: Text;
@@ -34,6 +40,7 @@ const counters = {
   skippedOwnUi: 0,
   noContainer: 0,
   deferredDetached: 0,
+  skippedForeignPane: 0,
   marksApplied: 0,
   marksFailed: 0
 };
@@ -348,6 +355,7 @@ function schedulePreview(state: PreviewState): void {
 function retryLater(state: PreviewState): void {
   if (state.retries >= 10) {
     state.plugin.scheduleDiagnosticsSnapshot();
+    if (state.lastPass?.reason === "no-gutter") state.plugin.hintNoMarginRoom();
     return;
   }
   state.retries += 1;
@@ -392,40 +400,34 @@ function measurePlacement(state: PreviewState): {
       ? state.sample
       : preview);
   const contentRect = sizer.getBoundingClientRect();
-  const gap = 10;
-  const edge = 8;
-  const leftWidth = Math.max(
+  const fontSize =
+    Number.parseFloat(window.getComputedStyle(preview).fontSize) || 16;
+  const placement = planPlacement({
+    paneWidth: previewRect.width,
+    columnLeft: contentRect.left - previewRect.left,
+    columnWidth: contentRect.width,
+    cardWidth: plugin.settings.marginWidth,
+    fontSize,
+    preferred: plugin.settings.marginSide
+  });
+  const minRoom = minGutterFor(fontSize);
+  const available = Math.max(
     0,
-    contentRect.left - previewRect.left - gap - edge
-  );
-  const rightWidth = Math.max(
-    0,
-    previewRect.right - contentRect.right - gap - edge
+    Math.max(
+      contentRect.left - previewRect.left - GAP - EDGE,
+      previewRect.right - contentRect.right - GAP - EDGE
+    )
   );
   const side =
-    plugin.settings.marginSide === "auto"
-      ? leftWidth > rightWidth
-        ? "left"
-        : "right"
-      : plugin.settings.marginSide;
-  const available = side === "left" ? leftWidth : rightWidth;
-  if (available < 72) return { placement: null, available, side };
-  // A missing/NaN setting must not produce a zero-width card.
-  const configuredWidth =
-    Number.isFinite(plugin.settings.marginWidth) && plugin.settings.marginWidth > 0
-      ? plugin.settings.marginWidth
-      : 200;
-  const width = Math.min(configuredWidth, available);
+    placement?.side ??
+    (available < minRoom ? "right" : plugin.settings.marginSide);
+  if (!placement) {
+    return { placement: null, available, side };
+  }
   return {
-    available,
-    side,
-    placement: {
-      width,
-      left:
-        side === "left"
-          ? contentRect.left - previewRect.left - gap - width
-          : contentRect.right - previewRect.left + gap
-    }
+    available: placement.available,
+    side: placement.side,
+    placement: { left: placement.left, width: placement.width }
   };
 }
 
@@ -809,6 +811,13 @@ export function processReadingView(
   plugin: MarginaliaPlugin
 ): void {
   counters.passes += 1;
+  const leafContent = element.closest<HTMLElement>(".workspace-leaf-content");
+  if (leafContent && leafContent.dataset.type !== "markdown") {
+    // Markdown rendered inside another plugin's pane (chat panels, previews)
+    // is not a Reading view; treating it as one creates junk states.
+    counters.skippedForeignPane += 1;
+    return;
+  }
   if (element.closest(OWN_UI)) {
     counters.skippedOwnUi += 1;
     return;

@@ -244,6 +244,18 @@
   width: 100%;
 }
 
+/* Reserve a column for margin cards: narrowing the text beats hiding the
+   feature. The reserve is applied to the text column only, so the pane,
+   scrollbar and any theme padding stay untouched. */
+/* The plugin caps the text column itself when the theme leaves no gutter:
+   one card's worth of space, centred, so Reading view and Live Preview put
+   their cards in the same place. The exact cap is measured per pane. */
+.marginalia-column-cap .markdown-preview-sizer,
+.marginalia-column-cap .cm-sizer {
+  margin-inline: auto !important;
+  max-width: var(--marginalia-column-cap, 100%) !important;
+}
+
 /* Landing pulse for sidebar -> passage jumps in Reading view: a ring around
    the marked span, whichever mark style it uses. */
 .marginalia-jump-target {
