@@ -14,6 +14,11 @@ AI agents included — can read and write them directly.
 
 ![Reading view with margin cards and a reply thread](media/reading-view.jpg)
 
+[Watch the demo (24 seconds, MP4)](media/demo.mp4): the cards follow the
+text as you scroll, hovering a highlight opens its comment, a selection gets
+annotated with its own style and colour, and the sidebar sorts, threads and
+jumps back to the passage.
+
 ## Features
 
 - Select text to annotate; the passage is highlighted in place
@@ -26,8 +31,6 @@ AI agents included — can read and write them directly.
   its comment
 - Each annotation can have its own color and mark style (highlight,
   underline, wavy, strikethrough, bold)
-
-![Five mark styles, each with its own colour and margin card](media/mark-styles.jpg)
 - Reply directly under an annotation to form a thread
 - Read/unread state: an unread filter, a "mark all read" command, and an
   unread count on the ribbon icon; content written by others turns a thread
@@ -45,6 +48,8 @@ AI agents included — can read and write them directly.
 - Source notes are never modified
 - An agent bridge: MCP tools and REST endpoints over the Local REST API
   plugin, so AI agents can create and edit annotations safely
+
+![Five mark styles, each with its own colour and margin card](media/mark-styles.jpg)
 
 ![The sidebar: filters, a reply thread, and an unread badge on the ribbon](media/sidebar.jpg)
 
@@ -67,9 +72,6 @@ The data directory `.marginalia-bona/` is separate from upstream Siden's
 `.siden/`, so both plugins can coexist in one vault.
 
 ## Usage
-
-[Watch the demo (6s, MP4)](media/demo.mp4) - margin cards travel with the
-text as you scroll.
 
 ### Annotate Markdown
 

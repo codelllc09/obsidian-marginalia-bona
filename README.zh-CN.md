@@ -10,6 +10,8 @@ Marginalia Bona 为 Obsidian 的 Markdown 笔记提供批注能力。
 
 ![阅读视图中的边注卡片与三层回复线程](media/reading-view.jpg)
 
+[看演示（24 秒，MP4）](media/demo.mp4)：滚动时边注卡片跟着正文走，悬停高亮弹出批注，选中一段文字直接标注（自选样式与颜色），侧栏里排序、回复，再跳回原文。
+
 ## 功能
 
 - 选中文字即可添加批注，批注的段落会在原文中高亮显示
@@ -17,8 +19,6 @@ Marginalia Bona 为 Obsidian 的 Markdown 笔记提供批注能力。
 - 边注卡片：批注显示在正文旁边的空白处，实时预览和阅读视图都支持
 - 点侧栏里的评论跳到原文位置，点原文里的高亮跳回对应评论
 - 每条批注可单独设置颜色和标记样式（高亮、下划线、波浪线、删除线、加粗）
-
-![五种标记样式，各自颜色与边注卡片](media/mark-styles.jpg)
 - 在一条批注下面直接回复，形成讨论线程
 - 已读/未读状态：未读过滤、"全部标为已读"命令，功能区图标显示未读数量
 - 别人（包括 AI Agent）回复或改动批注时，该批注重新变为未读
@@ -29,6 +29,8 @@ Marginalia Bona 为 Obsidian 的 Markdown 笔记提供批注能力。
 - 笔记改动后批注自动跟随：段落被改写时会尝试找回原位置，找不回就明确标记为"孤立"，不会标错地方
 - 源笔记文件不会被修改
 - Agent 桥接：通过 Local REST API 插件提供 MCP 工具与 REST 端点，AI Agent 可以安全地创建和编辑批注
+
+![五种标记样式，各自颜色与边注卡片](media/mark-styles.jpg)
 
 ![侧栏：筛选、回复线程，以及功能区上的未读角标](media/sidebar.jpg)
 
@@ -47,8 +49,6 @@ Marginalia Bona 为 Obsidian 的 Markdown 笔记提供批注能力。
 数据目录 `.marginalia-bona/` 与上游 Siden 的 `.siden/` 完全隔离，两个插件可以在同一个库中共存。
 
 ## 使用
-
-[看演示（6 秒，MP4）](media/demo.mp4)——滚动时边注卡片跟着正文走。
 
 ### 批注 Markdown
 
