@@ -81,35 +81,92 @@ https://github.com/user-attachments/assets/1f062ed0-60a9-4612-a936-050a2bbebdb9
 
 ## Agent 访问
 
-Marginalia Bona 可以通过 [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) 插件让 AI Agent 读写批注。安装该插件并保持它运行在 `127.0.0.1`，即可使用以下任一通道。
+Agent 访问批注有两条通道：MCP 工具和普通 HTTP 接口，二者都需要借助
+[Local REST API with MCP](https://github.com/coddingtonbear/obsidian-local-rest-api)
+插件。
 
-**MCP 工具**（默认开启）：在 Local REST API 服务器的 `/mcp` 端点上注册了十一个工具。
+### 配置
+
+以下步骤可以让 Agent 协助完成。
+
+1. 安装并启用 **Local REST API with MCP**。
+2. 打开它的设置页，复制 API key，顺便确认端口：HTTPS 默认 27124，明文 HTTP 27123
+   默认关闭。Agent 用的地址以这里为准。
+3. 到 **设置 → Marginalia Bona → Agent 访问**，确认 **MCP 工具**是开着的（默认就开）。
+   只有需要用脚本直接调 HTTP 接口时，才打开 **REST 端点**。
+4. 把 MCP 一节的客户端配置写进 Agent 的 MCP 设置，连上后让它调一次
+   `marginalia_list_annotations`；能列出批注就说明通了。
+
+### MCP
+
+把客户端连到 Local REST API 服务器上的 `/mcp/`。默认设置下地址是
+`https://127.0.0.1:27124/mcp/`，key 放在 bearer 头里：
+
+```json
+{
+  "mcpServers": {
+    "obsidian": {
+      "url": "https://127.0.0.1:27124/mcp/",
+      "headers": { "Authorization": "Bearer <your API key>" }
+    }
+  }
+}
+```
+
+服务器证书由 Local REST API 自己生成的 CA 签发。从同一服务器的
+`/obsidian-local-rest-api.crt` 下载 CA 并信任它，或者打开 HTTP 端口改用
+`http://127.0.0.1:27123/mcp/`。
+
+Agent 会在服务器原有工具之外，多拿到十一个 `marginalia_*` 工具：
 
 | 工具 | 作用 |
 |---|---|
-| `marginalia_list_annotations` | 列出线程。`source` 限定单篇笔记；省略则检索全库。可按 `status`、`author`、`read`、`q` 过滤，`sort` 加 `dir` 排序，`limit` 限制输出。 |
-| `marginalia_create_annotation` | 在 `source` 中锚定 `quote` 并保存 `text`。引文多次出现时会被拒绝并附带匹配数，需用 `occurrence`（从 1 起）指明第几处。可选 `author`、`color`（hex）、`style`。 |
-| `marginalia_get_annotation` | 按 `source` 与 `id` 取一条线程，含锚点、回复与已读状态。 |
-| `marginalia_update_annotation` | 编辑 `text`（传 `expected_text` 可在线程被读过又变化时以 409 拒绝写入），或设置 `status`、`read`、`color`、`style`。 |
-| `marginalia_delete_annotation` | 把线程移入回收站，响应中给出回收站文件路径。 |
-| `marginalia_add_reply` | 追加回复。传 `parent_id` 可回复某一条回复（嵌套）；未知父级会被拒绝。 |
-| `marginalia_update_reply` | 编辑某条回复的文字（可一并改作者）。 |
-| `marginalia_delete_reply` | 删除某条回复。 |
-| `marginalia_reanchor` | 把线程锚到新段落：与创建相同的引文规则，可选 `expected_quote` 乐观锁。正文与回复原样保留。 |
-| `marginalia_list_trash` | 列出回收站条目的 id、来源与正文摘要。 |
-| `marginalia_restore_annotation` | 把回收站条目移回批注目录，并按笔记现状调和锚点。 |
+| `marginalia_list_annotations` | 列出线程。按 `status`、`author`、`read`、`q` 过滤，`sort` 配 `dir` 排序，`limit` 限条数 |
+| `marginalia_create_annotation` | 把线程锚到一句引文上；引文出现多次时需用 `occurrence` 指明 |
+| `marginalia_get_annotation` | 读取一条线程及其回复、已读状态 |
+| `marginalia_update_annotation` | 改正文、状态、已读、颜色或样式；`expected_text` 用于防止覆盖 |
+| `marginalia_delete_annotation` | 把线程移入回收站 |
+| `marginalia_add_reply` | 回复线程，或用 `parent_id` 回复某条回复 |
+| `marginalia_update_reply` | 编辑一条回复 |
+| `marginalia_delete_reply` | 删除一条回复 |
+| `marginalia_reanchor` | 把线程锚到另一段文字，正文与回复保留 |
+| `marginalia_list_trash` | 列出回收站条目 |
+| `marginalia_restore_annotation` | 恢复一条，并按笔记现状重新核对锚点 |
 
-**REST 端点**（默认关闭）：同样的操作以纯 HTTP 形式暴露在 `/vault/<笔记路径>/annotations/` 之下，Local REST API 服务器原有的 `/openapi.yaml` 里有完整描述。例如：
+### HTTP
+
+默认关闭。打开 **REST 端点** 后，同样的操作挂在 `/vault/<笔记路径>/annotations/`
+下面，字段细节见宿主的 `/openapi.yaml`。
+
+这里的 `<笔记路径>` 指的是被批注的那篇笔记在库里的相对路径，不是批注文件自己的路径。
+批注文件在 `.marginalia-bona/annotations/` 下，而接口是按笔记挂的：路径写
+`Projects/Plan.md`，取的就是这篇笔记的批注，插件自己去它的批注目录里找。空格要编码，
+`Demo/Field notes.md` 写成 `Demo/Field%20notes.md`。笔记不存在时返回 404；全库列表没有
+对应的 REST 路由，用 MCP 的 `marginalia_list_annotations`（不传 `source`）代替。
+
+| 路由 | 作用 |
+|---|---|
+| `GET`、`POST` `.../annotations/` | 列出该笔记的线程、新建一条。查询参数：`status`、`author`、`read`、`q`、`sort`、`dir`、`limit` |
+| `GET`、`PATCH`、`DELETE` `.../annotations/{id}` | 读取、编辑，或移入回收站 |
+| `POST` `.../annotations/{id}/replies` | 追加回复，`parent_id` 可嵌套 |
+| `PATCH`、`DELETE` `.../annotations/{id}/replies/{replyId}` | 编辑或删除某条回复 |
+| `POST` `.../annotations/{id}/reanchor` | 把线程锚到另一段文字 |
 
 ```sh
-curl -k -X POST -H "Authorization: Bearer <api key>" -H "Content-Type: application/json" \
+curl -k -X POST -H "Authorization: Bearer <your API key>" -H "Content-Type: application/json" \
   --data '{"text": "Consider a table here", "quote": "the three options", "author": "Pi"}' \
   "https://127.0.0.1:27124/vault/Projects/Plan.md/annotations/"
 ```
 
-直接读磁盘上的批注文件永远安全，往往也最快；桥接的意义在于让写入经过插件完成——由插件构建锚点、维护索引一致性。
+同一句话出现多次时会被拒绝（40902），要用 `occurrence` 指明第几处。`expected_text`
+对不上时返回 409，而不是覆盖别人的修改。
 
-写入时作者不是设置中的用户名，批注会重新标为未读，用户下次打开侧栏就能看到。回复某条回复时传 `parent_id`，回复会嵌套在它下面。
+> **注意：** 如果这些路由返回 `40054`（"valid target types are heading, block,
+> frontmatter"），说明 REST 开关还关着，服务器根本没挂这些路由。
+
+用别人的作者名写入，线程会变回未读，所以 Agent 的修改会出现在未读过滤和功能区角标
+上。删除的线程在回收站留 30 天，用 `marginalia_list_trash` 和
+`marginalia_restore_annotation` 列出和恢复。
 
 ## 设置
 
